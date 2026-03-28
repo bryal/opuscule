@@ -165,13 +165,8 @@ const SILK_SOURCES_FLOAT: &[&str] = &[
     "silk/float/sort_FLP.c",
 ];
 
-const OPUS_SOURCES: &[&str] = &[
-    "src/opus.c",
-    "src/opus_decoder.c",
-    "src/opus_encoder.c",
-    "src/opus_multistream.c",
-    "src/repacketizer.c",
-];
+const OPUS_SOURCES: &[&str] =
+    &["src/opus.c", "src/opus_decoder.c", "src/opus_encoder.c", "src/opus_multistream.c", "src/repacketizer.c"];
 
 fn main() {
     let fixed = std::env::var("CARGO_FEATURE_FIXED_POINT").is_ok();
