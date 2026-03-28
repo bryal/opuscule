@@ -13,12 +13,12 @@ if [ "$#" -ne "1" ]; then
 fi
 
 RATE=$1
-OPUS_DEMO=c/opus_demo
+OPUS_DEMO=target/release/opus_demo
 OPUS_COMPARE=target/release/opus_compare
 VECTOR_PATH=opus_testvectors
 
 if [ ! -x "$OPUS_DEMO" ]; then
-    echo "ERROR: C opus_demo not found at $OPUS_DEMO (run 'cd c && make' first)"
+    echo "ERROR: opus_demo not found at $OPUS_DEMO (run 'cargo build --release' first)"
     exit 1
 fi
 
