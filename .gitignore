@@ -4,4 +4,13 @@ target/
 *.a
 *.o
 
+# C build executables
+c/opus_demo
+c/opus_compare
+
+# test artifacts
+tmp.out
+logs_mono.txt
+logs_stereo.txt
+
 .claude/
