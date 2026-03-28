@@ -1,0 +1,17 @@
+[package]
+name = "opuscule"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "opus_compare"
+
+[lints.clippy]
+len_zero = "allow"
+too-many-arguments = "allow"
+ptr-arg = "allow"
+unwrap_used = "deny"
+
+[dependencies]
+
+[dev-dependencies]
