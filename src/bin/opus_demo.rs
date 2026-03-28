@@ -5,44 +5,18 @@
 // reads a custom bitstream format (4-byte length, 4-byte final range,
 // then payload) and writes raw PCM16 to the output file.
 
+use opuscule::ffi::{
+    self, OPUS_GET_FINAL_RANGE_REQUEST, OPUS_OK, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy,
+    opus_get_version_string, opus_strerror,
+};
+
 use std::env;
-use std::ffi::CStr;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::raw::{c_char, c_int, c_uchar};
+use std::os::raw::c_int;
 use std::process;
 
-// Opaque decoder type -- we only hold a pointer, never inspect the layout.
-#[repr(C)]
-struct OpusDecoder {
-    _opaque: [u8; 0],
-}
-
-const OPUS_OK: c_int = 0;
-const OPUS_GET_FINAL_RANGE_REQUEST: c_int = 4031;
 const MAX_PACKET: usize = 1500;
-
-unsafe extern "C" {
-    fn opus_get_version_string() -> *const c_char;
-    fn opus_strerror(error: c_int) -> *const c_char;
-    fn opus_decoder_create(fs: i32, channels: c_int, error: *mut c_int) -> *mut OpusDecoder;
-    fn opus_decode(
-        st: *mut OpusDecoder,
-        data: *const c_uchar,
-        len: i32,
-        pcm: *mut i16,
-        frame_size: c_int,
-        decode_fec: c_int,
-    ) -> c_int;
-    fn opus_decoder_ctl(st: *mut OpusDecoder, request: c_int, ...) -> c_int;
-    fn opus_decoder_destroy(st: *mut OpusDecoder);
-}
-
-/// Convert a C string pointer to a Rust &str (panics if null or non-UTF8).
-fn c_str_to_str(ptr: *const c_char) -> &'static str {
-    // SAFETY: opus_get_version_string and opus_strerror return static C strings.
-    unsafe { CStr::from_ptr(ptr) }.to_str().expect("non-UTF8 C string")
-}
 
 fn char_to_int(ch: &[u8; 4]) -> u32 {
     (ch[0] as u32) << 24 | (ch[1] as u32) << 16 | (ch[2] as u32) << 8 | ch[3] as u32
@@ -85,7 +59,8 @@ fn main() {
     }
 
     // SAFETY: opus_get_version_string returns a static C string.
-    let version = c_str_to_str(unsafe { opus_get_version_string() });
+    // SAFETY: opus_get_version_string returns a static C string.
+    let version = unsafe { ffi::c_str_to_str(opus_get_version_string()) };
     eprintln!("{}", version);
 
     let mut args = 1;
@@ -189,7 +164,8 @@ fn main() {
     // sets err to a non-OK code. We check err immediately after.
     let dec = unsafe { opus_decoder_create(sampling_rate, channels, &mut err) };
     if err != OPUS_OK {
-        let msg = c_str_to_str(unsafe { opus_strerror(err) });
+        // SAFETY: opus_strerror returns a static C string.
+        let msg = unsafe { ffi::c_str_to_str(opus_strerror(err)) };
         eprintln!("Cannot create decoder: {}", msg);
         process::exit(1);
     }
@@ -285,7 +261,8 @@ fn main() {
                     skip = 0;
                 }
             } else {
-                let msg = c_str_to_str(unsafe { opus_strerror(output_samples) });
+                // SAFETY: opus_strerror returns a static C string.
+                let msg = unsafe { ffi::c_str_to_str(opus_strerror(output_samples)) };
                 eprintln!("error decoding frame: {}", msg);
             }
         }
