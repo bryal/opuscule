@@ -45,32 +45,7 @@
 
 #include "mathops.h"
 
-/*Compute floor(sqrt(_val)) with exact arithmetic.
-  This has been tested on all possible 32-bit inputs.*/
-unsigned isqrt32(opus_uint32 _val){
-  unsigned b;
-  unsigned g;
-  int      bshift;
-  /*Uses the second method from
-     http://www.azillionmonkeys.com/qed/sqroot.html
-    The main idea is to search for the largest binary digit b such that
-     (g+b)*(g+b) <= _val, and add it to the solution g.*/
-  g=0;
-  bshift=(EC_ILOG(_val)-1)>>1;
-  b=1U<<bshift;
-  do{
-    opus_uint32 t;
-    t=(((opus_uint32)g<<1)+b)<<bshift;
-    if(t<=_val){
-      g+=b;
-      _val-=t;
-    }
-    b>>=1;
-    bshift--;
-  }
-  while(bshift>=0);
-  return g;
-}
+/* isqrt32: translated to Rust in src/mathops.rs */
 
 #ifdef FIXED_POINT
 

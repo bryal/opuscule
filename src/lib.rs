@@ -4,3 +4,4 @@
 pub mod entcode;
 pub mod entdec;
 pub mod ffi;
+pub mod mathops;
