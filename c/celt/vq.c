@@ -34,6 +34,8 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+/* alg_unquant, renormalise_vector, stereo_itheta: translated to Rust in src/vq.rs */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -92,13 +94,9 @@ static void exp_rotation(celt_norm *X, int len, int dir, int stride, int K, int 
    if (len>=8*stride)
    {
       stride2 = 1;
-      /* This is just a simple (equivalent) way of computing sqrt(len/stride) with rounding.
-         It's basically incrementing long as (stride2+0.5)^2 < len/stride. */
       while ((stride2*stride2+stride2)*stride + (stride>>2) < len)
          stride2++;
    }
-   /*NOTE: As a minor optimization, we could be passing around log2(B), not B, for both this and for
-      extract_collapse_mask().*/
    len /= stride;
    for (i=0;i<stride;i++)
    {
@@ -115,30 +113,6 @@ static void exp_rotation(celt_norm *X, int len, int dir, int stride, int K, int 
    }
 }
 
-/** Takes the pitch vector and the decoded residual vector, computes the gain
-    that will give ||p+g*y||=1 and mixes the residual with the pitch. */
-static void normalise_residual(int * restrict iy, celt_norm * restrict X,
-      int N, opus_val32 Ryy, opus_val16 gain)
-{
-   int i;
-#ifdef FIXED_POINT
-   int k;
-#endif
-   opus_val32 t;
-   opus_val16 g;
-
-#ifdef FIXED_POINT
-   k = celt_ilog2(Ryy)>>1;
-#endif
-   t = VSHR32(Ryy, 2*(k-7));
-   g = MULT16_16_P15(celt_rsqrt_norm(t),gain);
-
-   i=0;
-   do
-      X[i] = EXTRACT16(PSHR32(MULT16_16(g, iy[i]), k+1));
-   while (++i < N);
-}
-
 static unsigned extract_collapse_mask(int *iy, int N, int B)
 {
    unsigned collapse_mask;
@@ -146,8 +120,6 @@ static unsigned extract_collapse_mask(int *iy, int N, int B)
    int i;
    if (B<=1)
       return 1;
-   /*NOTE: As a minor optimization, we could be passing around log2(B), not B, for both this and for
-      exp_rotation().*/
    N0 = N/B;
    collapse_mask = 0;
    i=0; do {
@@ -243,8 +215,6 @@ unsigned alg_quant(celt_norm *X, int N, int K, int spread, int B, ec_enc *enc
    }
    celt_assert2(pulsesLeft>=1, "Allocated too many pulses in the quick pass");
 
-   /* This should never happen, but just in case it does (e.g. on silence)
-      we fill the first bin with pulses. */
 #ifdef FIXED_POINT_DEBUG
    celt_assert2(pulsesLeft<=N+3, "Not enough pulses in the quick pass");
 #endif
@@ -270,23 +240,13 @@ unsigned alg_quant(celt_norm *X, int N, int K, int spread, int B, ec_enc *enc
       rshift = 1+celt_ilog2(K-pulsesLeft+i+1);
 #endif
       best_id = 0;
-      /* The squared magnitude term gets added anyway, so we might as well
-         add it outside the loop */
       yy = ADD32(yy, 1);
       j=0;
       do {
          opus_val16 Rxy, Ryy;
-         /* Temporary sums of the new pulse(s) */
          Rxy = EXTRACT16(SHR32(ADD32(xy, EXTEND32(X[j])),rshift));
-         /* We're multiplying y[j] by two so we don't have to do it here */
          Ryy = ADD16(yy, y[j]);
-
-         /* Approximate score: we maximise Rxy/sqrt(Ryy) (we're guaranteed that
-            Rxy is positive because the sign is pre-computed) */
          Rxy = MULT16_16_Q15(Rxy,Rxy);
-         /* The idea is to check for num/den >= best_num/best_den, but that way
-            we can do it without any division */
-         /* OPT: Make sure to use conditional moves here */
          if (MULT16_16(best_den, Rxy) > MULT16_16(Ryy, best_num))
          {
             best_den = Ryy;
@@ -295,13 +255,8 @@ unsigned alg_quant(celt_norm *X, int N, int K, int spread, int B, ec_enc *enc
          }
       } while (++j<N);
 
-      /* Updating the sums of the new pulse(s) */
       xy = ADD32(xy, EXTEND32(X[best_id]));
-      /* We're multiplying y[j] by two so we don't have to do it here */
       yy = ADD16(yy, y[best_id]);
-
-      /* Only now that we've made the final choice, update y/iy */
-      /* Multiplying y[j] by 2 so we don't have to do it everywhere else */
       y[best_id] += 2*s;
       iy[best_id]++;
    }
@@ -316,108 +271,28 @@ unsigned alg_quant(celt_norm *X, int N, int K, int spread, int B, ec_enc *enc
    encode_pulses(iy, N, K, enc);
 
 #ifdef RESYNTH
-   normalise_residual(iy, X, N, yy, gain);
-   exp_rotation(X, N, -1, B, K, spread);
+   {
+      /* normalise_residual inlined here since it's only needed for RESYNTH */
+      int ii;
+#ifdef FIXED_POINT
+      int k;
+#endif
+      opus_val32 t;
+      opus_val16 g;
+#ifdef FIXED_POINT
+      k = celt_ilog2(yy)>>1;
+#endif
+      t = VSHR32(yy, 2*(k-7));
+      g = MULT16_16_P15(celt_rsqrt_norm(t),gain);
+      ii=0;
+      do
+         X[ii] = EXTRACT16(PSHR32(MULT16_16(g, iy[ii]), k+1));
+      while (++ii < N);
+      exp_rotation(X, N, -1, B, K, spread);
+   }
 #endif
 
    collapse_mask = extract_collapse_mask(iy, N, B);
    RESTORE_STACK;
    return collapse_mask;
-}
-
-/** Decode pulse vector and combine the result with the pitch vector to produce
-    the final normalised signal in the current band. */
-unsigned alg_unquant(celt_norm *X, int N, int K, int spread, int B,
-      ec_dec *dec, opus_val16 gain)
-{
-   int i;
-   opus_val32 Ryy;
-   unsigned collapse_mask;
-   VARDECL(int, iy);
-   SAVE_STACK;
-
-   celt_assert2(K>0, "alg_unquant() needs at least one pulse");
-   celt_assert2(N>1, "alg_unquant() needs at least two dimensions");
-   ALLOC(iy, N, int);
-   decode_pulses(iy, N, K, dec);
-   Ryy = 0;
-   i=0;
-   do {
-      Ryy = MAC16_16(Ryy, iy[i], iy[i]);
-   } while (++i < N);
-   normalise_residual(iy, X, N, Ryy, gain);
-   exp_rotation(X, N, -1, B, K, spread);
-   collapse_mask = extract_collapse_mask(iy, N, B);
-   RESTORE_STACK;
-   return collapse_mask;
-}
-
-void renormalise_vector(celt_norm *X, int N, opus_val16 gain)
-{
-   int i;
-#ifdef FIXED_POINT
-   int k;
-#endif
-   opus_val32 E = EPSILON;
-   opus_val16 g;
-   opus_val32 t;
-   celt_norm *xptr = X;
-   for (i=0;i<N;i++)
-   {
-      E = MAC16_16(E, *xptr, *xptr);
-      xptr++;
-   }
-#ifdef FIXED_POINT
-   k = celt_ilog2(E)>>1;
-#endif
-   t = VSHR32(E, 2*(k-7));
-   g = MULT16_16_P15(celt_rsqrt_norm(t),gain);
-
-   xptr = X;
-   for (i=0;i<N;i++)
-   {
-      *xptr = EXTRACT16(PSHR32(MULT16_16(g, *xptr), k+1));
-      xptr++;
-   }
-   /*return celt_sqrt(E);*/
-}
-
-int stereo_itheta(celt_norm *X, celt_norm *Y, int stereo, int N)
-{
-   int i;
-   int itheta;
-   opus_val16 mid, side;
-   opus_val32 Emid, Eside;
-
-   Emid = Eside = EPSILON;
-   if (stereo)
-   {
-      for (i=0;i<N;i++)
-      {
-         celt_norm m, s;
-         m = ADD16(SHR16(X[i],1),SHR16(Y[i],1));
-         s = SUB16(SHR16(X[i],1),SHR16(Y[i],1));
-         Emid = MAC16_16(Emid, m, m);
-         Eside = MAC16_16(Eside, s, s);
-      }
-   } else {
-      for (i=0;i<N;i++)
-      {
-         celt_norm m, s;
-         m = X[i];
-         s = Y[i];
-         Emid = MAC16_16(Emid, m, m);
-         Eside = MAC16_16(Eside, s, s);
-      }
-   }
-   mid = celt_sqrt(Emid);
-   side = celt_sqrt(Eside);
-#ifdef FIXED_POINT
-   /* 0.63662 = 2/pi */
-   itheta = MULT16_16_Q15(QCONST16(0.63662f,15),celt_atan2p(side, mid));
-#else
-   itheta = (int)floor(.5f+16384*0.63662f*atan2(side,mid));
-#endif
-
-   return itheta;
 }
