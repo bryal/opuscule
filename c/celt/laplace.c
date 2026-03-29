@@ -98,44 +98,4 @@ void ec_laplace_encode(ec_enc *enc, int *value, unsigned fs, int decay)
    ec_encode_bin(enc, fl, fl+fs, 15);
 }
 
-int ec_laplace_decode(ec_dec *dec, unsigned fs, int decay)
-{
-   int val=0;
-   unsigned fl;
-   unsigned fm;
-   fm = ec_decode_bin(dec, 15);
-   fl = 0;
-   if (fm >= fs)
-   {
-      val++;
-      fl = fs;
-      fs = ec_laplace_get_freq1(fs, decay)+LAPLACE_MINP;
-      /* Search the decaying part of the PDF.*/
-      while(fs > LAPLACE_MINP && fm >= fl+2*fs)
-      {
-         fs *= 2;
-         fl += fs;
-         fs = ((fs-2*LAPLACE_MINP)*(opus_int32)decay)>>15;
-         fs += LAPLACE_MINP;
-         val++;
-      }
-      /* Everything beyond that has probability LAPLACE_MINP. */
-      if (fs <= LAPLACE_MINP)
-      {
-         int di;
-         di = (fm-fl)>>(LAPLACE_LOG_MINP+1);
-         val += di;
-         fl += 2*di*LAPLACE_MINP;
-      }
-      if (fm < fl+fs)
-         val = -val;
-      else
-         fl += fs;
-   }
-   celt_assert(fl<32768);
-   celt_assert(fs>0);
-   celt_assert(fl<=fm);
-   celt_assert(fm<IMIN(fl+fs,32768));
-   ec_dec_update(dec, fl, IMIN(fl+fs,32768), 32768);
-   return val;
-}
+/* ec_laplace_decode: translated to Rust in src/laplace.rs */
