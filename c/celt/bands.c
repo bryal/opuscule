@@ -1062,11 +1062,8 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
          /* Finally do the actual quantization */
          if (encode)
          {
-            cm = alg_quant(X, N, K, spread, B, ec
-#ifdef RESYNTH
-                 , gain
-#endif
-                 );
+            celt_assert2(0, "encoder path unreachable in decoder-only build");
+            cm = 0;
          } else {
             cm = alg_unquant(X, N, K, spread, B, ec, gain);
          }
