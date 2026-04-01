@@ -2,15 +2,14 @@
 // library that Cargo links into our binaries. The `fixed-point` feature
 // toggles between floating-point and fixed-point SILK paths (CELT sources
 // are shared, compiled conditionally via #ifdef FIXED_POINT).
-
-// Source file lists below are copied verbatim from the .mk files in c/.
+//
+// Only decoder-side sources are compiled. Encoder code has been removed
+// from celt.c and encoder-only source files are excluded.
 
 const CELT_SOURCES: &[&str] = &[
     "celt/bands.c",
     "celt/celt.c",
     "celt/cwrs.c",
-    "celt/entcode.c",
-    "celt/entdec.c",
     "celt/entenc.c",
     "celt/kiss_fft.c",
     "celt/laplace.c",
@@ -20,11 +19,11 @@ const CELT_SOURCES: &[&str] = &[
     "celt/pitch.c",
     "celt/celt_lpc.c",
     "celt/quant_bands.c",
-    "celt/rate.c",
     "celt/vq.c",
 ];
 
 const SILK_SOURCES: &[&str] = &[
+    // Decoder
     "silk/CNG.c",
     "silk/code_signs.c",
     "silk/init_decoder.c",
@@ -35,16 +34,19 @@ const SILK_SOURCES: &[&str] = &[
     "silk/decode_pulses.c",
     "silk/decoder_set_fs.c",
     "silk/dec_API.c",
-    "silk/enc_API.c",
-    "silk/encode_indices.c",
-    "silk/encode_pulses.c",
+    "silk/PLC.c",
+    "silk/decode_pitch.c",
+    // Shared (used by decoder path)
+    "silk/LPC_analysis_filter.c",
+    "silk/pitch_est_tables.c",
     "silk/gain_quant.c",
     "silk/interpolate.c",
-    "silk/LP_variable_cutoff.c",
     "silk/NLSF_decode.c",
-    "silk/NSQ.c",
-    "silk/NSQ_del_dec.c",
-    "silk/PLC.c",
+    "silk/NLSF_unpack.c",
+    "silk/NLSF2A.c",
+    "silk/NLSF_stabilize.c",
+    "silk/NLSF_VQ_weights_laroia.c",
+    "silk/process_NLSFs.c",
     "silk/shell_coder.c",
     "silk/tables_gain.c",
     "silk/tables_LTP.c",
@@ -53,39 +55,15 @@ const SILK_SOURCES: &[&str] = &[
     "silk/tables_other.c",
     "silk/tables_pitch_lag.c",
     "silk/tables_pulses_per_block.c",
-    "silk/VAD.c",
-    "silk/control_audio_bandwidth.c",
-    "silk/quant_LTP_gains.c",
-    "silk/VQ_WMat_EC.c",
-    "silk/HP_variable_cutoff.c",
-    "silk/NLSF_encode.c",
-    "silk/NLSF_VQ.c",
-    "silk/NLSF_unpack.c",
-    "silk/NLSF_del_dec_quant.c",
-    "silk/process_NLSFs.c",
-    "silk/stereo_LR_to_MS.c",
-    "silk/stereo_MS_to_LR.c",
-    "silk/check_control_input.c",
-    "silk/control_SNR.c",
-    "silk/init_encoder.c",
-    "silk/control_codec.c",
-    "silk/A2NLSF.c",
-    "silk/ana_filt_bank_1.c",
     "silk/biquad_alt.c",
     "silk/bwexpander_32.c",
     "silk/bwexpander.c",
     "silk/debug.c",
-    "silk/decode_pitch.c",
     "silk/inner_prod_aligned.c",
     "silk/lin2log.c",
     "silk/log2lin.c",
-    "silk/LPC_analysis_filter.c",
     "silk/LPC_inv_pred_gain.c",
     "silk/table_LSF_cos.c",
-    "silk/NLSF2A.c",
-    "silk/NLSF_stabilize.c",
-    "silk/NLSF_VQ_weights_laroia.c",
-    "silk/pitch_est_tables.c",
     "silk/resampler.c",
     "silk/resampler_down2_3.c",
     "silk/resampler_down2.c",
@@ -97,76 +75,12 @@ const SILK_SOURCES: &[&str] = &[
     "silk/sigm_Q15.c",
     "silk/sort.c",
     "silk/sum_sqr_shift.c",
+    "silk/stereo_MS_to_LR.c",
     "silk/stereo_decode_pred.c",
-    "silk/stereo_encode_pred.c",
-    "silk/stereo_find_predictor.c",
-    "silk/stereo_quant_pred.c",
-];
-
-const SILK_SOURCES_FIXED: &[&str] = &[
-    "silk/fixed/LTP_analysis_filter_FIX.c",
-    "silk/fixed/LTP_scale_ctrl_FIX.c",
-    "silk/fixed/corrMatrix_FIX.c",
-    "silk/fixed/encode_frame_FIX.c",
-    "silk/fixed/find_LPC_FIX.c",
-    "silk/fixed/find_LTP_FIX.c",
-    "silk/fixed/find_pitch_lags_FIX.c",
-    "silk/fixed/find_pred_coefs_FIX.c",
-    "silk/fixed/noise_shape_analysis_FIX.c",
-    "silk/fixed/prefilter_FIX.c",
-    "silk/fixed/process_gains_FIX.c",
-    "silk/fixed/regularize_correlations_FIX.c",
-    "silk/fixed/residual_energy16_FIX.c",
-    "silk/fixed/residual_energy_FIX.c",
-    "silk/fixed/solve_LS_FIX.c",
-    "silk/fixed/warped_autocorrelation_FIX.c",
-    "silk/fixed/apply_sine_window_FIX.c",
-    "silk/fixed/autocorr_FIX.c",
-    "silk/fixed/burg_modified_FIX.c",
-    "silk/fixed/k2a_FIX.c",
-    "silk/fixed/k2a_Q16_FIX.c",
-    "silk/fixed/pitch_analysis_core_FIX.c",
-    "silk/fixed/vector_ops_FIX.c",
-    "silk/fixed/schur64_FIX.c",
-    "silk/fixed/schur_FIX.c",
-];
-
-const SILK_SOURCES_FLOAT: &[&str] = &[
-    "silk/float/apply_sine_window_FLP.c",
-    "silk/float/corrMatrix_FLP.c",
-    "silk/float/encode_frame_FLP.c",
-    "silk/float/find_LPC_FLP.c",
-    "silk/float/find_LTP_FLP.c",
-    "silk/float/find_pitch_lags_FLP.c",
-    "silk/float/find_pred_coefs_FLP.c",
-    "silk/float/LPC_analysis_filter_FLP.c",
-    "silk/float/LTP_analysis_filter_FLP.c",
-    "silk/float/LTP_scale_ctrl_FLP.c",
-    "silk/float/noise_shape_analysis_FLP.c",
-    "silk/float/prefilter_FLP.c",
-    "silk/float/process_gains_FLP.c",
-    "silk/float/regularize_correlations_FLP.c",
-    "silk/float/residual_energy_FLP.c",
-    "silk/float/solve_LS_FLP.c",
-    "silk/float/warped_autocorrelation_FLP.c",
-    "silk/float/wrappers_FLP.c",
-    "silk/float/autocorrelation_FLP.c",
-    "silk/float/burg_modified_FLP.c",
-    "silk/float/bwexpander_FLP.c",
-    "silk/float/energy_FLP.c",
-    "silk/float/inner_product_FLP.c",
-    "silk/float/k2a_FLP.c",
-    "silk/float/levinsondurbin_FLP.c",
-    "silk/float/LPC_inv_pred_gain_FLP.c",
-    "silk/float/pitch_analysis_core_FLP.c",
-    "silk/float/scale_copy_vector_FLP.c",
-    "silk/float/scale_vector_FLP.c",
-    "silk/float/schur_FLP.c",
-    "silk/float/sort_FLP.c",
 ];
 
 const OPUS_SOURCES: &[&str] =
-    &["src/opus.c", "src/opus_decoder.c", "src/opus_encoder.c", "src/opus_multistream.c", "src/repacketizer.c"];
+    &["src/opus.c", "src/opus_decoder.c", "src/opus_multistream.c", "src/repacketizer.c"];
 
 fn main() {
     let fixed = std::env::var("CARGO_FEATURE_FIXED_POINT").is_ok();
@@ -194,15 +108,6 @@ fn main() {
     }
     for f in SILK_SOURCES {
         build.file(format!("c/{f}"));
-    }
-    if fixed {
-        for f in SILK_SOURCES_FIXED {
-            build.file(format!("c/{f}"));
-        }
-    } else {
-        for f in SILK_SOURCES_FLOAT {
-            build.file(format!("c/{f}"));
-        }
     }
     for f in OPUS_SOURCES {
         build.file(format!("c/{f}"));
