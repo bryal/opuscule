@@ -8,5 +8,6 @@ pub mod entdec;
 pub mod ffi;
 pub mod laplace;
 pub mod mathops;
+pub mod packet;
 pub mod rate;
 pub mod vq;

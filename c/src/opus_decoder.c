@@ -180,20 +180,8 @@ static void smooth_fade(const opus_val16 *in1, const opus_val16 *in2,
    }
 }
 
-static int opus_packet_get_mode(const unsigned char *data)
-{
-   int mode;
-   if (data[0]&0x80)
-   {
-      mode = MODE_CELT_ONLY;
-   } else if ((data[0]&0x60) == 0x60)
-   {
-      mode = MODE_HYBRID;
-   } else {
-      mode = MODE_SILK_ONLY;
-   }
-   return mode;
-}
+/* opus_packet_get_mode: translated to Rust in src/packet.rs */
+int opus_packet_get_mode(const unsigned char *data);
 
 static int opus_decode_frame(OpusDecoder *st, const unsigned char *data,
       int len, opus_val16 *pcm, int frame_size, int decode_fec)
@@ -867,65 +855,9 @@ void opus_decoder_destroy(OpusDecoder *st)
 }
 
 
-int opus_packet_get_bandwidth(const unsigned char *data)
-{
-   int bandwidth;
-   if (data[0]&0x80)
-   {
-      bandwidth = OPUS_BANDWIDTH_MEDIUMBAND + ((data[0]>>5)&0x3);
-      if (bandwidth == OPUS_BANDWIDTH_MEDIUMBAND)
-         bandwidth = OPUS_BANDWIDTH_NARROWBAND;
-   } else if ((data[0]&0x60) == 0x60)
-   {
-      bandwidth = (data[0]&0x10) ? OPUS_BANDWIDTH_FULLBAND :
-                                   OPUS_BANDWIDTH_SUPERWIDEBAND;
-   } else {
-      bandwidth = OPUS_BANDWIDTH_NARROWBAND + ((data[0]>>5)&0x3);
-   }
-   return bandwidth;
-}
-
-int opus_packet_get_samples_per_frame(const unsigned char *data,
-      opus_int32 Fs)
-{
-   int audiosize;
-   if (data[0]&0x80)
-   {
-      audiosize = ((data[0]>>3)&0x3);
-      audiosize = (Fs<<audiosize)/400;
-   } else if ((data[0]&0x60) == 0x60)
-   {
-      audiosize = (data[0]&0x08) ? Fs/50 : Fs/100;
-   } else {
-      audiosize = ((data[0]>>3)&0x3);
-      if (audiosize == 3)
-         audiosize = Fs*60/1000;
-      else
-         audiosize = (Fs<<audiosize)/100;
-   }
-   return audiosize;
-}
-
-int opus_packet_get_nb_channels(const unsigned char *data)
-{
-   return (data[0]&0x4) ? 2 : 1;
-}
-
-int opus_packet_get_nb_frames(const unsigned char packet[], int len)
-{
-   int count;
-   if (len<1)
-      return OPUS_BAD_ARG;
-   count = packet[0]&0x3;
-   if (count==0)
-      return 1;
-   else if (count!=3)
-      return 2;
-   else if (len<2)
-      return OPUS_INVALID_PACKET;
-   else
-      return packet[1]&0x3F;
-}
+/* opus_packet_get_bandwidth, opus_packet_get_samples_per_frame,
+   opus_packet_get_nb_channels, opus_packet_get_nb_frames:
+   translated to Rust in src/packet.rs */
 
 int opus_decoder_get_nb_samples(const OpusDecoder *dec,
       const unsigned char packet[], int len)
