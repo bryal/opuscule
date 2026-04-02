@@ -10,6 +10,7 @@ pub mod ffi;
 pub mod laplace;
 pub mod mathops;
 pub mod packet;
+pub mod pitch;
 pub mod quant_bands;
 pub mod rate;
 pub mod vq;

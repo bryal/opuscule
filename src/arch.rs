@@ -71,6 +71,8 @@ mod float_ops {
     #[inline(always)] pub fn extract16(x: f32) -> f32 { x }
     #[inline(always)] pub fn extend32(x: f32) -> f32 { x }
     #[inline(always)] pub fn half16(x: f32) -> f32 { 0.5 * x }
+    #[inline(always)] pub fn half32(x: f32) -> f32 { 0.5 * x }
+    #[inline(always)] pub fn mult16_32_q15(a: f32, b: f32) -> f32 { a * b }
     #[inline(always)] pub fn celt_div(a: f32, b: f32) -> f32 { a / b }
     #[inline(always)] pub fn celt_sqrt(x: f32) -> f32 { x.sqrt() }
     #[inline(always)] pub fn celt_rsqrt_norm(x: f32) -> f32 { 1.0 / x.sqrt() }
@@ -169,6 +171,7 @@ mod fixed_ops {
     #[inline(always)] pub fn extract16(x: i32) -> i16 { x as i16 }
     #[inline(always)] pub fn extend32(x: i16) -> i32 { x as i32 }
     #[inline(always)] pub fn half16(x: i16) -> i16 { x >> 1 }
+    #[inline(always)] pub fn half32(x: i32) -> i32 { x >> 1 }
 
     // Fixed-point math functions from mathops.c/h
 
