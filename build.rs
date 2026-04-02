@@ -13,7 +13,6 @@ const CELT_SOURCES: &[&str] = &[
     "celt/mdct.c",
     "celt/modes.c",
     "celt/pitch.c",
-    "celt/quant_bands.c",
 ];
 
 const SILK_SOURCES: &[&str] = &[

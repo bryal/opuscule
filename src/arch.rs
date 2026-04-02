@@ -65,6 +65,9 @@ mod float_ops {
     #[inline(always)] pub fn sub32(a: f32, b: f32) -> f32 { a - b }
     #[inline(always)] pub fn neg16(x: f32) -> f32 { -x }
     #[inline(always)] pub fn min16(a: f32, b: f32) -> f32 { a.min(b) }
+    #[inline(always)] pub fn max16(a: f32, b: f32) -> f32 { a.max(b) }
+    #[inline(always)] pub fn max32(a: f32, b: f32) -> f32 { a.max(b) }
+    #[inline(always)] pub fn shl16(a: f32, _shift: i32) -> f32 { a }
     #[inline(always)] pub fn extract16(x: f32) -> f32 { x }
     #[inline(always)] pub fn extend32(x: f32) -> f32 { x }
     #[inline(always)] pub fn half16(x: f32) -> f32 { 0.5 * x }
@@ -76,6 +79,20 @@ mod float_ops {
         (0.5 * std::f32::consts::PI * x).cos()
     }
     #[inline(always)] pub fn celt_rcp(x: f32) -> f32 { 1.0 / x }
+
+    /// Base-2 logarithm. Matches the C macro:
+    /// #define celt_log2(x) ((float)(1.442695040888963387*log(x)))
+    #[inline(always)]
+    pub fn celt_log2(x: f32) -> f32 {
+        (1.442695040888963387 * (x as f64).ln()) as f32
+    }
+
+    /// Base-2 exponential. Matches the C macro:
+    /// #define celt_exp2(x) ((float)exp(0.6931471805599453094*(x)))
+    #[inline(always)]
+    pub fn celt_exp2(x: f32) -> f32 {
+        (0.6931471805599453094 * (x as f64)).exp() as f32
+    }
 }
 
 // -- Fixed-point arithmetic --
@@ -147,6 +164,8 @@ mod fixed_ops {
     #[inline(always)] pub fn sub32(a: i32, b: i32) -> i32 { a.wrapping_sub(b) }
     #[inline(always)] pub fn neg16(x: i16) -> i16 { -x }
     #[inline(always)] pub fn min16(a: i16, b: i16) -> i16 { a.min(b) }
+    #[inline(always)] pub fn max16(a: i16, b: i16) -> i16 { a.max(b) }
+    #[inline(always)] pub fn max32(a: i32, b: i32) -> i32 { a.max(b) }
     #[inline(always)] pub fn extract16(x: i32) -> i16 { x as i16 }
     #[inline(always)] pub fn extend32(x: i16) -> i32 { x as i32 }
     #[inline(always)] pub fn half16(x: i16) -> i16 { x >> 1 }
@@ -263,6 +282,62 @@ mod fixed_ops {
         let rem = a - mult32_32_q31(result, b);
         result += shl32(mult16_32_q15(rcp, rem), 2);
         result
+    }
+
+    /// Base-2 log approximation (Q16 input, Q10.DB_SHIFT output).
+    /// C: celt_log2() in mathops.h (fixed-point path).
+    pub fn celt_log2(x: i32) -> i16 {
+        const DB_SHIFT: i32 = 10;
+        const C: [i16; 5] = [
+            -6801 + (1 << (13 - DB_SHIFT)),
+            15746, -5217, 2545, -1401,
+        ];
+        if x == 0 {
+            return -32767;
+        }
+        let i = celt_ilog2(x) as i32;
+        let n = (vshr32(x, i - 15) - 32768 - 16384) as i16;
+        let frac = add16(
+            C[0],
+            mult16_16_q15(n, add16(
+                C[1],
+                mult16_16_q15(n, add16(
+                    C[2],
+                    mult16_16_q15(n, add16(
+                        C[3],
+                        mult16_16_q15(n, C[4]) as i16,
+                    )) as i16,
+                )) as i16,
+            )) as i16,
+        );
+        shl16((i - 13) as i16, DB_SHIFT) + shr16(frac, 14 - DB_SHIFT)
+    }
+
+    /// Base-2 exponential approximation (Q10 input, Q16 output).
+    /// C: celt_exp2() in mathops.h (fixed-point path).
+    pub fn celt_exp2(x: i16) -> i32 {
+        const D0: i16 = 16383;
+        const D1: i16 = 22804;
+        const D2: i16 = 14819;
+        const D3: i16 = 10204;
+        let integer = shr16(x, 10) as i32;
+        if integer > 14 {
+            return 0x7f000000;
+        } else if integer < -15 {
+            return 0;
+        }
+        let frac = shl16(x - shl16(integer as i16, 10), 4);
+        let frac = add16(
+            D0,
+            mult16_16_q15(frac, add16(
+                D1,
+                mult16_16_q15(frac, add16(
+                    D2,
+                    mult16_16_q15(D3, frac) as i16,
+                )) as i16,
+            )) as i16,
+        );
+        vshr32(extend32(frac), -integer - 2)
     }
 
     #[inline(always)]
