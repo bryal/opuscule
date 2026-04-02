@@ -2,6 +2,7 @@
 // RFC 6716 reference C implementation.
 
 pub mod arch;
+pub mod celt_lpc;
 pub mod cwrs;
 pub mod entcode;
 pub mod entdec;

@@ -52,9 +52,13 @@ mod float_ops {
     #[inline(always)] pub fn mult16_16_p15(a: f32, b: f32) -> f32 { a * b }
     #[inline(always)] pub fn mult16_32_q16(a: f32, b: f32) -> f32 { a * b }
     #[inline(always)] pub fn shr16(a: f32, _shift: i32) -> f32 { a }
+    #[inline(always)] pub fn shl32(a: f32, _shift: i32) -> f32 { a }
     #[inline(always)] pub fn shr32(a: f32, _shift: i32) -> f32 { a }
     #[inline(always)] pub fn pshr32(a: f32, _shift: i32) -> f32 { a }
     #[inline(always)] pub fn vshr32(a: f32, _shift: i32) -> f32 { a }
+    #[inline(always)] pub fn round16(a: f32, _shift: i32) -> f32 { a }
+    #[inline(always)] pub fn mult32_32_q31(a: f32, b: f32) -> f32 { a * b }
+    #[inline(always)] pub fn frac_div32(a: f32, b: f32) -> f32 { a / b }
     #[inline(always)] pub fn add16(a: f32, b: f32) -> f32 { a + b }
     #[inline(always)] pub fn sub16(a: f32, b: f32) -> f32 { a - b }
     #[inline(always)] pub fn add32(a: f32, b: f32) -> f32 { a + b }
@@ -121,6 +125,8 @@ mod fixed_ops {
             + (mult16_16su((a >> 16) as i16, (b & 0xffff) as u16) >> 15)
             + (mult16_16su((b >> 16) as i16, (a & 0xffff) as u16) >> 15)
     }
+    #[inline(always)]
+    pub fn round16(a: i32, shift: i32) -> i16 { pshr32(a, shift) as i16 }
     #[inline(always)]
     pub fn shr16(a: i16, shift: i32) -> i16 { a >> shift }
     #[inline(always)]
@@ -244,6 +250,19 @@ mod fixed_ops {
         let corr = add16(mult16_16_q15(r, n) as i16, add16(r, -32768i16));
         r = sub16(r, add16(1, mult16_16_q15(r, corr) as i16));
         vshr32(r as i32, i as i32 - 16)
+    }
+
+    /// frac_div32: fractional division (Q31 result).
+    /// C: frac_div32() in mathops.c
+    pub fn frac_div32(a: i32, b: i32) -> i32 {
+        let shift = celt_ilog2(b) as i32 - 29;
+        let a = vshr32(a, shift);
+        let b = vshr32(b, shift);
+        let rcp = round16(celt_rcp(round16(b, 16) as i32), 3);
+        let mut result = shl32(mult16_32_q15(rcp, a), 2);
+        let rem = a - mult32_32_q31(result, b);
+        result += shl32(mult16_32_q15(rcp, rem), 2);
+        result
     }
 
     #[inline(always)]
