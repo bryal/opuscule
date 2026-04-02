@@ -680,8 +680,7 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
          {
             if (encode)
             {
-               sign = x[0]<0;
-               ec_enc_bits(ec, sign, 1);
+               celt_assert2(0, "encoder path unreachable in decoder-only build");
             } else {
                sign = ec_dec_bits(ec, 1);
             }
@@ -784,17 +783,13 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
          qn = 1;
       if (encode)
       {
-         /* theta is the atan() of the ratio between the (normalized)
-            side and mid. With just that parameter, we can re-scale both
-            mid and side because we know that 1) they have unit norm and
-            2) they are orthogonal. */
-         itheta = stereo_itheta(X, Y, stereo, N);
+         celt_assert2(0, "encoder path unreachable in decoder-only build");
       }
       tell = ec_tell_frac(ec);
       if (qn!=1)
       {
          if (encode)
-            itheta = (itheta*qn+8192)>>14;
+            celt_assert2(0, "encoder path unreachable in decoder-only build");
 
          /* Entropy coding of the angle. We use a uniform pdf for the
             time split, a step for stereo, and a triangular one for the rest. */
@@ -807,7 +802,7 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
             /* Use a probability of p0 up to itheta=8192 and then use 1 after */
             if (encode)
             {
-               ec_encode(ec,x<=x0?p0*x:(x-1-x0)+(x0+1)*p0,x<=x0?p0*(x+1):(x-x0)+(x0+1)*p0,ft);
+               celt_assert2(0, "encoder path unreachable in decoder-only build");
             } else {
                int fs;
                fs=ec_decode(ec,ft);
@@ -821,7 +816,7 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
          } else if (B0>1 || stereo) {
             /* Uniform pdf */
             if (encode)
-               ec_enc_uint(ec, itheta, qn+1);
+               celt_assert2(0, "encoder path unreachable in decoder-only build");
             else
                itheta = ec_dec_uint(ec, qn+1);
          } else {
@@ -829,13 +824,7 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
             ft = ((qn>>1)+1)*((qn>>1)+1);
             if (encode)
             {
-               int fl;
-
-               fs = itheta <= (qn>>1) ? itheta + 1 : qn + 1 - itheta;
-               fl = itheta <= (qn>>1) ? itheta*(itheta + 1)>>1 :
-                ft - ((qn + 1 - itheta)*(qn + 2 - itheta)>>1);
-
-               ec_encode(ec, fl, fl+fs, ft);
+               celt_assert2(0, "encoder path unreachable in decoder-only build");
             } else {
                /* Triangular pdf */
                int fl=0;
@@ -884,7 +873,7 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
          if (b>2<<BITRES && *remaining_bits > 2<<BITRES)
          {
             if (encode)
-               ec_enc_bit_logp(ec, inv, 2);
+               celt_assert2(0, "encoder path unreachable in decoder-only build");
             else
                inv = ec_dec_bit_logp(ec, 2);
          } else
@@ -946,9 +935,7 @@ static unsigned quant_band(int encode, const CELTMode *m, int i, celt_norm *X, c
          {
             if (encode)
             {
-               /* Here we only need to encode a sign for the side */
-               sign = x2[0]*y2[1] - x2[1]*y2[0] < 0;
-               ec_enc_bits(ec, sign, 1);
+               celt_assert2(0, "encoder path unreachable in decoder-only build");
             } else {
                sign = ec_dec_bits(ec, 1);
             }
