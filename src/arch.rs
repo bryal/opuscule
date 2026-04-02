@@ -304,3 +304,39 @@ pub use float_ops::*;
 
 #[cfg(feature = "fixed-point")]
 pub use fixed_ops::*;
+
+// -- Fixed-point C ABI exports --
+//
+// In fixed-point mode, C code (bands.c, pitch.c, etc.) calls these functions
+// by name (they're extern declarations in mathops.h). In float mode, the C
+// header provides macros instead, so no linker symbols are needed.
+
+#[cfg(feature = "fixed-point")]
+mod fixed_exports {
+    use super::fixed_ops::*;
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frac_div32(a: i32, b: i32) -> i32 {
+        super::fixed_ops::frac_div32(a, b)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn celt_rsqrt_norm(x: i32) -> i16 {
+        super::fixed_ops::celt_rsqrt_norm(x)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn celt_sqrt(x: i32) -> i32 {
+        super::fixed_ops::celt_sqrt(x)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn celt_cos_norm(x: i32) -> i16 {
+        super::fixed_ops::celt_cos_norm(x)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn celt_rcp(x: i32) -> i32 {
+        super::fixed_ops::celt_rcp(x)
+    }
+}

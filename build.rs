@@ -11,7 +11,6 @@ const CELT_SOURCES: &[&str] = &[
     "celt/celt.c",
     "celt/entenc.c",
     "celt/kiss_fft.c",
-    "celt/mathops.c",
     "celt/mdct.c",
     "celt/modes.c",
     "celt/pitch.c",
