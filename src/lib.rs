@@ -7,6 +7,7 @@ pub mod cwrs;
 pub mod entcode;
 pub mod entdec;
 pub mod ffi;
+pub mod kiss_fft;
 pub mod laplace;
 pub mod mathops;
 pub mod mdct;

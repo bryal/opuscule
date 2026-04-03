@@ -9,38 +9,7 @@
 
 use std::os::raw::c_int;
 use crate::arch::*;
-
-/// S_MUL: scalar multiply. In float mode it's just a*b.
-/// In fixed-point mode it's MULT16_32_Q15(b, a) — note the swap:
-/// `a` is the fft_scalar (i32) and `b` is the twiddle_scalar (i16).
-#[cfg(not(feature = "fixed-point"))]
-#[inline(always)]
-fn s_mul(a: OpusVal32, b: OpusVal16) -> OpusVal32 {
-    a * b
-}
-
-#[cfg(feature = "fixed-point")]
-#[inline(always)]
-fn s_mul(a: OpusVal32, b: OpusVal16) -> OpusVal32 {
-    mult16_32_q15(b, a)
-}
-
-// -- FFI types matching the C structs --
-
-/// kiss_fft_cpx: complex number with (r, i) components.
-/// kiss_fft_scalar = opus_val32 in both modes.
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct KissFftCpx {
-    pub r: OpusVal32,
-    pub i: OpusVal32,
-}
-
-/// Opaque kiss_fft_state — we only pass pointers to C's opus_ifft.
-#[repr(C)]
-pub struct KissFftState {
-    _opaque: [u8; 0],
-}
+use crate::kiss_fft::{KissFftCpx, KissFftState, opus_ifft, s_mul};
 
 /// mdct_lookup: the MDCT state struct. Matches C's mdct_lookup in mdct.h.
 #[repr(C)]
@@ -49,14 +18,6 @@ pub struct MdctLookup {
     pub maxshift: c_int,
     pub kfft: [*const KissFftState; 4],
     pub trig: *const OpusVal16,
-}
-
-unsafe extern "C" {
-    fn opus_ifft(
-        cfg: *const KissFftState,
-        fin: *const KissFftCpx,
-        fout: *mut KissFftCpx,
-    );
 }
 
 /// Inverse MDCT (decoder path).
