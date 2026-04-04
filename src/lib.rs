@@ -1,5 +1,6 @@
-// Opuscule: a pure-Rust Opus decoder, incrementally translated from the
-// RFC 6716 reference C implementation.
+//! Opuscule: a pure-Rust Opus decoder, incrementally translated from the RFC 6716 reference C implementation.
+
+#![feature(const_trait_impl, const_array)]
 
 pub mod arch;
 pub mod celt_lpc;
@@ -15,4 +16,6 @@ pub mod packet;
 pub mod pitch;
 pub mod quant_bands;
 pub mod rate;
+#[cfg(not(feature = "fixed-point"))]
+pub mod static_modes_float;
 pub mod vq;

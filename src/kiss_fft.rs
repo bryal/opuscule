@@ -29,6 +29,11 @@ pub struct KissTwiddleCpx {
     pub r: OpusVal16,
     pub i: OpusVal16,
 }
+impl KissTwiddleCpx {
+    pub const fn from_array([r, i]: [OpusVal16; 2]) -> Self {
+        Self { r, i }
+    }
+}
 
 pub const MAXFACTORS: usize = 8;
 
