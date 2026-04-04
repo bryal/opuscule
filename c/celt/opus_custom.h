@@ -99,8 +99,6 @@ OPUS_CUSTOM_EXPORT void opus_custom_mode_destroy(OpusCustomMode *mode);
 
 /* Encoder */
 
-OPUS_CUSTOM_EXPORT_STATIC int opus_custom_encoder_get_size(const OpusCustomMode *mode, int channels);
-
 /** Creates a new encoder state. Each stream needs its own encoder
     state (can't be shared across simultaneous streams).
  @param mode Contains all the information about the characteristics of
