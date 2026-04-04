@@ -9,7 +9,6 @@
 const CELT_SOURCES: &[&str] = &[
     "celt/bands.c",
     "celt/celt.c",
-    "celt/modes.c",
 ];
 
 const SILK_SOURCES: &[&str] = &[
