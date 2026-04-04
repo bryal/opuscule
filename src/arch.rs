@@ -15,6 +15,10 @@ pub type OpusVal16 = f32;
 pub type OpusVal32 = f32;
 #[cfg(not(feature = "fixed-point"))]
 pub type CeltNorm = f32;
+#[cfg(not(feature = "fixed-point"))]
+pub type CeltSig = f32;
+#[cfg(not(feature = "fixed-point"))]
+pub type CeltEner = f32;
 
 #[cfg(feature = "fixed-point")]
 pub type OpusVal16 = i16;
@@ -22,6 +26,10 @@ pub type OpusVal16 = i16;
 pub type OpusVal32 = i32;
 #[cfg(feature = "fixed-point")]
 pub type CeltNorm = i16;
+#[cfg(feature = "fixed-point")]
+pub type CeltSig = i32;
+#[cfg(feature = "fixed-point")]
+pub type CeltEner = i32;
 
 // -- Constants --
 

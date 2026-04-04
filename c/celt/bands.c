@@ -174,33 +174,6 @@ void normalise_bands(const CELTMode *m, const celt_sig * restrict freq, celt_nor
 
 #endif /* FIXED_POINT */
 
-/* De-normalise the energy to produce the synthesis from the unit-energy bands */
-void denormalise_bands(const CELTMode *m, const celt_norm * restrict X, celt_sig * restrict freq, const celt_ener *bandE, int end, int C, int M)
-{
-   int i, c, N;
-   const opus_int16 *eBands = m->eBands;
-   N = M*m->shortMdctSize;
-   celt_assert2(C<=2, "denormalise_bands() not implemented for >2 channels");
-   c=0; do {
-      celt_sig * restrict f;
-      const celt_norm * restrict x;
-      f = freq+c*N;
-      x = X+c*N;
-      for (i=0;i<end;i++)
-      {
-         int j, band_end;
-         opus_val32 g = SHR32(bandE[i+c*m->nbEBands],1);
-         j=M*eBands[i];
-         band_end = M*eBands[i+1];
-         do {
-            *f++ = SHL32(MULT16_32_Q15(*x, g),2);
-            x++;
-         } while (++j<band_end);
-      }
-      for (i=M*eBands[end];i<N;i++)
-         *f++ = 0;
-   } while (++c<C);
-}
 
 /* This prevents energy collapse for transients with multiple short MDCTs */
 void anti_collapse(const CELTMode *m, celt_norm *X_, unsigned char *collapse_masks, int LM, int C, int size,
