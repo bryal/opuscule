@@ -44,17 +44,9 @@ pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
     let toc = unsafe { *data };
     if toc & 0x80 != 0 {
         let bandwidth = OPUS_BANDWIDTH_MEDIUMBAND + ((toc >> 5) & 0x3) as c_int;
-        if bandwidth == OPUS_BANDWIDTH_MEDIUMBAND {
-            OPUS_BANDWIDTH_NARROWBAND
-        } else {
-            bandwidth
-        }
+        if bandwidth == OPUS_BANDWIDTH_MEDIUMBAND { OPUS_BANDWIDTH_NARROWBAND } else { bandwidth }
     } else if toc & 0x60 == 0x60 {
-        if toc & 0x10 != 0 {
-            OPUS_BANDWIDTH_FULLBAND
-        } else {
-            OPUS_BANDWIDTH_SUPERWIDEBAND
-        }
+        if toc & 0x10 != 0 { OPUS_BANDWIDTH_FULLBAND } else { OPUS_BANDWIDTH_SUPERWIDEBAND }
     } else {
         OPUS_BANDWIDTH_NARROWBAND + ((toc >> 5) & 0x3) as c_int
     }
@@ -63,27 +55,16 @@ pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
 /// Return the number of samples per frame from the TOC byte and sample rate.
 /// RFC 6716 Section 3.1.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_samples_per_frame(
-    data: *const u8,
-    fs: i32,
-) -> c_int {
+pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: i32) -> c_int {
     let toc = unsafe { *data };
     if toc & 0x80 != 0 {
         let audiosize = ((toc >> 3) & 0x3) as i32;
         (fs << audiosize) / 400
     } else if toc & 0x60 == 0x60 {
-        if toc & 0x08 != 0 {
-            fs / 50
-        } else {
-            fs / 100
-        }
+        if toc & 0x08 != 0 { fs / 50 } else { fs / 100 }
     } else {
         let audiosize = ((toc >> 3) & 0x3) as i32;
-        if audiosize == 3 {
-            fs * 60 / 1000
-        } else {
-            (fs << audiosize) / 100
-        }
+        if audiosize == 3 { fs * 60 / 1000 } else { (fs << audiosize) / 100 }
     }
 }
 
@@ -91,20 +72,13 @@ pub unsafe extern "C" fn opus_packet_get_samples_per_frame(
 /// RFC 6716 Section 3.1 (stereo bit = bit 2 of TOC).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_nb_channels(data: *const u8) -> c_int {
-    if unsafe { *data } & 0x4 != 0 {
-        2
-    } else {
-        1
-    }
+    if unsafe { *data } & 0x4 != 0 { 2 } else { 1 }
 }
 
 /// Return the number of frames in an Opus packet.
 /// RFC 6716 Section 3.2.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_nb_frames(
-    packet: *const u8,
-    len: c_int,
-) -> c_int {
+pub unsafe extern "C" fn opus_packet_get_nb_frames(packet: *const u8, len: c_int) -> c_int {
     if len < 1 {
         return OPUS_BAD_ARG;
     }
@@ -246,9 +220,7 @@ pub unsafe extern "C" fn opus_packet_parse_impl(
                     for i in 0..count - 1 {
                         let bytes = parse_size(data, len, size.add(i as usize));
                         len -= bytes;
-                        if *size.add(i as usize) < 0
-                            || (*size.add(i as usize)) as c_int > len
-                        {
+                        if *size.add(i as usize) < 0 || (*size.add(i as usize)) as c_int > len {
                             return OPUS_INVALID_PACKET;
                         }
                         data = data.add(bytes as usize);
@@ -274,9 +246,7 @@ pub unsafe extern "C" fn opus_packet_parse_impl(
         if self_delimited != 0 {
             let bytes = parse_size(data, len, size.add(count as usize - 1));
             len -= bytes;
-            if *size.add(count as usize - 1) < 0
-                || (*size.add(count as usize - 1)) as c_int > len
-            {
+            if *size.add(count as usize - 1) < 0 || (*size.add(count as usize - 1)) as c_int > len {
                 return OPUS_INVALID_PACKET;
             }
             data = data.add(bytes as usize);
@@ -334,9 +304,7 @@ pub unsafe extern "C" fn opus_packet_parse(
     size: *mut i16,
     payload_offset: *mut c_int,
 ) -> c_int {
-    unsafe {
-        opus_packet_parse_impl(data, len, 0, out_toc, frames, size, payload_offset)
-    }
+    unsafe { opus_packet_parse_impl(data, len, 0, out_toc, frames, size, payload_offset) }
 }
 
 #[cfg(test)]
@@ -373,103 +341,49 @@ mod tests {
         // Code 2: 2 frames
         assert_eq!(unsafe { opus_packet_get_nb_frames([0x02].as_ptr(), 1) }, 2);
         // Code 3: count from second byte
-        assert_eq!(
-            unsafe { opus_packet_get_nb_frames([0x03, 0x05].as_ptr(), 2) },
-            5
-        );
+        assert_eq!(unsafe { opus_packet_get_nb_frames([0x03, 0x05].as_ptr(), 2) }, 5);
         // Code 3, len < 2
-        assert_eq!(
-            unsafe { opus_packet_get_nb_frames([0x03].as_ptr(), 1) },
-            OPUS_INVALID_PACKET
-        );
+        assert_eq!(unsafe { opus_packet_get_nb_frames([0x03].as_ptr(), 1) }, OPUS_INVALID_PACKET);
         // Empty
-        assert_eq!(
-            unsafe { opus_packet_get_nb_frames([0x00].as_ptr(), 0) },
-            OPUS_BAD_ARG
-        );
+        assert_eq!(unsafe { opus_packet_get_nb_frames([0x00].as_ptr(), 0) }, OPUS_BAD_ARG);
     }
 
     #[test]
     fn test_get_bandwidth() {
         // SILK NB
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0x00u8) },
-            OPUS_BANDWIDTH_NARROWBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x00u8) }, OPUS_BANDWIDTH_NARROWBAND);
         // SILK MB
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0x20u8) },
-            OPUS_BANDWIDTH_MEDIUMBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x20u8) }, OPUS_BANDWIDTH_MEDIUMBAND);
         // SILK WB
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0x40u8) },
-            OPUS_BANDWIDTH_WIDEBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x40u8) }, OPUS_BANDWIDTH_WIDEBAND);
         // Hybrid SWB
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0x60u8) },
-            OPUS_BANDWIDTH_SUPERWIDEBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x60u8) }, OPUS_BANDWIDTH_SUPERWIDEBAND);
         // Hybrid FB
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0x70u8) },
-            OPUS_BANDWIDTH_FULLBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x70u8) }, OPUS_BANDWIDTH_FULLBAND);
         // CELT NB (bits 6..5 = 00 maps to MEDIUMBAND then corrected to NB)
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0x80u8) },
-            OPUS_BANDWIDTH_NARROWBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x80u8) }, OPUS_BANDWIDTH_NARROWBAND);
         // CELT WB
-        assert_eq!(
-            unsafe { opus_packet_get_bandwidth(&0xA0u8) },
-            OPUS_BANDWIDTH_WIDEBAND
-        );
+        assert_eq!(unsafe { opus_packet_get_bandwidth(&0xA0u8) }, OPUS_BANDWIDTH_WIDEBAND);
     }
 
     #[test]
     fn test_get_samples_per_frame() {
         // SILK 10ms @ 48kHz
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x00u8, 48000) },
-            480
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x00u8, 48000) }, 480);
         // SILK 20ms
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x08u8, 48000) },
-            960
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x08u8, 48000) }, 960);
         // SILK 40ms
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x10u8, 48000) },
-            1920
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x10u8, 48000) }, 1920);
         // SILK 60ms
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x18u8, 48000) },
-            2880
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x18u8, 48000) }, 2880);
         // CELT 2.5ms @ 48kHz
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x80u8, 48000) },
-            120
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x80u8, 48000) }, 120);
         // CELT 20ms
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x98u8, 48000) },
-            960
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x98u8, 48000) }, 960);
         // Hybrid 10ms
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x60u8, 48000) },
-            480
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x60u8, 48000) }, 480);
         // Hybrid 20ms
-        assert_eq!(
-            unsafe { opus_packet_get_samples_per_frame(&0x68u8, 48000) },
-            960
-        );
+        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x68u8, 48000) }, 960);
     }
 
     #[test]
@@ -504,15 +418,12 @@ mod tests {
         let mut offset: c_int = 0;
 
         let count = unsafe {
-            opus_packet_parse(
-                pkt.as_ptr(), pkt.len() as c_int,
-                &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset,
-            )
+            opus_packet_parse(pkt.as_ptr(), pkt.len() as c_int, &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset)
         };
         assert_eq!(count, 1);
         assert_eq!(toc, 0x80);
         assert_eq!(sizes[0], 3); // 4 bytes total - 1 byte TOC = 3
-        assert_eq!(offset, 4);   // all bytes consumed
+        assert_eq!(offset, 4); // all bytes consumed
     }
 
     #[test]
@@ -526,10 +437,7 @@ mod tests {
         let mut offset: c_int = 0;
 
         let count = unsafe {
-            opus_packet_parse(
-                pkt.as_ptr(), pkt.len() as c_int,
-                &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset,
-            )
+            opus_packet_parse(pkt.as_ptr(), pkt.len() as c_int, &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset)
         };
         assert_eq!(count, 2);
         assert_eq!(toc, 0x81);
@@ -545,9 +453,12 @@ mod tests {
         let mut sizes: [i16; 48] = [0; 48];
         let count = unsafe {
             opus_packet_parse(
-                pkt.as_ptr(), pkt.len() as c_int,
-                core::ptr::null_mut(), core::ptr::null_mut(),
-                sizes.as_mut_ptr(), core::ptr::null_mut(),
+                pkt.as_ptr(),
+                pkt.len() as c_int,
+                core::ptr::null_mut(),
+                core::ptr::null_mut(),
+                sizes.as_mut_ptr(),
+                core::ptr::null_mut(),
             )
         };
         assert_eq!(count, OPUS_INVALID_PACKET);
@@ -564,10 +475,7 @@ mod tests {
         let mut offset: c_int = 0;
 
         let count = unsafe {
-            opus_packet_parse(
-                pkt.as_ptr(), pkt.len() as c_int,
-                &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset,
-            )
+            opus_packet_parse(pkt.as_ptr(), pkt.len() as c_int, &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset)
         };
         assert_eq!(count, 2);
         assert_eq!(sizes[0], 2);
@@ -581,9 +489,12 @@ mod tests {
         let pkt = [0x80u8, 0xAA];
         let count = unsafe {
             opus_packet_parse(
-                pkt.as_ptr(), pkt.len() as c_int,
-                core::ptr::null_mut(), core::ptr::null_mut(),
-                core::ptr::null_mut(), core::ptr::null_mut(),
+                pkt.as_ptr(),
+                pkt.len() as c_int,
+                core::ptr::null_mut(),
+                core::ptr::null_mut(),
+                core::ptr::null_mut(),
+                core::ptr::null_mut(),
             )
         };
         assert_eq!(count, OPUS_BAD_ARG);
@@ -599,9 +510,12 @@ mod tests {
 
         let count = unsafe {
             opus_packet_parse(
-                pkt.as_ptr(), pkt.len() as c_int,
-                core::ptr::null_mut(), core::ptr::null_mut(),
-                sizes.as_mut_ptr(), &mut offset,
+                pkt.as_ptr(),
+                pkt.len() as c_int,
+                core::ptr::null_mut(),
+                core::ptr::null_mut(),
+                sizes.as_mut_ptr(),
+                &mut offset,
             )
         };
         assert_eq!(count, 1);

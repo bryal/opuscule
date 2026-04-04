@@ -46,41 +46,134 @@ pub const SPREAD_NONE: i32 = 0;
 
 #[cfg(not(feature = "fixed-point"))]
 mod float_ops {
-    #[inline(always)] pub fn mult16_16(a: f32, b: f32) -> f32 { a * b }
-    #[inline(always)] pub fn mac16_16(c: f32, a: f32, b: f32) -> f32 { c + a * b }
-    #[inline(always)] pub fn mult16_16_q15(a: f32, b: f32) -> f32 { a * b }
-    #[inline(always)] pub fn mult16_16_p15(a: f32, b: f32) -> f32 { a * b }
-    #[inline(always)] pub fn mult16_32_q16(a: f32, b: f32) -> f32 { a * b }
-    #[inline(always)] pub fn shr16(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn shl32(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn shr32(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn pshr32(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn vshr32(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn round16(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn mult32_32_q31(a: f32, b: f32) -> f32 { a * b }
-    #[inline(always)] pub fn frac_div32(a: f32, b: f32) -> f32 { a / b }
-    #[inline(always)] pub fn add16(a: f32, b: f32) -> f32 { a + b }
-    #[inline(always)] pub fn sub16(a: f32, b: f32) -> f32 { a - b }
-    #[inline(always)] pub fn add32(a: f32, b: f32) -> f32 { a + b }
-    #[inline(always)] pub fn sub32(a: f32, b: f32) -> f32 { a - b }
-    #[inline(always)] pub fn neg16(x: f32) -> f32 { -x }
-    #[inline(always)] pub fn min16(a: f32, b: f32) -> f32 { a.min(b) }
-    #[inline(always)] pub fn max16(a: f32, b: f32) -> f32 { a.max(b) }
-    #[inline(always)] pub fn max32(a: f32, b: f32) -> f32 { a.max(b) }
-    #[inline(always)] pub fn shl16(a: f32, _shift: i32) -> f32 { a }
-    #[inline(always)] pub fn extract16(x: f32) -> f32 { x }
-    #[inline(always)] pub fn extend32(x: f32) -> f32 { x }
-    #[inline(always)] pub fn half16(x: f32) -> f32 { 0.5 * x }
-    #[inline(always)] pub fn half32(x: f32) -> f32 { 0.5 * x }
-    #[inline(always)] pub fn mult16_32_q15(a: f32, b: f32) -> f32 { a * b }
-    #[inline(always)] pub fn celt_div(a: f32, b: f32) -> f32 { a / b }
-    #[inline(always)] pub fn celt_sqrt(x: f32) -> f32 { x.sqrt() }
-    #[inline(always)] pub fn celt_rsqrt_norm(x: f32) -> f32 { 1.0 / x.sqrt() }
+    #[inline(always)]
+    pub fn mult16_16(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn mac16_16(c: f32, a: f32, b: f32) -> f32 {
+        c + a * b
+    }
+    #[inline(always)]
+    pub fn mult16_16_q15(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn mult16_16_p15(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn mult16_32_q16(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn shr16(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn shl32(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn shr32(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn pshr32(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn vshr32(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn round16(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn mult32_32_q31(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn frac_div32(a: f32, b: f32) -> f32 {
+        a / b
+    }
+    #[inline(always)]
+    pub fn add16(a: f32, b: f32) -> f32 {
+        a + b
+    }
+    #[inline(always)]
+    pub fn sub16(a: f32, b: f32) -> f32 {
+        a - b
+    }
+    #[inline(always)]
+    pub fn add32(a: f32, b: f32) -> f32 {
+        a + b
+    }
+    #[inline(always)]
+    pub fn sub32(a: f32, b: f32) -> f32 {
+        a - b
+    }
+    #[inline(always)]
+    pub fn neg16(x: f32) -> f32 {
+        -x
+    }
+    #[inline(always)]
+    pub fn min16(a: f32, b: f32) -> f32 {
+        a.min(b)
+    }
+    #[inline(always)]
+    pub fn max16(a: f32, b: f32) -> f32 {
+        a.max(b)
+    }
+    #[inline(always)]
+    pub fn max32(a: f32, b: f32) -> f32 {
+        a.max(b)
+    }
+    #[inline(always)]
+    pub fn shl16(a: f32, _shift: i32) -> f32 {
+        a
+    }
+    #[inline(always)]
+    pub fn extract16(x: f32) -> f32 {
+        x
+    }
+    #[inline(always)]
+    pub fn extend32(x: f32) -> f32 {
+        x
+    }
+    #[inline(always)]
+    pub fn half16(x: f32) -> f32 {
+        0.5 * x
+    }
+    #[inline(always)]
+    pub fn half32(x: f32) -> f32 {
+        0.5 * x
+    }
+    #[inline(always)]
+    pub fn mult16_32_q15(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn celt_div(a: f32, b: f32) -> f32 {
+        a / b
+    }
+    #[inline(always)]
+    pub fn celt_sqrt(x: f32) -> f32 {
+        x.sqrt()
+    }
+    #[inline(always)]
+    pub fn celt_rsqrt_norm(x: f32) -> f32 {
+        1.0 / x.sqrt()
+    }
     #[inline(always)]
     pub fn celt_cos_norm(x: f32) -> f32 {
         (0.5 * std::f32::consts::PI * x).cos()
     }
-    #[inline(always)] pub fn celt_rcp(x: f32) -> f32 { 1.0 / x }
+    #[inline(always)]
+    pub fn celt_rcp(x: f32) -> f32 {
+        1.0 / x
+    }
 
     /// Base-2 logarithm. Matches the C macro:
     /// #define celt_log2(x) ((float)(1.442695040888963387*log(x)))
@@ -130,13 +223,11 @@ mod fixed_ops {
     }
     #[inline(always)]
     pub fn mult16_32_q16(a: i16, b: i32) -> i32 {
-        mult16_16(a, (b >> 16) as i16)
-            + (mult16_16su(a, (b & 0xffff) as u16) >> 16)
+        mult16_16(a, (b >> 16) as i16) + (mult16_16su(a, (b & 0xffff) as u16) >> 16)
     }
     #[inline(always)]
     pub fn mult16_32_q15(a: i16, b: i32) -> i32 {
-        (mult16_16(a, (b >> 16) as i16) << 1)
-            + (mult16_16su(a, (b & 0xffff) as u16) >> 15)
+        (mult16_16(a, (b >> 16) as i16) << 1) + (mult16_16su(a, (b & 0xffff) as u16) >> 15)
     }
     #[inline(always)]
     pub fn mult32_32_q31(a: i32, b: i32) -> i32 {
@@ -145,33 +236,81 @@ mod fixed_ops {
             + (mult16_16su((b >> 16) as i16, (a & 0xffff) as u16) >> 15)
     }
     #[inline(always)]
-    pub fn round16(a: i32, shift: i32) -> i16 { pshr32(a, shift) as i16 }
+    pub fn round16(a: i32, shift: i32) -> i16 {
+        pshr32(a, shift) as i16
+    }
     #[inline(always)]
-    pub fn shr16(a: i16, shift: i32) -> i16 { a >> shift }
+    pub fn shr16(a: i16, shift: i32) -> i16 {
+        a >> shift
+    }
     #[inline(always)]
-    pub fn shl16(a: i16, shift: i32) -> i16 { ((a as u16) << shift) as i16 }
+    pub fn shl16(a: i16, shift: i32) -> i16 {
+        ((a as u16) << shift) as i16
+    }
     #[inline(always)]
-    pub fn shr32(a: i32, shift: i32) -> i32 { a >> shift }
+    pub fn shr32(a: i32, shift: i32) -> i32 {
+        a >> shift
+    }
     #[inline(always)]
-    pub fn shl32(a: i32, shift: i32) -> i32 { ((a as u32) << shift) as i32 }
+    pub fn shl32(a: i32, shift: i32) -> i32 {
+        ((a as u32) << shift) as i32
+    }
     #[inline(always)]
-    pub fn pshr32(a: i32, shift: i32) -> i32 { (a + (1i32 << (shift - 1))) >> shift }
+    pub fn pshr32(a: i32, shift: i32) -> i32 {
+        (a + (1i32 << (shift - 1))) >> shift
+    }
     #[inline(always)]
     pub fn vshr32(a: i32, shift: i32) -> i32 {
         if shift > 0 { a >> shift } else { shl32(a, -shift) }
     }
-    #[inline(always)] pub fn add16(a: i16, b: i16) -> i16 { a.wrapping_add(b) }
-    #[inline(always)] pub fn sub16(a: i16, b: i16) -> i16 { a.wrapping_sub(b) }
-    #[inline(always)] pub fn add32(a: i32, b: i32) -> i32 { a.wrapping_add(b) }
-    #[inline(always)] pub fn sub32(a: i32, b: i32) -> i32 { a.wrapping_sub(b) }
-    #[inline(always)] pub fn neg16(x: i16) -> i16 { -x }
-    #[inline(always)] pub fn min16(a: i16, b: i16) -> i16 { a.min(b) }
-    #[inline(always)] pub fn max16(a: i16, b: i16) -> i16 { a.max(b) }
-    #[inline(always)] pub fn max32(a: i32, b: i32) -> i32 { a.max(b) }
-    #[inline(always)] pub fn extract16(x: i32) -> i16 { x as i16 }
-    #[inline(always)] pub fn extend32(x: i16) -> i32 { x as i32 }
-    #[inline(always)] pub fn half16(x: i16) -> i16 { x >> 1 }
-    #[inline(always)] pub fn half32(x: i32) -> i32 { x >> 1 }
+    #[inline(always)]
+    pub fn add16(a: i16, b: i16) -> i16 {
+        a.wrapping_add(b)
+    }
+    #[inline(always)]
+    pub fn sub16(a: i16, b: i16) -> i16 {
+        a.wrapping_sub(b)
+    }
+    #[inline(always)]
+    pub fn add32(a: i32, b: i32) -> i32 {
+        a.wrapping_add(b)
+    }
+    #[inline(always)]
+    pub fn sub32(a: i32, b: i32) -> i32 {
+        a.wrapping_sub(b)
+    }
+    #[inline(always)]
+    pub fn neg16(x: i16) -> i16 {
+        -x
+    }
+    #[inline(always)]
+    pub fn min16(a: i16, b: i16) -> i16 {
+        a.min(b)
+    }
+    #[inline(always)]
+    pub fn max16(a: i16, b: i16) -> i16 {
+        a.max(b)
+    }
+    #[inline(always)]
+    pub fn max32(a: i32, b: i32) -> i32 {
+        a.max(b)
+    }
+    #[inline(always)]
+    pub fn extract16(x: i32) -> i16 {
+        x as i16
+    }
+    #[inline(always)]
+    pub fn extend32(x: i16) -> i32 {
+        x as i32
+    }
+    #[inline(always)]
+    pub fn half16(x: i16) -> i16 {
+        x >> 1
+    }
+    #[inline(always)]
+    pub fn half32(x: i32) -> i32 {
+        x >> 1
+    }
 
     // Fixed-point math functions from mathops.c/h
 
@@ -202,7 +341,9 @@ mod fixed_ops {
     /// Sqrt approximation (QX input, QX/2 output).
     /// C: celt_sqrt() in mathops.c
     pub fn celt_sqrt(x: i32) -> i32 {
-        if x == 0 { return 0; }
+        if x == 0 {
+            return 0;
+        }
         let c: [i16; 5] = [23175, 11561, -3011, 1699, -664];
         let k = (celt_ilog2(x) >> 1) - 7;
         let x = vshr32(x, 2 * k as i32);
@@ -225,11 +366,7 @@ mod fixed_ops {
         let x = x & 0x0001ffff;
         let x = if x > (1 << 16) { (1 << 17) - x } else { x };
         if x & 0x00007fff != 0 {
-            if x < (1 << 15) {
-                cos_pi_2(x as i16)
-            } else {
-                -(cos_pi_2((65536 - x) as i16) as i32) as i16
-            }
+            if x < (1 << 15) { cos_pi_2(x as i16) } else { -(cos_pi_2((65536 - x) as i16) as i32) as i16 }
         } else if x & 0x0000ffff != 0 {
             0
         } else if x & 0x0001ffff != 0 {
@@ -291,10 +428,7 @@ mod fixed_ops {
     /// C: celt_log2() in mathops.h (fixed-point path).
     pub fn celt_log2(x: i32) -> i16 {
         const DB_SHIFT: i32 = 10;
-        const C: [i16; 5] = [
-            -6801 + (1 << (13 - DB_SHIFT)),
-            15746, -5217, 2545, -1401,
-        ];
+        const C: [i16; 5] = [-6801 + (1 << (13 - DB_SHIFT)), 15746, -5217, 2545, -1401];
         if x == 0 {
             return -32767;
         }
@@ -302,16 +436,13 @@ mod fixed_ops {
         let n = (vshr32(x, i - 15) - 32768 - 16384) as i16;
         let frac = add16(
             C[0],
-            mult16_16_q15(n, add16(
-                C[1],
-                mult16_16_q15(n, add16(
-                    C[2],
-                    mult16_16_q15(n, add16(
-                        C[3],
-                        mult16_16_q15(n, C[4]) as i16,
-                    )) as i16,
-                )) as i16,
-            )) as i16,
+            mult16_16_q15(
+                n,
+                add16(
+                    C[1],
+                    mult16_16_q15(n, add16(C[2], mult16_16_q15(n, add16(C[3], mult16_16_q15(n, C[4]) as i16)) as i16)) as i16,
+                ),
+            ) as i16,
         );
         shl16((i - 13) as i16, DB_SHIFT) + shr16(frac, 14 - DB_SHIFT)
     }
@@ -332,13 +463,7 @@ mod fixed_ops {
         let frac = shl16(x - shl16(integer as i16, 10), 4);
         let frac = add16(
             D0,
-            mult16_16_q15(frac, add16(
-                D1,
-                mult16_16_q15(frac, add16(
-                    D2,
-                    mult16_16_q15(D3, frac) as i16,
-                )) as i16,
-            )) as i16,
+            mult16_16_q15(frac, add16(D1, mult16_16_q15(frac, add16(D2, mult16_16_q15(D3, frac) as i16)) as i16)) as i16,
         );
         vshr32(extend32(frac), -integer - 2)
     }
@@ -365,11 +490,15 @@ mod fixed_ops {
     pub fn celt_atan2p(y: i16, x: i16) -> i16 {
         if (y as i32) < (x as i32) {
             let mut arg = celt_div(shl32(y as i32, 15), x as i32);
-            if arg >= 32767 { arg = 32767; }
+            if arg >= 32767 {
+                arg = 32767;
+            }
             shr16(celt_atan01(arg as i16), 1)
         } else {
             let mut arg = celt_div(shl32(x as i32, 15), y as i32);
-            if arg >= 32767 { arg = 32767; }
+            if arg >= 32767 {
+                arg = 32767;
+            }
             sub16(25736, shr16(celt_atan01(arg as i16), 1))
         }
     }

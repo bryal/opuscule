@@ -4,15 +4,15 @@
 // (48 kHz, 960 samples). Custom modes are not supported — only the
 // static lookup path is implemented.
 
-use std::os::raw::c_int;
 use crate::arch::OpusVal16;
 use crate::kiss_fft::{KissFftState, KissTwiddleCpx, MAXFACTORS};
 use crate::mdct::MdctLookup;
+use std::os::raw::c_int;
 
-#[cfg(not(feature = "fixed-point"))]
-use crate::static_modes_float::*;
 #[cfg(feature = "fixed-point")]
 use crate::static_modes_fixed::*;
+#[cfg(not(feature = "fixed-point"))]
+use crate::static_modes_float::*;
 
 // ---------------------------------------------------------------------------
 // Structs
@@ -62,25 +62,20 @@ unsafe impl Sync for CELTMode {}
 /// Bark-scale band edge indices for 5 ms short blocks at 48 kHz.
 /// 21 bands + terminator = 22 entries.
 #[unsafe(no_mangle)]
-pub static eband5ms: [i16; 22] = [
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 34, 40, 48, 60, 78, 100,
-];
+pub static eband5ms: [i16; 22] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 34, 40, 48, 60, 78, 100];
 
 /// Bit allocation table: 11 rate points × 21 bands = 231 entries.
 /// Units of 1/32 bit/sample (0.1875 dB SNR).
 #[unsafe(no_mangle)]
 pub static band_allocation: [u8; 231] = [
-      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-     90, 80, 75, 69, 63, 56, 49, 40, 34, 29, 20, 18, 10,  0,  0,  0,  0,  0,  0,  0,  0,
-    110,100, 90, 84, 78, 71, 65, 58, 51, 45, 39, 32, 26, 20, 12,  0,  0,  0,  0,  0,  0,
-    118,110,103, 93, 86, 80, 75, 70, 65, 59, 53, 47, 40, 31, 23, 15,  4,  0,  0,  0,  0,
-    126,119,112,104, 95, 89, 83, 78, 72, 66, 60, 54, 47, 39, 32, 25, 17, 12,  1,  0,  0,
-    134,127,120,114,103, 97, 91, 85, 78, 72, 66, 60, 54, 47, 41, 35, 29, 23, 16, 10,  1,
-    144,137,130,124,113,107,101, 95, 88, 82, 76, 70, 64, 57, 51, 45, 39, 33, 26, 15,  1,
-    152,145,138,132,123,117,111,105, 98, 92, 86, 80, 74, 67, 61, 55, 49, 43, 36, 20,  1,
-    162,155,148,142,133,127,121,115,108,102, 96, 90, 84, 77, 71, 65, 59, 53, 46, 30,  1,
-    172,165,158,152,143,137,131,125,118,112,106,100, 94, 87, 81, 75, 69, 63, 56, 45, 20,
-    200,200,200,200,200,200,200,200,198,193,188,183,178,173,168,163,158,153,148,129,104,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 80, 75, 69, 63, 56, 49, 40, 34, 29, 20, 18, 10, 0, 0, 0,
+    0, 0, 0, 0, 0, 110, 100, 90, 84, 78, 71, 65, 58, 51, 45, 39, 32, 26, 20, 12, 0, 0, 0, 0, 0, 0, 118, 110, 103, 93, 86, 80,
+    75, 70, 65, 59, 53, 47, 40, 31, 23, 15, 4, 0, 0, 0, 0, 126, 119, 112, 104, 95, 89, 83, 78, 72, 66, 60, 54, 47, 39, 32, 25,
+    17, 12, 1, 0, 0, 134, 127, 120, 114, 103, 97, 91, 85, 78, 72, 66, 60, 54, 47, 41, 35, 29, 23, 16, 10, 1, 144, 137, 130,
+    124, 113, 107, 101, 95, 88, 82, 76, 70, 64, 57, 51, 45, 39, 33, 26, 15, 1, 152, 145, 138, 132, 123, 117, 111, 105, 98, 92,
+    86, 80, 74, 67, 61, 55, 49, 43, 36, 20, 1, 162, 155, 148, 142, 133, 127, 121, 115, 108, 102, 96, 90, 84, 77, 71, 65, 59,
+    53, 46, 30, 1, 172, 165, 158, 152, 143, 137, 131, 125, 118, 112, 106, 100, 94, 87, 81, 75, 69, 63, 56, 45, 20, 200, 200,
+    200, 200, 200, 200, 200, 200, 198, 193, 188, 183, 178, 173, 168, 163, 158, 153, 148, 129, 104,
 ];
 
 // ---------------------------------------------------------------------------
@@ -206,12 +201,7 @@ static MODE_48000_960_120: CELTMode = CELTMode {
         ],
         trig: mdct_twiddles960.as_ptr(),
     },
-    cache: PulseCache {
-        size: 392,
-        index: cache_index50.as_ptr(),
-        bits: cache_bits50.as_ptr(),
-        caps: cache_caps50.as_ptr(),
-    },
+    cache: PulseCache { size: 392, index: cache_index50.as_ptr(), bits: cache_bits50.as_ptr(), caps: cache_caps50.as_ptr() },
 };
 
 // ---------------------------------------------------------------------------
@@ -225,16 +215,10 @@ const OPUS_BAD_ARG: c_int = -1;
 /// Without CUSTOM_MODES this is just a table lookup — the only valid
 /// combination is (48000, 960/480/240/120).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_custom_mode_create(
-    fs: i32,
-    frame_size: c_int,
-    error: *mut c_int,
-) -> *const CELTMode {
+pub unsafe extern "C" fn opus_custom_mode_create(fs: i32, frame_size: c_int, error: *mut c_int) -> *const CELTMode {
     let mode = &MODE_48000_960_120;
     for j in 0..4 {
-        if fs == mode.fs
-            && (frame_size << j) == mode.short_mdct_size * mode.nb_short_mdcts
-        {
+        if fs == mode.fs && (frame_size << j) == mode.short_mdct_size * mode.nb_short_mdcts {
             if !error.is_null() {
                 unsafe { *error = OPUS_OK };
             }

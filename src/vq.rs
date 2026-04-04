@@ -30,7 +30,9 @@ fn exp_rotation1(x: &mut [CeltNorm], len: usize, stride: usize, c: OpusVal16, s:
         x[i] = extract16(shr32(sub32(mult16_16(c, x1), mult16_16(s, x2)), 15));
     }
     // Backward pass (skip if len < 2*stride + 1, matching C's signed i>=0 guard)
-    if len < 2 * stride + 1 { return; }
+    if len < 2 * stride + 1 {
+        return;
+    }
     for i in (0..=len - 2 * stride - 1).rev() {
         let x1 = x[i];
         let x2 = x[i + stride];
@@ -63,10 +65,7 @@ fn exp_rotation(x: &mut [CeltNorm], len: usize, dir: i32, stride: usize, k: i32,
     };
     #[cfg(feature = "fixed-point")]
     let (c, s) = {
-        let gain = celt_div(
-            mult16_16(Q15ONE, len as i16),
-            (len as i32) + factor * k,
-        );
+        let gain = celt_div(mult16_16(Q15ONE, len as i16), (len as i32) + factor * k);
         let theta = half16(mult16_16_q15(gain as i16, gain as i16) as i16);
         let c = celt_cos_norm(extend32(theta));
         let s = celt_cos_norm(extend32(sub16(Q15ONE, theta)));
@@ -228,12 +227,7 @@ pub unsafe extern "C" fn renormalise_vector(x: *mut CeltNorm, n: c_int, gain: Op
 /// # Safety
 /// `x` and `y` must each point to N readable celt_norm elements.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn stereo_itheta(
-    x: *const CeltNorm,
-    y: *const CeltNorm,
-    stereo: c_int,
-    n: c_int,
-) -> c_int {
+pub unsafe extern "C" fn stereo_itheta(x: *const CeltNorm, y: *const CeltNorm, stereo: c_int, n: c_int) -> c_int {
     let n = n as usize;
     let x = unsafe { std::slice::from_raw_parts(x, n) };
     let y = unsafe { std::slice::from_raw_parts(y, n) };

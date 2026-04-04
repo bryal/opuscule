@@ -80,10 +80,7 @@ pub fn s_mul(a: OpusVal32, b: OpusVal16) -> OpusVal32 {
 ///   Fixed:  same but using S_MUL (MULT16_32_Q15) with ADD32/SUB32
 #[inline(always)]
 pub fn c_mulc(a: KissFftCpx, b: KissTwiddleCpx) -> KissFftCpx {
-    KissFftCpx {
-        r: s_mul(a.r, b.r) + s_mul(a.i, b.i),
-        i: s_mul(a.i, b.r) - s_mul(a.r, b.i),
-    }
+    KissFftCpx { r: s_mul(a.r, b.r) + s_mul(a.i, b.i), i: s_mul(a.i, b.r) - s_mul(a.r, b.i) }
 }
 
 /// C_ADD(a, b): component-wise addition.
@@ -133,14 +130,7 @@ pub fn half_of(x: OpusVal32) -> OpusVal32 {
 
 /// Radix-2 inverse butterfly.
 /// C: ki_bfly2() in kiss_fft.c
-pub fn ki_bfly2(
-    fout: &mut [KissFftCpx],
-    fstride: usize,
-    st: &KissFftState,
-    m: usize,
-    n: usize,
-    mm: usize,
-) {
+pub fn ki_bfly2(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: usize, n: usize, mm: usize) {
     for i in 0..n {
         let base = i * mm;
         let twiddles = st.twiddles;
@@ -155,14 +145,7 @@ pub fn ki_bfly2(
 
 /// Radix-4 inverse butterfly.
 /// C: ki_bfly4() in kiss_fft.c
-pub fn ki_bfly4(
-    fout: &mut [KissFftCpx],
-    fstride: usize,
-    st: &KissFftState,
-    m: usize,
-    n: usize,
-    mm: usize,
-) {
+pub fn ki_bfly4(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: usize, n: usize, mm: usize) {
     let m2 = 2 * m;
     let m3 = 3 * m;
 
@@ -198,14 +181,7 @@ pub fn ki_bfly4(
 /// Radix-3 inverse butterfly.
 /// C: ki_bfly3() in kiss_fft.c
 /// Only compiled when RADIX_TWO_ONLY is not defined (which is the default).
-pub fn ki_bfly3(
-    fout: &mut [KissFftCpx],
-    fstride: usize,
-    st: &KissFftState,
-    m: usize,
-    n: usize,
-    mm: usize,
-) {
+pub fn ki_bfly3(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: usize, n: usize, mm: usize) {
     let m2 = 2 * m;
     let epi3 = unsafe { *st.twiddles.add(fstride * m) };
 
@@ -242,14 +218,7 @@ pub fn ki_bfly3(
 /// Radix-5 inverse butterfly.
 /// C: ki_bfly5() in kiss_fft.c
 /// Only compiled when RADIX_TWO_ONLY is not defined (which is the default).
-pub fn ki_bfly5(
-    fout: &mut [KissFftCpx],
-    fstride: usize,
-    st: &KissFftState,
-    m: usize,
-    n: usize,
-    mm: usize,
-) {
+pub fn ki_bfly5(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: usize, n: usize, mm: usize) {
     let twiddles = st.twiddles;
     let ya = unsafe { *twiddles.add(fstride * m) };
     let yb = unsafe { *twiddles.add(fstride * 2 * m) };
@@ -308,48 +277,46 @@ pub fn ki_bfly5(
 /// 15 = 3×5, 5 = 5×1 — giving factors = [4,30, 2,15, 3,5, 5,1].
 /// The butterfly stages are applied in reverse: bfly5, bfly3, bfly2, bfly4.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_ifft(
-    st: *const KissFftState,
-    fin: *const KissFftCpx,
-    fout: *mut KissFftCpx,
-) {
+pub unsafe extern "C" fn opus_ifft(st: *const KissFftState, fin: *const KissFftCpx, fout: *mut KissFftCpx) {
     unsafe {
-    let st = &*st;
-    let nfft = st.nfft as usize;
-    let shift = if st.shift > 0 { st.shift as usize } else { 0 };
+        let st = &*st;
+        let nfft = st.nfft as usize;
+        let shift = if st.shift > 0 { st.shift as usize } else { 0 };
 
-    // Bit-reverse the input into the output buffer
-    let fin_slice = std::slice::from_raw_parts(fin, nfft);
-    let fout_slice = std::slice::from_raw_parts_mut(fout, nfft);
-    for i in 0..nfft {
-        let rev = *st.bitrev.add(i) as usize;
-        fout_slice[rev] = fin_slice[i];
-    }
-
-    // Build fstride table and count stages
-    let mut fstride = [0usize; MAXFACTORS];
-    fstride[0] = 1;
-    let mut l = 0usize;
-    loop {
-        let _p = st.factors[2 * l] as usize;
-        let m = st.factors[2 * l + 1] as usize;
-        fstride[l + 1] = fstride[l] * _p;
-        l += 1;
-        if m == 1 { break; }
-    }
-
-    // Apply butterfly stages in reverse order
-    let mut m = st.factors[2 * l - 1] as usize;
-    for i in (0..l).rev() {
-        let m2 = if i != 0 { st.factors[2 * i - 1] as usize } else { 1 };
-        match st.factors[2 * i] {
-            2 => ki_bfly2(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-            4 => ki_bfly4(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-            3 => ki_bfly3(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-            5 => ki_bfly5(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-            _ => {}
+        // Bit-reverse the input into the output buffer
+        let fin_slice = std::slice::from_raw_parts(fin, nfft);
+        let fout_slice = std::slice::from_raw_parts_mut(fout, nfft);
+        for i in 0..nfft {
+            let rev = *st.bitrev.add(i) as usize;
+            fout_slice[rev] = fin_slice[i];
         }
-        m = m2;
-    }
+
+        // Build fstride table and count stages
+        let mut fstride = [0usize; MAXFACTORS];
+        fstride[0] = 1;
+        let mut l = 0usize;
+        loop {
+            let _p = st.factors[2 * l] as usize;
+            let m = st.factors[2 * l + 1] as usize;
+            fstride[l + 1] = fstride[l] * _p;
+            l += 1;
+            if m == 1 {
+                break;
+            }
+        }
+
+        // Apply butterfly stages in reverse order
+        let mut m = st.factors[2 * l - 1] as usize;
+        for i in (0..l).rev() {
+            let m2 = if i != 0 { st.factors[2 * i - 1] as usize } else { 1 };
+            match st.factors[2 * i] {
+                2 => ki_bfly2(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
+                4 => ki_bfly4(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
+                3 => ki_bfly3(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
+                5 => ki_bfly5(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
+                _ => {}
+            }
+            m = m2;
+        }
     } // unsafe
 }

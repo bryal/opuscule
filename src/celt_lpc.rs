@@ -24,11 +24,7 @@ pub const LPC_ORDER: usize = 24;
 /// Bails out early if prediction gain exceeds ~30 dB (error < ac[0]/1024
 /// in fixed-point, error < 0.001*ac[0] in float).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn _celt_lpc(
-    _lpc: *mut OpusVal16,
-    ac: *const OpusVal32,
-    p: c_int,
-) {
+pub unsafe extern "C" fn _celt_lpc(_lpc: *mut OpusVal16, ac: *const OpusVal32, p: c_int) {
     unsafe {
         let p = p as usize;
 
@@ -270,10 +266,7 @@ mod tests {
         let mut ac = [0.0 as OpusVal32; 5];
 
         unsafe {
-            _celt_autocorr(
-                x.as_ptr(), ac.as_mut_ptr(),
-                std::ptr::null(), 0, 4, 64,
-            );
+            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 4, 64);
         }
         // ac[0] = 1.0 + 10 (bias), ac[1..4] = 0.0
         assert!((ac[0] - 11.0).abs() < 1e-6);
@@ -291,10 +284,7 @@ mod tests {
         let mut ac = [0.0 as OpusVal32; 3];
 
         unsafe {
-            _celt_autocorr(
-                x.as_ptr(), ac.as_mut_ptr(),
-                std::ptr::null(), 0, 2, n,
-            );
+            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 2, n);
         }
         // ac[0] = 16 + 10 (bias) = 26, ac[1] = 15, ac[2] = 14
         assert!((ac[0] - 26.0).abs() < 1e-6);
@@ -314,11 +304,7 @@ mod tests {
             _celt_lpc(lpc.as_mut_ptr(), ac.as_ptr(), 4);
         }
         for i in 0..4 {
-            assert!(
-                (lpc[i]).abs() < 1e-6,
-                "lpc[{}] = {} should be ~0 for white noise",
-                i, lpc[i]
-            );
+            assert!((lpc[i]).abs() < 1e-6, "lpc[{}] = {} should be ~0 for white noise", i, lpc[i]);
         }
     }
 }
