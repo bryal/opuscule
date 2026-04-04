@@ -16,6 +16,9 @@ pub mod packet;
 pub mod pitch;
 pub mod quant_bands;
 pub mod rate;
+pub mod vq;
+
+#[cfg(feature = "fixed-point")]
+pub mod static_modes_fixed;
 #[cfg(not(feature = "fixed-point"))]
 pub mod static_modes_float;
-pub mod vq;
