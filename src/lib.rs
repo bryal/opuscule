@@ -3,6 +3,7 @@
 #![feature(const_trait_impl, const_array)]
 
 pub mod arch;
+pub mod bands;
 pub mod celt_lpc;
 pub mod cwrs;
 pub mod entcode;

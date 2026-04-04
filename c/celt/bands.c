@@ -49,11 +49,6 @@
 #include "mathops.h"
 #include "rate.h"
 
-opus_uint32 celt_lcg_rand(opus_uint32 seed)
-{
-   return 1664525 * seed + 1013904223;
-}
-
 /* This is a cos() approximation designed to be bit-exact on any platform. Bit exactness
    with this approximation is important because it has an impact on the bit allocation */
 static opus_int16 bitexact_cos(opus_int16 x)
