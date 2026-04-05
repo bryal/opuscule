@@ -135,8 +135,20 @@ mod float_ops {
         a.max(b)
     }
     #[inline(always)]
+    pub fn min32(a: f32, b: f32) -> f32 {
+        a.min(b)
+    }
+    #[inline(always)]
     pub fn max32(a: f32, b: f32) -> f32 {
         a.max(b)
+    }
+    #[inline(always)]
+    pub fn mult16_16_q14(a: f32, b: f32) -> f32 {
+        a * b
+    }
+    #[inline(always)]
+    pub fn celt_rsqrt(x: f32) -> f32 {
+        1.0 / x.sqrt()
     }
     #[inline(always)]
     pub fn shl16(a: f32, _shift: i32) -> f32 {
@@ -300,8 +312,16 @@ mod fixed_ops {
         a.max(b)
     }
     #[inline(always)]
+    pub fn min32(a: i32, b: i32) -> i32 {
+        a.min(b)
+    }
+    #[inline(always)]
     pub fn max32(a: i32, b: i32) -> i32 {
         a.max(b)
+    }
+    #[inline(always)]
+    pub fn mult16_16_q14(a: i16, b: i16) -> i32 {
+        ((a as i32) * (b as i32)) >> 14
     }
     #[inline(always)]
     pub fn extract16(x: i32) -> i16 {
