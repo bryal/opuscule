@@ -9,10 +9,10 @@ use std::os::raw::c_int;
 
 use crate::arch::{CeltEner, CeltNorm, CeltSig, OpusVal16, OpusVal32, Q15ONE};
 #[cfg(feature = "fixed-point")]
-use crate::arch::{celt_exp2, celt_ilog2, celt_rsqrt_norm, extract16, mult16_16_q14, mult16_16_q15, shl16, shr16};
+use crate::arch::{celt_exp2, celt_ilog2, celt_rsqrt_norm, extract16, mult16_16_q14, shl16, shr16};
 #[cfg(not(feature = "fixed-point"))]
 use crate::arch::{celt_exp2, celt_rsqrt};
-use crate::arch::{extend32, min16, mult16_32_q15, shl32, shr32};
+use crate::arch::{extend32, min16, mult16_16_q15, mult16_32_q15, shl32, shr32};
 use crate::entcode::BITRES;
 use crate::modes::CELTMode;
 use crate::vq::renormalise_vector;
@@ -67,6 +67,29 @@ pub unsafe extern "C" fn denormalise_bands(
             c += 1;
             if c >= c_channels {
                 break;
+            }
+        }
+    }
+}
+
+/// Single-level Haar wavelet transform on interleaved sub-vectors.
+///
+/// Used inside quant_band to (de)interleave time-frequency coefficients
+/// for the Hadamard rearrangement that maps between time-domain short
+/// blocks and the band's frequency layout. Applies the unnormalised
+/// Haar butterfly (scaled by 1/sqrt(2)) in-place.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
+    unsafe {
+        let n0 = n0 >> 1;
+        for i in 0..stride {
+            for j in 0..n0 {
+                let idx0 = (stride * 2 * j + i) as usize;
+                let idx1 = (stride * (2 * j + 1) + i) as usize;
+                let tmp1 = mult16_16_q15(qconst16(0.70710678, 15), *x.add(idx0)) as CeltNorm;
+                let tmp2 = mult16_16_q15(qconst16(0.70710678, 15), *x.add(idx1)) as CeltNorm;
+                *x.add(idx0) = tmp1 + tmp2;
+                *x.add(idx1) = tmp1 - tmp2;
             }
         }
     }

@@ -469,21 +469,6 @@ static void interleave_hadamard(celt_norm *X, int N0, int stride, int hadamard)
    RESTORE_STACK;
 }
 
-void haar1(celt_norm *X, int N0, int stride)
-{
-   int i, j;
-   N0 >>= 1;
-   for (i=0;i<stride;i++)
-      for (j=0;j<N0;j++)
-      {
-         celt_norm tmp1, tmp2;
-         tmp1 = MULT16_16_Q15(QCONST16(.70710678f,15), X[stride*2*j+i]);
-         tmp2 = MULT16_16_Q15(QCONST16(.70710678f,15), X[stride*(2*j+1)+i]);
-         X[stride*2*j+i] = tmp1 + tmp2;
-         X[stride*(2*j+1)+i] = tmp1 - tmp2;
-      }
-}
-
 static int compute_qn(int N, int b, int offset, int pulse_cap, int stereo)
 {
    static const opus_int16 exp2_table8[8] =
