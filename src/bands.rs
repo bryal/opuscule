@@ -216,6 +216,71 @@ pub unsafe extern "C" fn stereo_merge(x: *mut CeltNorm, y: *mut CeltNorm, mid: O
     }
 }
 
+/// Bit-reversed Gray code table for Hadamard ordering.
+/// Lines are for N=2, 4, 8, 16; DC is placed at the end.
+const ORDERY_TABLE: [c_int; 30] =
+    [1, 0, 3, 0, 2, 1, 7, 0, 4, 3, 6, 1, 5, 2, 15, 0, 8, 7, 12, 3, 11, 4, 14, 1, 9, 6, 13, 2, 10, 5];
+
+/// Deinterleave sub-vectors with optional Hadamard reordering.
+///
+/// Rearranges `X` from interleaved layout (stride-interleaved short blocks)
+/// into contiguous sub-vectors, optionally applying the ordery Hadamard
+/// permutation. Used before recursive band splitting in quant_band.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn deinterleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
+    unsafe {
+        let n = n0 * stride;
+        let mut tmp = vec![0 as CeltNorm; n as usize];
+        if hadamard != 0 {
+            let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
+            for i in 0..stride as usize {
+                for j in 0..n0 as usize {
+                    tmp[ordery[i] as usize * n0 as usize + j] = *x.add(j * stride as usize + i);
+                }
+            }
+        } else {
+            for i in 0..stride as usize {
+                for j in 0..n0 as usize {
+                    tmp[i * n0 as usize + j] = *x.add(j * stride as usize + i);
+                }
+            }
+        }
+        for j in 0..n as usize {
+            *x.add(j) = tmp[j];
+        }
+    }
+}
+
+/// Interleave sub-vectors with optional Hadamard reordering.
+///
+/// Inverse of deinterleave_hadamard: rearranges contiguous sub-vectors
+/// back into stride-interleaved layout, with optional ordery Hadamard
+/// permutation. Used after recursive band reconstruction in quant_band.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn interleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
+    unsafe {
+        let n = n0 * stride;
+        let mut tmp = vec![0 as CeltNorm; n as usize];
+        if hadamard != 0 {
+            let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
+            for i in 0..stride as usize {
+                for j in 0..n0 as usize {
+                    tmp[j * stride as usize + i] = *x.add(ordery[i] as usize * n0 as usize + j);
+                }
+            }
+        } else {
+            for i in 0..stride as usize {
+                for j in 0..n0 as usize {
+                    tmp[j * stride as usize + i] = *x.add(i * n0 as usize + j);
+                }
+            }
+        }
+        for j in 0..n as usize {
+            *x.add(j) = tmp[j];
+        }
+    }
+}
+
 /// Spread mode constants (from bands.h).
 pub const SPREAD_NONE: c_int = 0;
 pub const SPREAD_LIGHT: c_int = 1;

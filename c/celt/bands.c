@@ -316,68 +316,8 @@ void measure_norm_mse(const CELTMode *m, float *X, float *X0, float *bandE, floa
 
 #endif
 
-/* Indexing table for converting from natural Hadamard to ordery Hadamard
-   This is essentially a bit-reversed Gray, on top of which we've added
-   an inversion of the order because we want the DC at the end rather than
-   the beginning. The lines are for N=2, 4, 8, 16 */
-static const int ordery_table[] = {
-       1,  0,
-       3,  0,  2,  1,
-       7,  0,  4,  3,  6,  1,  5,  2,
-      15,  0,  8,  7, 12,  3, 11,  4, 14,  1,  9,  6, 13,  2, 10,  5,
-};
-
-static void deinterleave_hadamard(celt_norm *X, int N0, int stride, int hadamard)
-{
-   int i,j;
-   VARDECL(celt_norm, tmp);
-   int N;
-   SAVE_STACK;
-   N = N0*stride;
-   ALLOC(tmp, N, celt_norm);
-   celt_assert(stride>0);
-   if (hadamard)
-   {
-      const int *ordery = ordery_table+stride-2;
-      for (i=0;i<stride;i++)
-      {
-         for (j=0;j<N0;j++)
-            tmp[ordery[i]*N0+j] = X[j*stride+i];
-      }
-   } else {
-      for (i=0;i<stride;i++)
-         for (j=0;j<N0;j++)
-            tmp[i*N0+j] = X[j*stride+i];
-   }
-   for (j=0;j<N;j++)
-      X[j] = tmp[j];
-   RESTORE_STACK;
-}
-
-static void interleave_hadamard(celt_norm *X, int N0, int stride, int hadamard)
-{
-   int i,j;
-   VARDECL(celt_norm, tmp);
-   int N;
-   SAVE_STACK;
-   N = N0*stride;
-   ALLOC(tmp, N, celt_norm);
-   if (hadamard)
-   {
-      const int *ordery = ordery_table+stride-2;
-      for (i=0;i<stride;i++)
-         for (j=0;j<N0;j++)
-            tmp[j*stride+i] = X[ordery[i]*N0+j];
-   } else {
-      for (i=0;i<stride;i++)
-         for (j=0;j<N0;j++)
-            tmp[j*stride+i] = X[i*N0+j];
-   }
-   for (j=0;j<N;j++)
-      X[j] = tmp[j];
-   RESTORE_STACK;
-}
-
+extern void deinterleave_hadamard(celt_norm *X, int N0, int stride, int hadamard);
+extern void interleave_hadamard(celt_norm *X, int N0, int stride, int hadamard);
 extern int compute_qn(int N, int b, int offset, int pulse_cap, int stereo);
 
 /* This function is responsible for encoding and decoding a band for both
