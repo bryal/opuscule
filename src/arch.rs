@@ -191,6 +191,10 @@ mod float_ops {
         (0.5 * std::f32::consts::PI * x).cos()
     }
     #[inline(always)]
+    pub fn div32_16(a: f32, b: f32) -> f32 {
+        a / b
+    }
+    #[inline(always)]
     pub fn celt_rcp(x: f32) -> f32 {
         1.0 / x
     }
@@ -340,12 +344,22 @@ mod fixed_ops {
         x >> 1
     }
 
+    #[inline(always)]
+    pub fn div32_16(a: i32, b: i16) -> i16 {
+        (a / (b as i32)) as i16
+    }
+
     // Fixed-point math functions from mathops.c/h
 
     #[inline(always)]
     pub fn celt_ilog2(x: i32) -> i16 {
         debug_assert!(x > 0);
         (ec_ilog(x as u32) - 1) as i16
+    }
+
+    #[inline(always)]
+    pub fn celt_zlog2(x: i32) -> i16 {
+        if x <= 0 { 0 } else { celt_ilog2(x) }
     }
 
     /// Reciprocal sqrt approximation (Q16 in, Q14 out).

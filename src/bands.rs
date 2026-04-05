@@ -7,12 +7,15 @@
 
 use std::os::raw::c_int;
 
-use crate::arch::{CeltEner, CeltNorm, CeltSig, OpusVal16, OpusVal32, Q15ONE};
+use crate::arch::{CeltEner, CeltNorm, CeltSig, EPSILON, OpusVal16, OpusVal32, Q15ONE};
+use crate::arch::{
+    add16, celt_rsqrt_norm, celt_sqrt, div32_16, extend32, extract16, mac16_16, min16, mult16_16, mult16_16_q14, mult16_16_q15,
+    mult16_32_q15, pshr32, shl32, shr32, sub16, vshr32,
+};
 #[cfg(feature = "fixed-point")]
-use crate::arch::{celt_exp2, celt_ilog2, celt_rsqrt_norm, extract16, mult16_16_q14, shl16, shr16};
+use crate::arch::{celt_exp2, celt_ilog2, celt_zlog2, shl16, shr16};
 #[cfg(not(feature = "fixed-point"))]
 use crate::arch::{celt_exp2, celt_rsqrt};
-use crate::arch::{extend32, min16, mult16_16_q15, mult16_32_q15, shl32, shr32};
 use crate::entcode::BITRES;
 use crate::modes::CELTMode;
 use crate::vq::renormalise_vector;
@@ -91,6 +94,124 @@ pub unsafe extern "C" fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
                 *x.add(idx0) = tmp1 + tmp2;
                 *x.add(idx1) = tmp1 - tmp2;
             }
+        }
+    }
+}
+
+/// Intensity stereo: rotate (X, Y) onto X using the energy ratio.
+///
+/// Computes the left/right energy ratio for the band, derives mixing
+/// coefficients a1 and a2, and replaces X with the intensity-coded
+/// mono signal. Y is not updated (side is discarded at this point).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn intensity_stereo(
+    m: *const CELTMode,
+    x: *mut CeltNorm,
+    y: *const CeltNorm,
+    band_e: *const CeltEner,
+    band_id: c_int,
+    n: c_int,
+) {
+    unsafe {
+        let mode = &*m;
+        let i = band_id as usize;
+        let nb = mode.nb_ebands as usize;
+
+        #[cfg(feature = "fixed-point")]
+        let shift = (celt_zlog2((*band_e.add(i)).max(*band_e.add(i + nb))) - 13) as i32;
+        #[cfg(not(feature = "fixed-point"))]
+        let shift: i32 = 0;
+
+        let left = vshr32(*band_e.add(i), shift);
+        let right = vshr32(*band_e.add(i + nb), shift);
+        let norm = EPSILON
+            + celt_sqrt(
+                EPSILON + mult16_16(left as OpusVal16, left as OpusVal16) + mult16_16(right as OpusVal16, right as OpusVal16),
+            );
+        let a1 = div32_16(shl32(extend32(left as OpusVal16), 14), norm as OpusVal16);
+        let a2 = div32_16(shl32(extend32(right as OpusVal16), 14), norm as OpusVal16);
+        for j in 0..n as usize {
+            let l = *x.add(j);
+            let r = *y.add(j);
+            *x.add(j) = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
+        }
+    }
+}
+
+/// Stereo split: convert (L, R) to (mid, side) using Haar-like transform.
+///
+/// X becomes (L+R)/sqrt(2), Y becomes (R-L)/sqrt(2).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn stereo_split(x: *mut CeltNorm, y: *mut CeltNorm, n: c_int) {
+    unsafe {
+        for j in 0..n as usize {
+            let l = mult16_16_q15(qconst16(0.70710678, 15), *x.add(j)) as CeltNorm;
+            let r = mult16_16_q15(qconst16(0.70710678, 15), *y.add(j)) as CeltNorm;
+            *x.add(j) = l + r;
+            *y.add(j) = r - l;
+        }
+    }
+}
+
+#[cfg(not(feature = "fixed-point"))]
+fn qconst32(x: f32, _bits: i32) -> f32 {
+    x
+}
+#[cfg(feature = "fixed-point")]
+fn qconst32(x: f32, bits: i32) -> i32 {
+    (x * ((1i64 << bits) as f32) + 0.5) as i32
+}
+
+/// Stereo merge: reconstruct (L, R) from (mid, side) after decoding.
+///
+/// Uses the energy invariance property to compute proper L/R gains
+/// from the decoded mid and side signals. Falls back to copying mid
+/// to both channels if the energy is near zero.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn stereo_merge(x: *mut CeltNorm, y: *mut CeltNorm, mid: OpusVal16, n: c_int) {
+    unsafe {
+        let mut xp: OpusVal32 = 0 as OpusVal32;
+        let mut side: OpusVal32 = 0 as OpusVal32;
+
+        for j in 0..n as usize {
+            xp = mac16_16(xp, *x.add(j), *y.add(j));
+            side = mac16_16(side, *y.add(j), *y.add(j));
+        }
+        xp = mult16_32_q15(mid, xp);
+        let mid2 = shr32(mid as OpusVal32, 1) as OpusVal16;
+        let el = mult16_16(mid2, mid2) + side - (2 as OpusVal32) * xp;
+        let er = mult16_16(mid2, mid2) + side + (2 as OpusVal32) * xp;
+        if er < qconst32(6e-4, 28) || el < qconst32(6e-4, 28) {
+            for j in 0..n as usize {
+                *y.add(j) = *x.add(j);
+            }
+            return;
+        }
+
+        #[cfg(feature = "fixed-point")]
+        let (kl, kr): (i32, i32);
+        #[cfg(not(feature = "fixed-point"))]
+        let (kl, kr): (i32, i32) = (0, 0);
+
+        #[cfg(feature = "fixed-point")]
+        {
+            kl = (celt_ilog2(el) >> 1) as i32;
+            kr = (celt_ilog2(er) >> 1) as i32;
+        }
+
+        let t = vshr32(el, (kl - 7) << 1);
+        let lgain = celt_rsqrt_norm(t);
+        let t = vshr32(er, (kr - 7) << 1);
+        let rgain = celt_rsqrt_norm(t);
+
+        #[cfg(feature = "fixed-point")]
+        let (kl, kr) = (kl.max(7), kr.max(7));
+
+        for j in 0..n as usize {
+            let l = mult16_16_q15(mid, *x.add(j));
+            let r = *y.add(j);
+            *x.add(j) = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
+            *y.add(j) = extract16(pshr32(mult16_16(rgain as OpusVal16, add16(l as OpusVal16, r)), kr + 1));
         }
     }
 }
