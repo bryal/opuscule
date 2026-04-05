@@ -469,30 +469,7 @@ static void interleave_hadamard(celt_norm *X, int N0, int stride, int hadamard)
    RESTORE_STACK;
 }
 
-static int compute_qn(int N, int b, int offset, int pulse_cap, int stereo)
-{
-   static const opus_int16 exp2_table8[8] =
-      {16384, 17866, 19483, 21247, 23170, 25267, 27554, 30048};
-   int qn, qb;
-   int N2 = 2*N-1;
-   if (stereo && N==2)
-      N2--;
-   /* The upper limit ensures that in a stereo split with itheta==16384, we'll
-       always have enough bits left over to code at least one pulse in the
-       side; otherwise it would collapse, since it doesn't get folded. */
-   qb = IMIN(b-pulse_cap-(4<<BITRES), (b+N2*offset)/N2);
-
-   qb = IMIN(8<<BITRES, qb);
-
-   if (qb<(1<<BITRES>>1)) {
-      qn = 1;
-   } else {
-      qn = exp2_table8[qb&0x7]>>(14-(qb>>BITRES));
-      qn = (qn+1)>>1<<1;
-   }
-   celt_assert(qn <= 256);
-   return qn;
-}
+extern int compute_qn(int N, int b, int offset, int pulse_cap, int stereo);
 
 /* This function is responsible for encoding and decoding a band for both
    the mono and stereo case. Even in the mono case, it can split the band

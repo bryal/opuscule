@@ -95,6 +95,33 @@ pub unsafe extern "C" fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
     }
 }
 
+/// Spread mode constants (from bands.h).
+pub const SPREAD_NONE: c_int = 0;
+pub const SPREAD_LIGHT: c_int = 1;
+pub const SPREAD_NORMAL: c_int = 2;
+pub const SPREAD_AGGRESSIVE: c_int = 3;
+
+/// Compute the number of quantisation levels for a band given the
+/// available bits, band size, and pulse cap. Used by quant_band to
+/// decide how finely to quantise the angular parameter theta.
+#[unsafe(no_mangle)]
+pub extern "C" fn compute_qn(n: c_int, b: c_int, offset: c_int, pulse_cap: c_int, stereo: c_int) -> c_int {
+    const EXP2_TABLE8: [i16; 8] = [16384, 17866, 19483, 21247, 23170, 25267, 27554, 30048];
+    let mut n2 = 2 * n - 1;
+    if stereo != 0 && n == 2 {
+        n2 -= 1;
+    }
+    let qb = (b - pulse_cap - (4 << BITRES)).min((b + n2 * offset) / n2);
+    let qb = qb.min(8 << BITRES as c_int);
+
+    if qb < (1 << BITRES >> 1) {
+        1
+    } else {
+        let qn = (EXP2_TABLE8[(qb as usize) & 0x7] >> (14 - (qb >> BITRES as c_int))) as c_int;
+        (qn + 1) >> 1 << 1
+    }
+}
+
 #[cfg(not(feature = "fixed-point"))]
 fn qconst16(x: f32, _bits: i32) -> f32 {
     x
