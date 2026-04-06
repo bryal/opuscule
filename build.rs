@@ -6,7 +6,7 @@
 // Only decoder-side sources are compiled. Encoder code has been removed
 // from celt.c and encoder-only source files are excluded.
 
-const CELT_SOURCES: &[&str] = &["celt/bands.c", "celt/celt.c"];
+const CELT_SOURCES: &[&str] = &["celt/celt.c"];
 
 const SILK_SOURCES: &[&str] = &[
     // Decoder
