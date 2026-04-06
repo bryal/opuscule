@@ -324,3 +324,34 @@ pub unsafe extern "C" fn comb_filter(
         }
     }
 }
+
+// -- opus_strerror / opus_get_version_string --
+
+static ERROR_STRINGS: [&[u8]; 8] = [
+    b"success\0",
+    b"invalid argument\0",
+    b"buffer too small\0",
+    b"internal error\0",
+    b"corrupted stream\0",
+    b"request not implemented\0",
+    b"invalid state\0",
+    b"memory allocation failed\0",
+];
+
+static UNKNOWN_ERROR: &[u8] = b"unknown error\0";
+
+#[unsafe(no_mangle)]
+pub extern "C" fn opus_strerror(error: c_int) -> *const std::os::raw::c_char {
+    if error > 0 || error < -7 {
+        UNKNOWN_ERROR.as_ptr() as *const std::os::raw::c_char
+    } else {
+        ERROR_STRINGS[(-error) as usize].as_ptr() as *const std::os::raw::c_char
+    }
+}
+
+static VERSION_STRING: &[u8] = b"libopus 1.0.0\0";
+
+#[unsafe(no_mangle)]
+pub extern "C" fn opus_get_version_string() -> *const std::os::raw::c_char {
+    VERSION_STRING.as_ptr() as *const std::os::raw::c_char
+}

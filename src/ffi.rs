@@ -19,8 +19,6 @@ pub const OPUS_OK: c_int = 0;
 pub const OPUS_GET_FINAL_RANGE_REQUEST: c_int = 4031;
 
 unsafe extern "C" {
-    pub fn opus_get_version_string() -> *const c_char;
-    pub fn opus_strerror(error: c_int) -> *const c_char;
     pub fn opus_decoder_create(fs: i32, channels: c_int, error: *mut c_int) -> *mut OpusDecoder;
     pub fn opus_decode(
         st: *mut OpusDecoder,
