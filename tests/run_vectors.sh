@@ -75,15 +75,82 @@ run_test_suite() {
     echo
 }
 
+# -- Quality baseline checking --
+
+BASELINE_FILE="tests/quality_baseline.txt"
+
+read_baseline() {
+    if [ ! -f "$BASELINE_FILE" ]; then
+        echo "ERROR: Baseline file not found: $BASELINE_FILE"
+        exit 1
+    fi
+    . "$BASELINE_FILE"
+}
+
+# Compare two quality scores. Returns 0 if actual >= expected, 1 otherwise.
+# Uses awk because shell arithmetic doesn't handle floats.
+is_worse() {
+    awk "BEGIN { exit ($1 < $2) ? 0 : 1 }"
+}
+
+is_better() {
+    awk "BEGIN { exit ($1 > $2) ? 0 : 1 }"
+}
+
+check_quality() {
+    label=$1
+    actual=$2
+    expected=$3
+    if is_worse "$actual" "$expected"; then
+        echo "QUALITY REGRESSION: $label: expected $expected %, got $actual %"
+        return 1
+    fi
+}
+
 # -- Float mode --
 echo "Building (float)..."
 cargo build --release 2>&1 | grep -E "^error" && exit 1 || true
 run_test_suite "float" target/release/opus_demo target/release/opus_compare
+result_float_mono=$mono_avg
+result_float_stereo=$stereo_avg
 
 # -- Fixed-point mode --
 echo "Building (fixed-point)..."
 cargo build --release --features fixed-point 2>&1 | grep -E "^error" && exit 1 || true
 run_test_suite "fixed-point" target/release/opus_demo target/release/opus_compare
+result_fixed_mono=$mono_avg
+result_fixed_stereo=$stereo_avg
 
 rm -f tmp.out logs_mono.txt logs_stereo.txt
+
+# -- Check against baseline --
+read_baseline
+failed=0
+check_quality "float mono"    "$result_float_mono"    "$float_mono"    || failed=1
+check_quality "float stereo"  "$result_float_stereo"  "$float_stereo"  || failed=1
+check_quality "fixed mono"    "$result_fixed_mono"    "$fixed_mono"    || failed=1
+check_quality "fixed stereo"  "$result_fixed_stereo"  "$fixed_stereo"  || failed=1
+
+if [ "$failed" -eq 1 ]; then
+    echo "FAILED: quality regression detected."
+    exit 1
+fi
+
+# -- Update baseline if any score improved --
+improved=0
+is_better "$result_float_mono"    "$float_mono"    && improved=1
+is_better "$result_float_stereo"  "$float_stereo"  && improved=1
+is_better "$result_fixed_mono"    "$fixed_mono"    && improved=1
+is_better "$result_fixed_stereo"  "$fixed_stereo"  && improved=1
+
+if [ "$improved" -eq 1 ]; then
+    cat > "$BASELINE_FILE" <<BASELINE
+float_mono=$result_float_mono
+float_stereo=$result_float_stereo
+fixed_mono=$result_fixed_mono
+fixed_stereo=$result_fixed_stereo
+BASELINE
+    echo "Baseline updated (quality improved)."
+fi
+
 echo "All tests passed (both float and fixed-point)."
