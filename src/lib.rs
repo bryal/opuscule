@@ -4,6 +4,7 @@
 
 pub mod arch;
 pub mod bands;
+pub mod celt;
 pub mod celt_lpc;
 pub mod cwrs;
 pub mod entcode;

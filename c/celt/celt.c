@@ -113,46 +113,9 @@ static inline int fromOpus(unsigned char c)
 #define COMBFILTER_MAXPERIOD 1024
 #define COMBFILTER_MINPERIOD 15
 
-static int resampling_factor(opus_int32 rate)
-{
-   int ret;
-   switch (rate)
-   {
-   case 48000:
-      ret = 1;
-      break;
-   case 24000:
-      ret = 2;
-      break;
-   case 16000:
-      ret = 3;
-      break;
-   case 12000:
-      ret = 4;
-      break;
-   case 8000:
-      ret = 6;
-      break;
-   default:
-#ifndef CUSTOM_MODES
-      celt_assert(0);
-#endif
-      ret = 0;
-      break;
-   }
-   return ret;
-}
-static inline opus_val16 SIG2WORD16(celt_sig x)
-{
-#ifdef FIXED_POINT
-   x = PSHR32(x, SIG_SHIFT);
-   x = MAX32(x, -32768);
-   x = MIN32(x, 32767);
-   return EXTRACT16(x);
-#else
-   return (opus_val16)x;
-#endif
-}
+extern int resampling_factor(opus_int32 rate);
+extern opus_val16 sig2word16(celt_sig x);
+#define SIG2WORD16(x) sig2word16(x)
 /** Compute the IMDCT and apply window for all sub-frames and
     all channels in a frame */
 static void compute_inv_mdcts(const CELTMode *mode, int shortBlocks, celt_sig *X,
@@ -271,61 +234,8 @@ static void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
                + MULT16_32_Q15(g12,x[i-T1+2]);
 }
 
-static const signed char tf_select_table[4][8] = {
-      {0, -1, 0, -1,    0,-1, 0,-1},
-      {0, -1, 0, -2,    1, 0, 1,-1},
-      {0, -2, 0, -3,    2, 0, 1,-1},
-      {0, -2, 0, -3,    3, 0, 1,-1},
-};
-static void tf_decode(int start, int end, int isTransient, int *tf_res, int LM, ec_dec *dec)
-{
-   int i, curr, tf_select;
-   int tf_select_rsv;
-   int tf_changed;
-   int logp;
-   opus_uint32 budget;
-   opus_uint32 tell;
-
-   budget = dec->storage*8;
-   tell = ec_tell(dec);
-   logp = isTransient ? 2 : 4;
-   tf_select_rsv = LM>0 && tell+logp+1<=budget;
-   budget -= tf_select_rsv;
-   tf_changed = curr = 0;
-   for (i=start;i<end;i++)
-   {
-      if (tell+logp<=budget)
-      {
-         curr ^= ec_dec_bit_logp(dec, logp);
-         tell = ec_tell(dec);
-         tf_changed |= curr;
-      }
-      tf_res[i] = curr;
-      logp = isTransient ? 4 : 5;
-   }
-   tf_select = 0;
-   if (tf_select_rsv &&
-     tf_select_table[LM][4*isTransient+0+tf_changed] !=
-     tf_select_table[LM][4*isTransient+2+tf_changed])
-   {
-      tf_select = ec_dec_bit_logp(dec, 1);
-   }
-   for (i=start;i<end;i++)
-   {
-      tf_res[i] = tf_select_table[LM][4*isTransient+2*tf_select+tf_res[i]];
-   }
-}
-
-static void init_caps(const CELTMode *m,int *cap,int LM,int C)
-{
-   int i;
-   for (i=0;i<m->nbEBands;i++)
-   {
-      int N;
-      N=(m->eBands[i+1]-m->eBands[i])<<LM;
-      cap[i] = (m->cache.caps[m->nbEBands*(2*LM+C-1)+i]+64)*C*N>>2;
-   }
-}
+extern void tf_decode(int start, int end, int isTransient, int *tf_res, int LM, ec_dec *dec);
+extern void init_caps(const CELTMode *m, int *cap, int LM, int C);
 /**********************************************************************/
 /*                                                                    */
 /*                             DECODER                                */
