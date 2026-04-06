@@ -122,24 +122,6 @@ fn imin(a: i32, b: i32) -> i32 {
     a.min(b)
 }
 
-#[cfg(not(feature = "fixed-point"))]
-#[inline]
-fn qconst16(x: f32, _bits: i32) -> f32 {
-    x
-}
-
-#[cfg(feature = "fixed-point")]
-#[inline]
-fn qconst16(x: f32, bits: i32) -> i16 {
-    (0.5 + x * ((1u32 << bits) as f32)) as i16
-}
-
-#[cfg(feature = "fixed-point")]
-#[inline]
-fn qconst32(x: f32, bits: i32) -> i32 {
-    (0.5 + x * ((1u32 << bits) as f32)) as i32
-}
-
 // -- Decoder functions --
 
 /// Decode coarse energy from the bitstream using a Laplace-like model.

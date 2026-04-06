@@ -7,7 +7,7 @@
 
 use std::os::raw::c_int;
 
-use crate::arch::{CeltEner, CeltNorm, CeltSig, EPSILON, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE};
+use crate::arch::{CeltEner, CeltNorm, CeltSig, EPSILON, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE, qconst16, qconst32};
 use crate::arch::{
     add16, celt_rsqrt_norm, celt_sqrt, div32_16, extend32, extract16, half32, mac16_16, min16, mult16_16, mult16_16_p15,
     mult16_16_q14, mult16_16_q15, mult16_32_q15, pshr32, shl32, shr16, shr32, sub16, vshr32,
@@ -154,15 +154,6 @@ pub unsafe extern "C" fn stereo_split(x: *mut CeltNorm, y: *mut CeltNorm, n: c_i
             *y.add(j) = r - l;
         }
     }
-}
-
-#[cfg(not(feature = "fixed-point"))]
-fn qconst32(x: f32, _bits: i32) -> f32 {
-    x
-}
-#[cfg(feature = "fixed-point")]
-fn qconst32(x: f32, bits: i32) -> i32 {
-    (x * ((1i64 << bits) as f32) + 0.5) as i32
 }
 
 /// Stereo merge: reconstruct (L, R) from (mid, side) after decoding.
@@ -313,15 +304,6 @@ pub extern "C" fn compute_qn(n: c_int, b: c_int, offset: c_int, pulse_cap: c_int
 
 const QTHETA_OFFSET: c_int = 4;
 const QTHETA_OFFSET_TWOPHASE: c_int = 16;
-
-#[cfg(not(feature = "fixed-point"))]
-fn qconst16(x: f32, _bits: i32) -> f32 {
-    x
-}
-#[cfg(feature = "fixed-point")]
-fn qconst16(x: f32, bits: i32) -> i16 {
-    (x * ((1 << bits) as f32) + 0.5) as i16
-}
 
 /// Bit-exact cosine approximation. Important for deterministic bit allocation.
 fn bitexact_cos(x: i16) -> i16 {

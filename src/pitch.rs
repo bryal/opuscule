@@ -10,18 +10,6 @@ use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir};
 /// In float mode the shift is a no-op because shr32 is identity on f32.
 const SIG_SHIFT: i32 = 12;
 
-#[cfg(not(feature = "fixed-point"))]
-#[inline(always)]
-fn qconst16(x: f32, _bits: i32) -> f32 {
-    x
-}
-
-#[cfg(feature = "fixed-point")]
-#[inline(always)]
-fn qconst16(x: f32, bits: i32) -> i16 {
-    (x * ((1 << bits) as f32) + 0.5) as i16
-}
-
 /// Find the two best pitch candidates by comparing normalized cross-correlation
 /// against a sliding energy window.
 ///

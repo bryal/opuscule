@@ -55,6 +55,30 @@ pub const NORM_SCALING: CeltNorm = 16384;
 
 pub const SPREAD_NONE: i32 = 0;
 
+// -- Compile-time fixed-point quantisation helpers --
+
+#[cfg(not(feature = "fixed-point"))]
+#[inline(always)]
+pub fn qconst16(x: f32, _bits: i32) -> f32 {
+    x
+}
+#[cfg(feature = "fixed-point")]
+#[inline(always)]
+pub fn qconst16(x: f32, bits: i32) -> i16 {
+    (x * ((1 << bits) as f32) + 0.5) as i16
+}
+
+#[cfg(not(feature = "fixed-point"))]
+#[inline(always)]
+pub fn qconst32(x: f32, _bits: i32) -> f32 {
+    x
+}
+#[cfg(feature = "fixed-point")]
+#[inline(always)]
+pub fn qconst32(x: f32, bits: i32) -> i32 {
+    (x * ((1i64 << bits) as f32) + 0.5) as i32
+}
+
 // -- Float-mode arithmetic (identity operations) --
 
 #[cfg(not(feature = "fixed-point"))]

@@ -116,124 +116,13 @@ static inline int fromOpus(unsigned char c)
 extern int resampling_factor(opus_int32 rate);
 extern opus_val16 sig2word16(celt_sig x);
 #define SIG2WORD16(x) sig2word16(x)
-/** Compute the IMDCT and apply window for all sub-frames and
-    all channels in a frame */
-static void compute_inv_mdcts(const CELTMode *mode, int shortBlocks, celt_sig *X,
+extern void compute_inv_mdcts(const CELTMode *mode, int shortBlocks, celt_sig *X,
       celt_sig * restrict out_mem[],
-      celt_sig * restrict overlap_mem[], int C, int LM)
-{
-   int c;
-   const int N = mode->shortMdctSize<<LM;
-   const int overlap = OVERLAP(mode);
-   VARDECL(opus_val32, x);
-   SAVE_STACK;
-
-   ALLOC(x, N+overlap, opus_val32);
-   c=0; do {
-      int j;
-      int b;
-      int N2 = N;
-      int B = 1;
-
-      if (shortBlocks)
-      {
-         N2 = mode->shortMdctSize;
-         B = shortBlocks;
-      }
-      /* Prevents problems from the imdct doing the overlap-add */
-      OPUS_CLEAR(x, overlap);
-
-      for (b=0;b<B;b++)
-      {
-         /* IMDCT on the interleaved the sub-frames */
-         clt_mdct_backward(&mode->mdct, &X[b+c*N2*B], x+N2*b, mode->window, overlap, shortBlocks ? mode->maxLM : mode->maxLM-LM, B);
-      }
-
-      for (j=0;j<overlap;j++)
-         out_mem[c][j] = x[j] + overlap_mem[c][j];
-      for (;j<N;j++)
-         out_mem[c][j] = x[j];
-      for (j=0;j<overlap;j++)
-         overlap_mem[c][j] = x[N+j];
-   } while (++c<C);
-   RESTORE_STACK;
-}
-
-static void deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef, celt_sig *mem)
-{
-   int c;
-   int count=0;
-   c=0; do {
-      int j;
-      celt_sig * restrict x;
-      opus_val16  * restrict y;
-      celt_sig m = mem[c];
-      x =in[c];
-      y = pcm+c;
-      for (j=0;j<N;j++)
-      {
-         celt_sig tmp = *x + m;
-         m = MULT16_32_Q15(coef[0], tmp)
-           - MULT16_32_Q15(coef[1], *x);
-         tmp = SHL32(MULT16_32_Q15(coef[3], tmp), 2);
-         x++;
-         /* Technically the store could be moved outside of the if because
-            the stores we don't want will just be overwritten */
-         if (count==0)
-            *y = SCALEOUT(SIG2WORD16(tmp));
-         if (++count==downsample)
-         {
-            y+=C;
-            count=0;
-         }
-      }
-      mem[c] = m;
-   } while (++c<C);
-}
-
-static void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
+      celt_sig * restrict overlap_mem[], int C, int LM);
+extern void deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef, celt_sig *mem);
+extern void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
       opus_val16 g0, opus_val16 g1, int tapset0, int tapset1,
-      const opus_val16 *window, int overlap)
-{
-   int i;
-   /* printf ("%d %d %f %f\n", T0, T1, g0, g1); */
-   opus_val16 g00, g01, g02, g10, g11, g12;
-   static const opus_val16 gains[3][3] = {
-         {QCONST16(0.3066406250f, 15), QCONST16(0.2170410156f, 15), QCONST16(0.1296386719f, 15)},
-         {QCONST16(0.4638671875f, 15), QCONST16(0.2680664062f, 15), QCONST16(0.f, 15)},
-         {QCONST16(0.7998046875f, 15), QCONST16(0.1000976562f, 15), QCONST16(0.f, 15)}};
-   g00 = MULT16_16_Q15(g0, gains[tapset0][0]);
-   g01 = MULT16_16_Q15(g0, gains[tapset0][1]);
-   g02 = MULT16_16_Q15(g0, gains[tapset0][2]);
-   g10 = MULT16_16_Q15(g1, gains[tapset1][0]);
-   g11 = MULT16_16_Q15(g1, gains[tapset1][1]);
-   g12 = MULT16_16_Q15(g1, gains[tapset1][2]);
-   for (i=0;i<overlap;i++)
-   {
-      opus_val16 f;
-      f = MULT16_16_Q15(window[i],window[i]);
-      y[i] = x[i]
-               + MULT16_32_Q15(MULT16_16_Q15((Q15ONE-f),g00),x[i-T0])
-               + MULT16_32_Q15(MULT16_16_Q15((Q15ONE-f),g01),x[i-T0-1])
-               + MULT16_32_Q15(MULT16_16_Q15((Q15ONE-f),g01),x[i-T0+1])
-               + MULT16_32_Q15(MULT16_16_Q15((Q15ONE-f),g02),x[i-T0-2])
-               + MULT16_32_Q15(MULT16_16_Q15((Q15ONE-f),g02),x[i-T0+2])
-               + MULT16_32_Q15(MULT16_16_Q15(f,g10),x[i-T1])
-               + MULT16_32_Q15(MULT16_16_Q15(f,g11),x[i-T1-1])
-               + MULT16_32_Q15(MULT16_16_Q15(f,g11),x[i-T1+1])
-               + MULT16_32_Q15(MULT16_16_Q15(f,g12),x[i-T1-2])
-               + MULT16_32_Q15(MULT16_16_Q15(f,g12),x[i-T1+2]);
-
-   }
-   for (i=overlap;i<N;i++)
-      y[i] = x[i]
-               + MULT16_32_Q15(g10,x[i-T1])
-               + MULT16_32_Q15(g11,x[i-T1-1])
-               + MULT16_32_Q15(g11,x[i-T1+1])
-               + MULT16_32_Q15(g12,x[i-T1-2])
-               + MULT16_32_Q15(g12,x[i-T1+2]);
-}
-
+      const opus_val16 *window, int overlap);
 extern void tf_decode(int start, int end, int isTransient, int *tf_res, int LM, ec_dec *dec);
 extern void init_caps(const CELTMode *m, int *cap, int LM, int C);
 /**********************************************************************/
