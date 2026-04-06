@@ -178,6 +178,7 @@ pub unsafe extern "C" fn anti_collapse(
                 }
 
                 let x_ptr = x_.add(c as usize * size as usize + ((*mode.ebands.add(i) as c_int) << lm) as usize);
+                let mut renormalize = 0;
                 for k in 0..1 << lm {
                     // Detect collapse
                     if (*collapse_masks.add(i * c_channels as usize + c as usize) & (1 << k)) == 0 {
@@ -186,9 +187,12 @@ pub unsafe extern "C" fn anti_collapse(
                             seed = celt_lcg_rand(seed);
                             *x_ptr.add(((j << lm) + k) as usize) = if seed & 0x8000 != 0 { r } else { -r };
                         }
-                        // We just added some energy, so we need to renormalise
-                        renormalise_vector(x_ptr, n0 << lm, Q15ONE);
+                        renormalize = 1;
                     }
+                }
+                // We just added some energy, so we need to renormalise
+                if renormalize != 0 {
+                    renormalise_vector(x_ptr, n0 << lm, Q15ONE);
                 }
 
                 c += 1;
