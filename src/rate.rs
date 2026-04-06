@@ -14,6 +14,7 @@ use std::os::raw::c_int;
 
 use crate::entcode::{BITRES, ec_ctx};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_uint};
+use crate::modes::{CELTMode, PulseCache};
 
 // -- Constants from rate.h --
 
@@ -72,62 +73,6 @@ pub unsafe fn pulses2bits(m: *const CELTMode, band: i32, lm: i32, pulses: i32) -
     let cache = unsafe { m.cache.bits.add(cache_idx as usize) };
     if pulses == 0 { 0 } else { (unsafe { *cache.add(pulses as usize) }) as i32 + 1 }
 }
-
-// -- C struct definitions (repr(C) to match layout) --
-
-/// Pulse cache from modes.h.
-#[repr(C)]
-pub struct PulseCache {
-    pub size: c_int,
-    pub index: *const i16,
-    pub bits: *const u8,
-    pub caps: *const u8,
-}
-
-/// Opaque placeholder for mdct_lookup to maintain struct layout.
-/// mdct_lookup = { int n, int maxshift, const kiss_fft_state *kfft[4],
-///                 const kiss_twiddle_scalar *trig }
-#[repr(C)]
-struct MdctLookupOpaque {
-    _n: c_int,
-    _maxshift: c_int,
-    _kfft: [*const u8; 4],
-    _trig: *const u8,
-}
-
-/// CELTMode struct from modes.h (OpusCustomMode).
-/// We only access the fields needed by rate/band allocation; the mdct
-/// and window fields are opaque padding to maintain correct layout.
-///
-/// Note: the `preemph` field is opus_val16[4], which is f32[4] in
-/// float mode and i16[4] in fixed-point mode. We use cfg to match.
-#[repr(C)]
-pub struct OpusCustomMode {
-    pub fs: i32,
-    pub overlap: c_int,
-    pub nb_ebands: c_int,
-    pub eff_ebands: c_int,
-    #[cfg(not(feature = "fixed-point"))]
-    _preemph: [f32; 4],
-    #[cfg(feature = "fixed-point")]
-    _preemph: [i16; 4],
-    pub ebands: *const i16,
-    pub max_lm: c_int,
-    pub nb_short_mdcts: c_int,
-    pub short_mdct_size: c_int,
-    pub nb_alloc_vectors: c_int,
-    pub alloc_vectors: *const u8,
-    pub log_n: *const i16,
-    #[cfg(not(feature = "fixed-point"))]
-    pub window: *const f32,
-    #[cfg(feature = "fixed-point")]
-    pub window: *const i16,
-    _mdct: MdctLookupOpaque,
-    pub cache: PulseCache,
-}
-
-/// Alias used in C code.
-pub type CELTMode = OpusCustomMode;
 
 // Helpers matching C macros
 #[inline]

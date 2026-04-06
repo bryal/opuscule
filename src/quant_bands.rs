@@ -16,7 +16,7 @@ use std::os::raw::c_int;
 use crate::arch::*;
 use crate::entcode::ec_ctx;
 use crate::entdec::ec_tell;
-use crate::rate::CELTMode;
+use crate::modes::CELTMode;
 
 // -- Constants --
 

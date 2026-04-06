@@ -31,10 +31,10 @@ pub struct PulseCache {
 // Safety: PulseCache contains only pointers to static data.
 unsafe impl Sync for PulseCache {}
 
-/// CELTMode: the mode definition struct.
-/// Matches C's struct OpusCustomMode in modes.h.
+/// The mode definition struct.
+/// C name: `struct OpusCustomMode`; `CELTMode` is a typedef alias.
 #[repr(C)]
-pub struct CELTMode {
+pub struct OpusCustomMode {
     pub fs: i32,
     pub overlap: c_int,
     pub nb_ebands: c_int,
@@ -52,8 +52,11 @@ pub struct CELTMode {
     pub cache: PulseCache,
 }
 
-// Safety: CELTMode contains only pointers to static data.
-unsafe impl Sync for CELTMode {}
+/// Matches `typedef struct OpusCustomMode CELTMode` in modes.h.
+pub type CELTMode = OpusCustomMode;
+
+// Safety: OpusCustomMode contains only pointers to static data.
+unsafe impl Sync for OpusCustomMode {}
 
 // ---------------------------------------------------------------------------
 // Data arrays from modes.c

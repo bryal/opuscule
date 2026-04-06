@@ -48,6 +48,11 @@ pub const VERY_LARGE16: f32 = 1e15;
 #[cfg(feature = "fixed-point")]
 pub const VERY_LARGE16: i16 = 32767;
 
+#[cfg(not(feature = "fixed-point"))]
+pub const NORM_SCALING: f32 = 1.0;
+#[cfg(feature = "fixed-point")]
+pub const NORM_SCALING: CeltNorm = 16384;
+
 pub const SPREAD_NONE: i32 = 0;
 
 // -- Float-mode arithmetic (identity operations) --
