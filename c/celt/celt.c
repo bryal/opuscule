@@ -169,83 +169,11 @@ struct OpusCustomDecoder {
    /* opus_val16 backgroundLogE[], Size = 2*mode->nbEBands */
 };
 
-int celt_decoder_get_size(int channels)
-{
-   const CELTMode *mode = opus_custom_mode_create(48000, 960, NULL);
-   return opus_custom_decoder_get_size(mode, channels);
-}
-
-OPUS_CUSTOM_NOSTATIC int opus_custom_decoder_get_size(const CELTMode *mode, int channels)
-{
-   int size = sizeof(struct CELTDecoder)
-            + (channels*(DECODE_BUFFER_SIZE+mode->overlap)-1)*sizeof(celt_sig)
-            + channels*LPC_ORDER*sizeof(opus_val16)
-            + 4*2*mode->nbEBands*sizeof(opus_val16);
-   return size;
-}
-
-#ifdef CUSTOM_MODES
-CELTDecoder *opus_custom_decoder_create(const CELTMode *mode, int channels, int *error)
-{
-   int ret;
-   CELTDecoder *st = (CELTDecoder *)opus_alloc(opus_custom_decoder_get_size(mode, channels));
-   ret = opus_custom_decoder_init(st, mode, channels);
-   if (ret != OPUS_OK)
-   {
-      opus_custom_decoder_destroy(st);
-      st = NULL;
-   }
-   if (error)
-      *error = ret;
-   return st;
-}
-#endif /* CUSTOM_MODES */
-
-int celt_decoder_init(CELTDecoder *st, opus_int32 sampling_rate, int channels)
-{
-   int ret;
-   ret = opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, NULL), channels);
-   if (ret != OPUS_OK)
-      return ret;
-   st->downsample = resampling_factor(sampling_rate);
-   if (st->downsample==0)
-      return OPUS_BAD_ARG;
-   else
-      return OPUS_OK;
-}
-
-OPUS_CUSTOM_NOSTATIC int opus_custom_decoder_init(CELTDecoder *st, const CELTMode *mode, int channels)
-{
-   if (channels < 0 || channels > 2)
-      return OPUS_BAD_ARG;
-
-   if (st==NULL)
-      return OPUS_ALLOC_FAIL;
-
-   OPUS_CLEAR((char*)st, opus_custom_decoder_get_size(mode, channels));
-
-   st->mode = mode;
-   st->overlap = mode->overlap;
-   st->stream_channels = st->channels = channels;
-
-   st->downsample = 1;
-   st->start = 0;
-   st->end = st->mode->effEBands;
-   st->signalling = 1;
-
-   st->loss_count = 0;
-
-   opus_custom_decoder_ctl(st, OPUS_RESET_STATE);
-
-   return OPUS_OK;
-}
-
-#ifdef CUSTOM_MODES
-void opus_custom_decoder_destroy(CELTDecoder *st)
-{
-   opus_free(st);
-}
-#endif /* CUSTOM_MODES */
+extern int celt_decoder_get_size(int channels);
+extern int opus_custom_decoder_get_size(const CELTMode *mode, int channels);
+extern int celt_decoder_init(CELTDecoder *st, opus_int32 sampling_rate, int channels);
+extern int opus_custom_decoder_init(CELTDecoder *st, const CELTMode *mode, int channels);
+extern void celt_decoder_reset(CELTDecoder *st);
 
 static void celt_decode_lost(CELTDecoder * restrict st, opus_val16 * restrict pcm, int N, int LM)
 {
@@ -1002,17 +930,7 @@ int opus_custom_decoder_ctl(CELTDecoder * restrict st, int request, ...)
       break;
       case OPUS_RESET_STATE:
       {
-         int i;
-         opus_val16 *lpc, *oldBandE, *oldLogE, *oldLogE2;
-         lpc = (opus_val16*)(st->_decode_mem+(DECODE_BUFFER_SIZE+st->overlap)*st->channels);
-         oldBandE = lpc+st->channels*LPC_ORDER;
-         oldLogE = oldBandE + 2*st->mode->nbEBands;
-         oldLogE2 = oldLogE + 2*st->mode->nbEBands;
-         OPUS_CLEAR((char*)&st->DECODER_RESET_START,
-               opus_custom_decoder_get_size(st->mode, st->channels)-
-               ((char*)&st->DECODER_RESET_START - (char*)st));
-         for (i=0;i<2*st->mode->nbEBands;i++)
-            oldLogE[i]=oldLogE2[i]=-QCONST16(28.f,DB_SHIFT);
+         celt_decoder_reset(st);
       }
       break;
       case OPUS_GET_PITCH_REQUEST:

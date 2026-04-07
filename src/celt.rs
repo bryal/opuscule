@@ -11,7 +11,7 @@ use crate::arch::{extract16, max32, min32, pshr32};
 use crate::entcode::ec_ctx;
 use crate::entdec::{ec_dec_bit_logp, ec_tell};
 use crate::mdct::{MdctLookup, clt_mdct_backward};
-use crate::modes::CELTMode;
+use crate::modes::{CELTMode, opus_custom_mode_create};
 
 // -- Constants --
 
@@ -19,6 +19,164 @@ const SIG_SHIFT: c_int = 12;
 
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
+
+pub const DECODE_BUFFER_SIZE: c_int = 2048;
+const LPC_ORDER: c_int = 24;
+const DB_SHIFT: c_int = 10;
+
+// -- Opus error codes (from opus_defines.h) --
+
+const OPUS_OK: c_int = 0;
+const OPUS_BAD_ARG: c_int = -1;
+const OPUS_ALLOC_FAIL: c_int = -7;
+const OPUS_RESET_STATE: c_int = 4028;
+
+// -- OpusCustomDecoder (CELTDecoder) struct --
+
+/// CELT decoder state.
+///
+/// Matches the C `struct OpusCustomDecoder` (typedef'd as `CELTDecoder`).
+/// Uses a flexible array member pattern: `_decode_mem` is declared as
+/// `[CeltSig; 1]` but the actual allocation is larger, with trailing
+/// space for lpc, oldBandE, oldLogE, oldLogE2, and backgroundLogE.
+#[repr(C)]
+pub struct OpusCustomDecoder {
+    pub mode: *const CELTMode,
+    pub overlap: c_int,
+    pub channels: c_int,
+    pub stream_channels: c_int,
+
+    pub downsample: c_int,
+    pub start: c_int,
+    pub end: c_int,
+    pub signalling: c_int,
+
+    // Everything beyond this point gets cleared on a reset
+    // (DECODER_RESET_START = rng)
+    pub rng: u32,
+    pub error: c_int,
+    pub last_pitch_index: c_int,
+    pub loss_count: c_int,
+    pub postfilter_period: c_int,
+    pub postfilter_period_old: c_int,
+    pub postfilter_gain: OpusVal16,
+    pub postfilter_gain_old: OpusVal16,
+    pub postfilter_tapset: c_int,
+    pub postfilter_tapset_old: c_int,
+
+    pub preemph_mem_d: [CeltSig; 2],
+
+    pub _decode_mem: [CeltSig; 1],
+}
+
+/// Type alias matching `typedef struct OpusCustomDecoder CELTDecoder`.
+pub type CELTDecoder = OpusCustomDecoder;
+
+// -- Decoder size and init functions --
+
+/// Return the size in bytes of a CELT decoder for the standard Opus mode.
+#[unsafe(no_mangle)]
+pub extern "C" fn celt_decoder_get_size(channels: c_int) -> c_int {
+    let mode = unsafe { opus_custom_mode_create(48000, 960, std::ptr::null_mut()) };
+    opus_custom_decoder_get_size(mode, channels)
+}
+
+/// Return the size in bytes of a CELT decoder for a given mode.
+#[unsafe(no_mangle)]
+pub extern "C" fn opus_custom_decoder_get_size(mode: *const CELTMode, channels: c_int) -> c_int {
+    unsafe {
+        let size = std::mem::size_of::<OpusCustomDecoder>() as c_int
+            + (channels * (DECODE_BUFFER_SIZE + (*mode).overlap) - 1) * std::mem::size_of::<CeltSig>() as c_int
+            + channels * LPC_ORDER * std::mem::size_of::<OpusVal16>() as c_int
+            + 4 * 2 * (*mode).nb_ebands * std::mem::size_of::<OpusVal16>() as c_int;
+        size
+    }
+}
+
+/// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn celt_decoder_init(st: *mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
+    unsafe {
+        let ret = opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, std::ptr::null_mut()), channels);
+        if ret != OPUS_OK {
+            return ret;
+        }
+        (*st).downsample = resampling_factor(sampling_rate);
+        if (*st).downsample == 0 { OPUS_BAD_ARG } else { OPUS_OK }
+    }
+}
+
+/// Initialise a CELT decoder for a given mode and channel count.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn opus_custom_decoder_init(
+    st: *mut CELTDecoder,
+    mode: *const CELTMode,
+    channels: c_int,
+) -> c_int {
+    unsafe {
+        if channels < 0 || channels > 2 {
+            return OPUS_BAD_ARG;
+        }
+        if st.is_null() {
+            return OPUS_ALLOC_FAIL;
+        }
+
+        // OPUS_CLEAR: zero the entire allocated block
+        let total_size = opus_custom_decoder_get_size(mode, channels) as usize;
+        std::ptr::write_bytes(st as *mut u8, 0, total_size);
+
+        (*st).mode = mode;
+        (*st).overlap = (*mode).overlap;
+        (*st).channels = channels;
+        (*st).stream_channels = channels;
+
+        (*st).downsample = 1;
+        (*st).start = 0;
+        (*st).end = (*mode).eff_ebands;
+        (*st).signalling = 1;
+
+        (*st).loss_count = 0;
+
+        // Inline OPUS_RESET_STATE logic: clear from rng onward, init oldLogE/oldLogE2
+        celt_decoder_reset(st);
+
+        OPUS_OK
+    }
+}
+
+/// Reset the decoder state (everything from `rng` onward).
+///
+/// This is the logic from `opus_custom_decoder_ctl(..., OPUS_RESET_STATE)`.
+/// Factored out so both `opus_custom_decoder_init` and the ctl handler can call it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn celt_decoder_reset(st: *mut CELTDecoder) {
+    unsafe {
+        let mode = (*st).mode;
+        let channels = (*st).channels;
+        let nb_ebands = (*mode).nb_ebands;
+
+        // Compute pointer offsets for trailing arrays
+        let lpc = ((*st)._decode_mem.as_mut_ptr()).add(((DECODE_BUFFER_SIZE + (*st).overlap) * channels) as usize)
+            as *mut OpusVal16;
+        let old_band_e = lpc.add((channels * LPC_ORDER) as usize);
+        let old_log_e = old_band_e.add((2 * nb_ebands) as usize);
+        let old_log_e2 = old_log_e.add((2 * nb_ebands) as usize);
+
+        // Clear from rng to end of allocated block
+        let reset_start = &mut (*st).rng as *mut u32 as *mut u8;
+        let struct_start = st as *mut u8;
+        let total_size = opus_custom_decoder_get_size(mode, channels) as usize;
+        let offset = reset_start.offset_from(struct_start) as usize;
+        std::ptr::write_bytes(reset_start, 0, total_size - offset);
+
+        // Initialise oldLogE and oldLogE2 to -28 dB
+        let init_val = -qconst16(28.0, DB_SHIFT);
+        for i in 0..(2 * nb_ebands) as usize {
+            *old_log_e.add(i) = init_val;
+            *old_log_e2.add(i) = init_val;
+        }
+    }
+}
 
 // -- tf_select_table (used by tf_decode) --
 
