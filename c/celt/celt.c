@@ -130,44 +130,9 @@ extern void init_caps(const CELTMode *m, int *cap, int LM, int C);
 /*                             DECODER                                */
 /*                                                                    */
 /**********************************************************************/
-#define DECODE_BUFFER_SIZE 2048
 
-/** Decoder state
- @brief Decoder state
- */
-struct OpusCustomDecoder {
-   const OpusCustomMode *mode;
-   int overlap;
-   int channels;
-   int stream_channels;
-
-   int downsample;
-   int start, end;
-   int signalling;
-
-   /* Everything beyond this point gets cleared on a reset */
-#define DECODER_RESET_START rng
-
-   opus_uint32 rng;
-   int error;
-   int last_pitch_index;
-   int loss_count;
-   int postfilter_period;
-   int postfilter_period_old;
-   opus_val16 postfilter_gain;
-   opus_val16 postfilter_gain_old;
-   int postfilter_tapset;
-   int postfilter_tapset_old;
-
-   celt_sig preemph_memD[2];
-
-   celt_sig _decode_mem[1]; /* Size = channels*(DECODE_BUFFER_SIZE+mode->overlap) */
-   /* opus_val16 lpc[],  Size = channels*LPC_ORDER */
-   /* opus_val16 oldEBands[], Size = 2*mode->nbEBands */
-   /* opus_val16 oldLogE[], Size = 2*mode->nbEBands */
-   /* opus_val16 oldLogE2[], Size = 2*mode->nbEBands */
-   /* opus_val16 backgroundLogE[], Size = 2*mode->nbEBands */
-};
+/* OpusCustomDecoder struct: translated to Rust (src/celt.rs) */
+/* opus_custom_decoder_ctl: translated to Rust (src/celt.rs), uses CeltDecCtl enum */
 
 extern int celt_decoder_get_size(int channels);
 extern int opus_custom_decoder_get_size(const CELTMode *mode, int channels);
@@ -176,104 +141,6 @@ extern int opus_custom_decoder_init(CELTDecoder *st, const CELTMode *mode, int c
 extern void celt_decoder_reset(CELTDecoder *st);
 extern void celt_decode_lost(CELTDecoder *st, opus_val16 *pcm, int N, int LM);
 extern int celt_decode_with_ec(CELTDecoder *st, const unsigned char *data, int len, opus_val16 *pcm, int frame_size, ec_dec *dec);
-
-int opus_custom_decoder_ctl(CELTDecoder * restrict st, int request, ...)
-{
-   va_list ap;
-
-   va_start(ap, request);
-   switch (request)
-   {
-      case CELT_SET_START_BAND_REQUEST:
-      {
-         opus_int32 value = va_arg(ap, opus_int32);
-         if (value<0 || value>=st->mode->nbEBands)
-            goto bad_arg;
-         st->start = value;
-      }
-      break;
-      case CELT_SET_END_BAND_REQUEST:
-      {
-         opus_int32 value = va_arg(ap, opus_int32);
-         if (value<1 || value>st->mode->nbEBands)
-            goto bad_arg;
-         st->end = value;
-      }
-      break;
-      case CELT_SET_CHANNELS_REQUEST:
-      {
-         opus_int32 value = va_arg(ap, opus_int32);
-         if (value<1 || value>2)
-            goto bad_arg;
-         st->stream_channels = value;
-      }
-      break;
-      case CELT_GET_AND_CLEAR_ERROR_REQUEST:
-      {
-         int *value = va_arg(ap, opus_int32*);
-         if (value==NULL)
-            goto bad_arg;
-         *value=st->error;
-         st->error = 0;
-      }
-      break;
-      case OPUS_GET_LOOKAHEAD_REQUEST:
-      {
-         int *value = va_arg(ap, opus_int32*);
-         if (value==NULL)
-            goto bad_arg;
-         *value = st->overlap/st->downsample;
-      }
-      break;
-      case OPUS_RESET_STATE:
-      {
-         celt_decoder_reset(st);
-      }
-      break;
-      case OPUS_GET_PITCH_REQUEST:
-      {
-         int *value = va_arg(ap, opus_int32*);
-         if (value==NULL)
-            goto bad_arg;
-         *value = st->postfilter_period;
-      }
-      break;
-#ifdef OPUS_BUILD
-      case CELT_GET_MODE_REQUEST:
-      {
-         const CELTMode ** value = va_arg(ap, const CELTMode**);
-         if (value==0)
-            goto bad_arg;
-         *value=st->mode;
-      }
-      break;
-      case CELT_SET_SIGNALLING_REQUEST:
-      {
-         opus_int32 value = va_arg(ap, opus_int32);
-         st->signalling = value;
-      }
-      break;
-      case OPUS_GET_FINAL_RANGE_REQUEST:
-      {
-         opus_uint32 * value = va_arg(ap, opus_uint32 *);
-         if (value==0)
-            goto bad_arg;
-         *value=st->rng;
-      }
-      break;
-#endif
-      default:
-         goto bad_request;
-   }
-   va_end(ap);
-   return OPUS_OK;
-bad_arg:
-   va_end(ap);
-   return OPUS_BAD_ARG;
-bad_request:
-      va_end(ap);
-  return OPUS_UNIMPLEMENTED;
-}
 
 
 

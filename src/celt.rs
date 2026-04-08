@@ -41,12 +41,23 @@ const COMBFILTER_MINPERIOD: c_int = 15;
 
 // -- OpusCustomDecoder (CELTDecoder) struct --
 
+// Standard Opus mode constants for fixed-size arrays.
+// Without CUSTOM_MODES, overlap=120 and nbEBands=21 are invariant.
+const OVERLAP: c_int = 120;
+const NB_EBANDS: c_int = 21;
+const MAX_CHANNELS: c_int = 2;
+
+// Derived sizes for the trailing arrays (always sized for 2 channels).
+const DECODE_MEM_SIZE: usize = (MAX_CHANNELS * (DECODE_BUFFER_SIZE + OVERLAP)) as usize;
+const LPC_SIZE: usize = (MAX_CHANNELS * LPC_ORDER) as usize;
+const BAND_E_SIZE: usize = (2 * NB_EBANDS) as usize;
+
 /// CELT decoder state.
 ///
-/// Matches the C `struct OpusCustomDecoder` (typedef'd as `CELTDecoder`).
-/// Uses a flexible array member pattern: `_decode_mem` is declared as
-/// `[CeltSig; 1]` but the actual allocation is larger, with trailing
-/// space for lpc, oldBandE, oldLogE, oldLogE2, and backgroundLogE.
+/// The C version uses a flexible array member (`_decode_mem[1]`) with
+/// trailing pointer-arithmetic arrays. This Rust version makes all
+/// arrays fixed-size, always allocated for 2 channels (the maximum).
+/// Mono decoders simply use the first portion of each array.
 #[repr(C)]
 pub struct OpusCustomDecoder {
     pub mode: *const CELTMode,
@@ -74,7 +85,14 @@ pub struct OpusCustomDecoder {
 
     pub preemph_mem_d: [CeltSig; 2],
 
-    pub _decode_mem: [CeltSig; 1],
+    // Trailing arrays — previously accessed via pointer arithmetic
+    // from _decode_mem. Now fixed-size, always sized for 2 channels.
+    pub decode_mem: [CeltSig; DECODE_MEM_SIZE],
+    pub lpc: [OpusVal16; LPC_SIZE],
+    pub old_band_e: [OpusVal16; BAND_E_SIZE],
+    pub old_log_e: [OpusVal16; BAND_E_SIZE],
+    pub old_log_e2: [OpusVal16; BAND_E_SIZE],
+    pub background_log_e: [OpusVal16; BAND_E_SIZE],
 }
 
 /// Type alias matching `typedef struct OpusCustomDecoder CELTDecoder`.
@@ -84,21 +102,14 @@ pub type CELTDecoder = OpusCustomDecoder;
 
 /// Return the size in bytes of a CELT decoder for the standard Opus mode.
 #[unsafe(no_mangle)]
-pub extern "C" fn celt_decoder_get_size(channels: c_int) -> c_int {
-    let mode = unsafe { opus_custom_mode_create(48000, 960, std::ptr::null_mut()) };
-    opus_custom_decoder_get_size(mode, channels)
+pub extern "C" fn celt_decoder_get_size(_channels: c_int) -> c_int {
+    std::mem::size_of::<OpusCustomDecoder>() as c_int
 }
 
 /// Return the size in bytes of a CELT decoder for a given mode.
 #[unsafe(no_mangle)]
-pub extern "C" fn opus_custom_decoder_get_size(mode: *const CELTMode, channels: c_int) -> c_int {
-    unsafe {
-        let size = std::mem::size_of::<OpusCustomDecoder>() as c_int
-            + (channels * (DECODE_BUFFER_SIZE + (*mode).overlap) - 1) * std::mem::size_of::<CeltSig>() as c_int
-            + channels * LPC_ORDER * std::mem::size_of::<OpusVal16>() as c_int
-            + 4 * 2 * (*mode).nb_ebands * std::mem::size_of::<OpusVal16>() as c_int;
-        size
-    }
+pub extern "C" fn opus_custom_decoder_get_size(_mode: *const CELTMode, _channels: c_int) -> c_int {
+    std::mem::size_of::<OpusCustomDecoder>() as c_int
 }
 
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
@@ -129,9 +140,8 @@ pub unsafe extern "C" fn opus_custom_decoder_init(
             return OPUS_ALLOC_FAIL;
         }
 
-        // OPUS_CLEAR: zero the entire allocated block
-        let total_size = opus_custom_decoder_get_size(mode, channels) as usize;
-        std::ptr::write_bytes(st as *mut u8, 0, total_size);
+        // Zero the entire struct
+        std::ptr::write_bytes(st as *mut u8, 0, std::mem::size_of::<OpusCustomDecoder>());
 
         (*st).mode = mode;
         (*st).overlap = (*mode).overlap;
@@ -145,7 +155,6 @@ pub unsafe extern "C" fn opus_custom_decoder_init(
 
         (*st).loss_count = 0;
 
-        // Inline OPUS_RESET_STATE logic: clear from rng onward, init oldLogE/oldLogE2
         celt_decoder_reset(st);
 
         OPUS_OK
@@ -159,29 +168,18 @@ pub unsafe extern "C" fn opus_custom_decoder_init(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn celt_decoder_reset(st: *mut CELTDecoder) {
     unsafe {
-        let mode = (*st).mode;
-        let channels = (*st).channels;
-        let nb_ebands = (*mode).nb_ebands;
-
-        // Compute pointer offsets for trailing arrays
-        let lpc = ((*st)._decode_mem.as_mut_ptr()).add(((DECODE_BUFFER_SIZE + (*st).overlap) * channels) as usize)
-            as *mut OpusVal16;
-        let old_band_e = lpc.add((channels * LPC_ORDER) as usize);
-        let old_log_e = old_band_e.add((2 * nb_ebands) as usize);
-        let old_log_e2 = old_log_e.add((2 * nb_ebands) as usize);
-
-        // Clear from rng to end of allocated block
+        // Clear from rng to end of struct
         let reset_start = &mut (*st).rng as *mut u32 as *mut u8;
         let struct_start = st as *mut u8;
-        let total_size = opus_custom_decoder_get_size(mode, channels) as usize;
+        let struct_size = std::mem::size_of::<OpusCustomDecoder>();
         let offset = reset_start.offset_from(struct_start) as usize;
-        std::ptr::write_bytes(reset_start, 0, total_size - offset);
+        std::ptr::write_bytes(reset_start, 0, struct_size - offset);
 
         // Initialise oldLogE and oldLogE2 to -28 dB
         let init_val = -qconst16(28.0, DB_SHIFT);
-        for i in 0..(2 * nb_ebands) as usize {
-            *old_log_e.add(i) = init_val;
-            *old_log_e2.add(i) = init_val;
+        for i in 0..BAND_E_SIZE {
+            (*st).old_log_e[i] = init_val;
+            (*st).old_log_e2[i] = init_val;
         }
     }
 }
@@ -213,7 +211,7 @@ pub unsafe extern "C" fn celt_decode_lost(
 
         c = 0;
         loop {
-            decode_mem[c as usize] = (*st)._decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
+            decode_mem[c as usize] = (*st).decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
             out_mem[c as usize] = decode_mem[c as usize].add((DECODE_BUFFER_SIZE - MAX_PERIOD) as usize);
             overlap_mem[c as usize] = decode_mem[c as usize].add(DECODE_BUFFER_SIZE as usize);
             c += 1;
@@ -221,11 +219,11 @@ pub unsafe extern "C" fn celt_decode_lost(
                 break;
             }
         }
-        let lpc = (*st)._decode_mem.as_mut_ptr().add(((DECODE_BUFFER_SIZE + (*st).overlap) * cc) as usize) as *mut OpusVal16;
-        let old_band_e = lpc.add((cc * LPC_ORDER) as usize);
-        let old_log_e = old_band_e.add((2 * (*(*st).mode).nb_ebands) as usize);
-        let old_log_e2 = old_log_e.add((2 * (*(*st).mode).nb_ebands) as usize);
-        let background_log_e = old_log_e2.add((2 * (*(*st).mode).nb_ebands) as usize);
+        let lpc = (*st).lpc.as_mut_ptr();
+        let old_band_e = (*st).old_band_e.as_mut_ptr();
+        let old_log_e = (*st).old_log_e.as_mut_ptr();
+        let old_log_e2 = (*st).old_log_e2.as_mut_ptr();
+        let background_log_e = (*st).background_log_e.as_mut_ptr();
 
         out_syn[0] = out_mem[0].add((MAX_PERIOD - n) as usize);
         if cc == 2 {
@@ -615,7 +613,7 @@ pub unsafe extern "C" fn celt_decode_with_ec(
         c = 0;
         loop {
             decode_mem[c as usize] =
-                (*st)._decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
+                (*st).decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
             out_mem[c as usize] = decode_mem[c as usize].add((DECODE_BUFFER_SIZE - MAX_PERIOD) as usize);
             overlap_mem[c as usize] = decode_mem[c as usize].add(DECODE_BUFFER_SIZE as usize);
             c += 1;
@@ -623,14 +621,11 @@ pub unsafe extern "C" fn celt_decode_with_ec(
                 break;
             }
         }
-        let lpc = (*st)
-            ._decode_mem
-            .as_mut_ptr()
-            .add(((DECODE_BUFFER_SIZE + (*st).overlap) * cc) as usize) as *mut OpusVal16;
-        let old_band_e = lpc.add((cc * LPC_ORDER) as usize);
-        let old_log_e = old_band_e.add((2 * (*(*st).mode).nb_ebands) as usize);
-        let old_log_e2 = old_log_e.add((2 * (*(*st).mode).nb_ebands) as usize);
-        let background_log_e = old_log_e2.add((2 * (*(*st).mode).nb_ebands) as usize);
+        let lpc = (*st).lpc.as_mut_ptr();
+        let old_band_e = (*st).old_band_e.as_mut_ptr();
+        let old_log_e = (*st).old_log_e.as_mut_ptr();
+        let old_log_e2 = (*st).old_log_e2.as_mut_ptr();
+        let background_log_e = (*st).background_log_e.as_mut_ptr();
 
         // Without CUSTOM_MODES, find LM from frame_size
         let mut lm: c_int = 0;
@@ -1403,6 +1398,112 @@ pub unsafe extern "C" fn comb_filter(
                 + mult16_32_q15(g12, *x.offset(i - t1 as isize + 2));
         }
     }
+}
+
+// -- opus_custom_decoder_ctl --
+
+// Request codes (from opus_defines.h and celt/celt.h)
+const OPUS_GET_LOOKAHEAD_REQUEST: c_int = 4027;
+const OPUS_GET_FINAL_RANGE_REQUEST: c_int = 4031;
+const OPUS_GET_PITCH_REQUEST: c_int = 4033;
+const CELT_SET_START_BAND_REQUEST: c_int = 10010;
+const CELT_SET_END_BAND_REQUEST: c_int = 10012;
+const CELT_GET_AND_CLEAR_ERROR_REQUEST: c_int = 10007;
+const CELT_SET_CHANNELS_REQUEST: c_int = 10008;
+const CELT_GET_MODE_REQUEST: c_int = 10015;
+const CELT_SET_SIGNALLING_REQUEST: c_int = 10016;
+
+const OPUS_UNIMPLEMENTED: c_int = -5;
+
+/// FFI-safe tagged enum for CELT decoder CTL requests.
+///
+/// Replaces the C varargs interface. Each variant corresponds to one
+/// request code. The discriminant values match the C `*_REQUEST` constants.
+///
+/// Layout: `#[repr(C, i32)]` gives a C-compatible struct { i32 tag; union payload; }.
+#[repr(C, i32)]
+pub enum CeltDecCtl {
+    SetStartBand(c_int) = CELT_SET_START_BAND_REQUEST,
+    SetEndBand(c_int) = CELT_SET_END_BAND_REQUEST,
+    SetChannels(c_int) = CELT_SET_CHANNELS_REQUEST,
+    SetSignalling(c_int) = CELT_SET_SIGNALLING_REQUEST,
+    GetAndClearError(*mut c_int) = CELT_GET_AND_CLEAR_ERROR_REQUEST,
+    GetLookahead(*mut c_int) = OPUS_GET_LOOKAHEAD_REQUEST,
+    GetPitch(*mut c_int) = OPUS_GET_PITCH_REQUEST,
+    GetFinalRange(*mut u32) = OPUS_GET_FINAL_RANGE_REQUEST,
+    GetMode(*mut *const CELTMode) = CELT_GET_MODE_REQUEST,
+    ResetState = OPUS_RESET_STATE,
+}
+
+/// CELT decoder control — enum-based replacement for the C varargs interface.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
+    unsafe {
+        match request {
+            CeltDecCtl::SetStartBand(value) => {
+                if value < 0 || value >= (*(*st).mode).nb_ebands {
+                    return OPUS_BAD_ARG;
+                }
+                (*st).start = value;
+            }
+            CeltDecCtl::SetEndBand(value) => {
+                if value < 1 || value > (*(*st).mode).nb_ebands {
+                    return OPUS_BAD_ARG;
+                }
+                (*st).end = value;
+            }
+            CeltDecCtl::SetChannels(value) => {
+                if value < 1 || value > 2 {
+                    return OPUS_BAD_ARG;
+                }
+                (*st).stream_channels = value;
+            }
+            CeltDecCtl::SetSignalling(value) => {
+                (*st).signalling = value;
+            }
+            CeltDecCtl::GetAndClearError(ptr) => {
+                if ptr.is_null() {
+                    return OPUS_BAD_ARG;
+                }
+                *ptr = (*st).error;
+                (*st).error = 0;
+            }
+            CeltDecCtl::GetLookahead(ptr) => {
+                if ptr.is_null() {
+                    return OPUS_BAD_ARG;
+                }
+                *ptr = (*st).overlap / (*st).downsample;
+            }
+            CeltDecCtl::GetPitch(ptr) => {
+                if ptr.is_null() {
+                    return OPUS_BAD_ARG;
+                }
+                *ptr = (*st).postfilter_period;
+            }
+            CeltDecCtl::GetFinalRange(ptr) => {
+                if ptr.is_null() {
+                    return OPUS_BAD_ARG;
+                }
+                *ptr = (*st).rng;
+            }
+            CeltDecCtl::GetMode(ptr) => {
+                if ptr.is_null() {
+                    return OPUS_BAD_ARG;
+                }
+                *ptr = (*st).mode;
+            }
+            CeltDecCtl::ResetState => {
+                celt_decoder_reset(st);
+            }
+        }
+        OPUS_OK
+    }
+}
+
+/// Convenience wrapper matching the old `celt_decoder_ctl` name.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn celt_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
+    unsafe { opus_custom_decoder_ctl(st, request) }
 }
 
 // -- opus_strerror / opus_get_version_string --

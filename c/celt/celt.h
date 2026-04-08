@@ -58,6 +58,18 @@ extern "C" {
 #define CELTDecoder OpusCustomDecoder
 #define CELTMode OpusCustomMode
 
+/* C equivalent of the Rust CeltDecCtl enum (#[repr(C, i32)]).
+   Layout: struct { int32_t tag; union { ... } payload; } */
+typedef struct {
+    opus_int32 tag;
+    union {
+        opus_int32   i;
+        opus_int32  *ip;
+        opus_uint32 *up;
+        const CELTMode **mp;
+    } payload;
+} CeltDecCtl;
+
 #define _celt_check_mode_ptr_ptr(ptr) ((ptr) + ((ptr) - (const CELTMode**)(ptr)))
 
 /* Encoder/decoder Requests */
@@ -74,25 +86,41 @@ extern "C" {
 #define CELT_SET_INPUT_CLIPPING(x) CELT_SET_INPUT_CLIPPING_REQUEST, __opus_check_int(x)
 
 #define CELT_GET_AND_CLEAR_ERROR_REQUEST   10007
-#define CELT_GET_AND_CLEAR_ERROR(x) CELT_GET_AND_CLEAR_ERROR_REQUEST, __opus_check_int_ptr(x)
+#define CELT_GET_AND_CLEAR_ERROR(x) \
+    ((CeltDecCtl){ .tag = 10007, .payload.ip = (x) })
 
 #define CELT_SET_CHANNELS_REQUEST    10008
-#define CELT_SET_CHANNELS(x) CELT_SET_CHANNELS_REQUEST, __opus_check_int(x)
+#define CELT_SET_CHANNELS(x) \
+    ((CeltDecCtl){ .tag = 10008, .payload.i = (x) })
 
 
 /* Internal */
 #define CELT_SET_START_BAND_REQUEST    10010
-#define CELT_SET_START_BAND(x) CELT_SET_START_BAND_REQUEST, __opus_check_int(x)
+#define CELT_SET_START_BAND(x) \
+    ((CeltDecCtl){ .tag = 10010, .payload.i = (x) })
 
 #define CELT_SET_END_BAND_REQUEST    10012
-#define CELT_SET_END_BAND(x) CELT_SET_END_BAND_REQUEST, __opus_check_int(x)
+#define CELT_SET_END_BAND(x) \
+    ((CeltDecCtl){ .tag = 10012, .payload.i = (x) })
 
 #define CELT_GET_MODE_REQUEST    10015
 /** Get the CELTMode used by an encoder or decoder */
-#define CELT_GET_MODE(x) CELT_GET_MODE_REQUEST, _celt_check_mode_ptr_ptr(x)
+#define CELT_GET_MODE(x) \
+    ((CeltDecCtl){ .tag = 10015, .payload.mp = (x) })
 
 #define CELT_SET_SIGNALLING_REQUEST    10016
-#define CELT_SET_SIGNALLING(x) CELT_SET_SIGNALLING_REQUEST, __opus_check_int(x)
+#define CELT_SET_SIGNALLING(x) \
+    ((CeltDecCtl){ .tag = 10016, .payload.i = (x) })
+
+/* CeltDecCtl aliases for OPUS-level requests used with celt_decoder_ctl.
+   The original OPUS_* macros in opus_defines.h are unchanged (they are
+   still needed as varargs / case-labels in opus_decoder_ctl). */
+#define CELT_RESET_STATE \
+    ((CeltDecCtl){ .tag = 4028, .payload.i = 0 })
+#define CELT_GET_FINAL_RANGE(p) \
+    ((CeltDecCtl){ .tag = 4031, .payload.up = (p) })
+#define CELT_GET_PITCH(p) \
+    ((CeltDecCtl){ .tag = 4033, .payload.ip = (p) })
 
 
 
@@ -116,7 +144,10 @@ int celt_decoder_init(CELTDecoder *st, opus_int32 sampling_rate, int channels);
 int celt_decode_with_ec(OpusCustomDecoder * restrict st, const unsigned char *data, int len, opus_val16 * restrict pcm, int frame_size, ec_dec *dec);
 
 #define celt_encoder_ctl opus_custom_encoder_ctl
-#define celt_decoder_ctl opus_custom_decoder_ctl
+
+/* celt_decoder_ctl / opus_custom_decoder_ctl: translated to Rust (src/celt.rs) */
+int opus_custom_decoder_ctl(CELTDecoder *st, CeltDecCtl request);
+int celt_decoder_ctl(CELTDecoder *st, CeltDecCtl request);
 
 #ifdef __cplusplus
 }

@@ -210,7 +210,7 @@ OPUS_CUSTOM_EXPORT int opus_custom_decode(OpusCustomDecoder *st, const unsigned 
    @param value Pointer to a 32-bit int value
    @return Error code
  */
-OPUS_CUSTOM_EXPORT int opus_custom_decoder_ctl(OpusCustomDecoder * restrict st, int request, ...);
+/* opus_custom_decoder_ctl: translated to Rust (src/celt.rs), uses CeltDecCtl enum */
 
 #ifdef __cplusplus
 }
