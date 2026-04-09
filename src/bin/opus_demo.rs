@@ -6,9 +6,12 @@
 // then payload) and writes raw PCM16 to the output file.
 
 use opuscule::celt::{opus_get_version_string, opus_strerror};
-use opuscule::ffi::{
-    self, OPUS_GET_FINAL_RANGE_REQUEST, OPUS_OK, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy,
+use opuscule::ffi;
+use opuscule::opus_decoder::{
+    OpusDecCtl, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy,
 };
+
+const OPUS_OK: i32 = 0;
 
 use std::env;
 use std::fs::File;
@@ -270,7 +273,7 @@ fn main() {
         // Get decoder final range for consistency check
         // SAFETY: dec is valid, we pass a valid pointer to dec_final_range.
         unsafe {
-            opus_decoder_ctl(dec, OPUS_GET_FINAL_RANGE_REQUEST, &mut dec_final_range as *mut u32);
+            opus_decoder_ctl(dec, OpusDecCtl::GetFinalRange(&mut dec_final_range));
         }
 
         // Compare encoder/decoder range coder states

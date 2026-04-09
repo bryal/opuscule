@@ -415,7 +415,26 @@ OPUS_EXPORT int opus_decode_float(
   * by a convenience macro.
   * @see genericctls
   */
-OPUS_EXPORT int opus_decoder_ctl(OpusDecoder *st, int request, ...);
+/* C equivalent of the Rust OpusDecCtl enum (#[repr(C, i32)]).
+   Layout: struct { int32_t tag; union { ... } payload; } */
+typedef struct {
+    opus_int32 tag;
+    union {
+        opus_int32  *ip;
+        opus_uint32 *up;
+    } payload;
+} OpusDecCtl;
+
+#define OPUS_DEC_CTL_GET_BANDWIDTH(p) \
+    ((OpusDecCtl){ .tag = 4009, .payload.ip = (p) })
+#define OPUS_DEC_CTL_GET_FINAL_RANGE(p) \
+    ((OpusDecCtl){ .tag = 4031, .payload.up = (p) })
+#define OPUS_DEC_CTL_RESET_STATE \
+    ((OpusDecCtl){ .tag = 4028, .payload.ip = 0 })
+#define OPUS_DEC_CTL_GET_PITCH(p) \
+    ((OpusDecCtl){ .tag = 4033, .payload.ip = (p) })
+
+OPUS_EXPORT int opus_decoder_ctl(OpusDecoder *st, OpusDecCtl request);
 
 /** Frees an OpusDecoder allocated by opus_decoder_create.
   * @param[in] st <tt>OpusDecoder*</tt>: State to be freed.

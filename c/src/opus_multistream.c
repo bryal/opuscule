@@ -786,7 +786,7 @@ int opus_multistream_decoder_ctl(OpusMSDecoder *st, int request, ...)
           /* For int32* GET params, just query the first stream */
           opus_int32 *value = va_arg(ap, opus_int32*);
           dec = (OpusDecoder*)ptr;
-          ret = opus_decoder_ctl(dec, request, value);
+          ret = opus_decoder_ctl(dec, OPUS_DEC_CTL_GET_BANDWIDTH(value));
        }
        break;
        case OPUS_GET_FINAL_RANGE_REQUEST:
@@ -803,7 +803,7 @@ int opus_multistream_decoder_ctl(OpusMSDecoder *st, int request, ...)
                 ptr += align(coupled_size);
              else
                 ptr += align(mono_size);
-             ret = opus_decoder_ctl(dec, request, &tmp);
+             ret = opus_decoder_ctl(dec, OPUS_DEC_CTL_GET_FINAL_RANGE(&tmp));
              if (ret != OPUS_OK) break;
              *value ^= tmp;
           }
@@ -821,7 +821,7 @@ int opus_multistream_decoder_ctl(OpusMSDecoder *st, int request, ...)
                 ptr += align(coupled_size);
              else
                 ptr += align(mono_size);
-             ret = opus_decoder_ctl(dec, OPUS_RESET_STATE);
+             ret = opus_decoder_ctl(dec, OPUS_DEC_CTL_RESET_STATE);
              if (ret != OPUS_OK)
                 break;
           }
