@@ -65,7 +65,7 @@ const SILK_SOURCES: &[&str] = &[
     "silk/stereo_decode_pred.c",
 ];
 
-const OPUS_SOURCES: &[&str] = &["src/opus.c", "src/opus_decoder.c", "src/opus_multistream.c", "src/repacketizer.c"];
+const OPUS_SOURCES: &[&str] = &["src/opus.c", "src/opus_decoder.c", "src/repacketizer.c"];
 
 fn main() {
     let fixed = std::env::var("CARGO_FEATURE_FIXED_POINT").is_ok();

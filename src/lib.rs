@@ -16,6 +16,7 @@ pub mod mathops;
 pub mod mdct;
 pub mod modes;
 pub mod opus_decoder;
+pub mod opus_multistream;
 pub mod packet;
 pub mod pitch;
 pub mod quant_bands;

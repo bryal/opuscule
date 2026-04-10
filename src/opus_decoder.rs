@@ -79,7 +79,7 @@ unsafe extern "C" {
 
 // -- Alignment helper (matches C align()) --
 
-fn align(i: usize) -> usize {
+pub(crate) fn align(i: usize) -> usize {
     (i + std::mem::size_of::<*const ()>() - 1) & !(std::mem::size_of::<*const ()>() - 1)
 }
 
@@ -274,7 +274,7 @@ unsafe fn smooth_fade(
 // -- FLOAT2INT16 (float mode only) --
 
 #[cfg(not(feature = "fixed-point"))]
-fn float2int16(x: f32) -> i16 {
+pub(crate) fn float2int16(x: f32) -> i16 {
     let x = x * CELT_SIG_SCALE;
     let x = if x > 32767.0 { 32767.0 } else { x };
     let x = if x < -32768.0 { -32768.0 } else { x };
