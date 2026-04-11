@@ -21,6 +21,7 @@ pub mod packet;
 pub mod pitch;
 pub mod quant_bands;
 pub mod rate;
+pub mod silk;
 pub mod vq;
 
 #[cfg(feature = "fixed-point")]

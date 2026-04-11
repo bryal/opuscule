@@ -46,8 +46,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/bwexpander.c",
     "silk/debug.c",
     "silk/inner_prod_aligned.c",
-    "silk/lin2log.c",
-    "silk/log2lin.c",
     "silk/LPC_inv_pred_gain.c",
     "silk/table_LSF_cos.c",
     "silk/resampler.c",
