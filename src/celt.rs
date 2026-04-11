@@ -6,9 +6,9 @@
 use std::os::raw::c_int;
 
 use crate::arch::*;
-use crate::bands::{anti_collapse, celt_lcg_rand, denormalise_bands, quant_all_bands, SPREAD_NORMAL};
+use crate::bands::{SPREAD_NORMAL, anti_collapse, celt_lcg_rand, denormalise_bands, quant_all_bands};
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir, celt_iir};
-use crate::entcode::{ec_ctx, ec_tell_frac, BITRES};
+use crate::entcode::{BITRES, ec_ctx, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::mdct::{MdctLookup, clt_mdct_backward};
 use crate::modes::{CELTMode, opus_custom_mode_create};
@@ -127,11 +127,7 @@ pub unsafe extern "C" fn celt_decoder_init(st: *mut CELTDecoder, sampling_rate: 
 
 /// Initialise a CELT decoder for a given mode and channel count.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_custom_decoder_init(
-    st: *mut CELTDecoder,
-    mode: *const CELTMode,
-    channels: c_int,
-) -> c_int {
+pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *const CELTMode, channels: c_int) -> c_int {
     unsafe {
         if channels < 0 || channels > 2 {
             return OPUS_BAD_ARG;
@@ -191,12 +187,7 @@ pub unsafe extern "C" fn celt_decoder_reset(st: *mut CELTDecoder) {
 /// Uses noise-based PLC after 5+ consecutive losses (or if start!=0),
 /// otherwise pitch-based PLC with LPC synthesis.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_decode_lost(
-    st: *mut CELTDecoder,
-    pcm: *mut OpusVal16,
-    n: c_int,
-    lm: c_int,
-) {
+pub unsafe extern "C" fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_int, lm: c_int) {
     unsafe {
         let mut c: c_int;
         let pitch_index: c_int;
@@ -249,11 +240,7 @@ pub unsafe extern "C" fn celt_decode_lost(
                 log2Amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), background_log_e, cc);
             } else {
                 // Energy decay
-                let decay: OpusVal16 = if (*st).loss_count == 0 {
-                    qconst16(1.5, DB_SHIFT)
-                } else {
-                    qconst16(0.5, DB_SHIFT)
-                };
+                let decay: OpusVal16 = if (*st).loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
                 c = 0;
                 loop {
                     for i in (*st).start..(*st).end {
@@ -321,26 +308,13 @@ pub unsafe extern "C" fn celt_decode_lost(
                     break;
                 }
             }
-            compute_inv_mdcts(
-                (*st).mode,
-                0,
-                freq.as_mut_ptr(),
-                out_syn.as_mut_ptr(),
-                overlap_mem.as_mut_ptr(),
-                cc,
-                lm,
-            );
+            compute_inv_mdcts((*st).mode, 0, freq.as_mut_ptr(), out_syn.as_mut_ptr(), overlap_mem.as_mut_ptr(), cc, lm);
         } else {
             // Pitch-based PLC
             if (*st).loss_count == 0 {
                 let mut pitch_buf = vec![0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
                 let poffset: c_int = 720;
-                pitch_downsample(
-                    decode_mem.as_ptr() as *const *const CeltSig,
-                    pitch_buf.as_mut_ptr(),
-                    DECODE_BUFFER_SIZE,
-                    cc,
-                );
+                pitch_downsample(decode_mem.as_ptr() as *const *const CeltSig, pitch_buf.as_mut_ptr(), DECODE_BUFFER_SIZE, cc);
                 let mut pi: c_int = 0;
                 pitch_search(
                     pitch_buf.as_mut_ptr().add((poffset >> 1) as usize),
@@ -427,17 +401,11 @@ pub unsafe extern "C" fn celt_decode_lost(
                     }
                     for i in 0..period {
                         e1 += shr32(
-                            mult16_16(
-                                exc[(MAX_PERIOD - period + i) as usize],
-                                exc[(MAX_PERIOD - period + i) as usize],
-                            ),
+                            mult16_16(exc[(MAX_PERIOD - period + i) as usize], exc[(MAX_PERIOD - period + i) as usize]),
                             8,
                         );
                         e2 += shr32(
-                            mult16_16(
-                                exc[(MAX_PERIOD - 2 * period + i) as usize],
-                                exc[(MAX_PERIOD - 2 * period + i) as usize],
-                            ),
+                            mult16_16(exc[(MAX_PERIOD - 2 * period + i) as usize], exc[(MAX_PERIOD - 2 * period + i) as usize]),
                             8,
                         );
                     }
@@ -453,10 +421,7 @@ pub unsafe extern "C" fn celt_decode_lost(
                         offset -= pitch_index;
                         decay = mult16_16_q15(decay, decay) as OpusVal16;
                     }
-                    e[i as usize] = shl32(
-                        extend32(mult16_16_q15(decay, exc[(offset + i) as usize]) as OpusVal16),
-                        SIG_SHIFT,
-                    );
+                    e[i as usize] = shl32(extend32(mult16_16_q15(decay, exc[(offset + i) as usize]) as OpusVal16), SIG_SHIFT);
                     let tmp: OpusVal16 = round16(*out_mem[c as usize].add((offset + i) as usize), SIG_SHIFT);
                     s1 += shr32(mult16_16(tmp, tmp), 8);
                 }
@@ -492,8 +457,8 @@ pub unsafe extern "C" fn celt_decode_lost(
                             e[i] = 0 as OpusVal32;
                         }
                     } else if s1 < s2 {
-                        let ratio: OpusVal16 = celt_sqrt(frac_div32(shr32(s1, 1) + 1 as OpusVal32, s2 + 1 as OpusVal32))
-                            as OpusVal16;
+                        let ratio: OpusVal16 =
+                            celt_sqrt(frac_div32(shr32(s1, 1) + 1 as OpusVal32, s2 + 1 as OpusVal32)) as OpusVal16;
                         for i in 0..(len + overlap) as usize {
                             e[i] = mult16_32_q15(ratio, e[i]);
                         }
@@ -522,13 +487,9 @@ pub unsafe extern "C" fn celt_decode_lost(
                 // Apply TDAC to the concealed audio so that it blends with the
                 // previous and next frames
                 for i in 0..overlap / 2 {
-                    let tmp: OpusVal32 = mult16_32_q15(
-                        *(*(*st).mode).window.add(i as usize),
-                        e[(n + overlap - 1 - i) as usize],
-                    ) + mult16_32_q15(
-                        *(*(*st).mode).window.add((overlap - i - 1) as usize),
-                        e[(n + i) as usize],
-                    );
+                    let tmp: OpusVal32 =
+                        mult16_32_q15(*(*(*st).mode).window.add(i as usize), e[(n + overlap - 1 - i) as usize])
+                            + mult16_32_q15(*(*(*st).mode).window.add((overlap - i - 1) as usize), e[(n + i) as usize]);
                     *out_mem[c as usize].add((MAX_PERIOD + i) as usize) =
                         mult16_32_q15(*(*(*st).mode).window.add((overlap - i - 1) as usize), tmp);
                     *out_mem[c as usize].add((MAX_PERIOD + overlap - i - 1) as usize) =
@@ -612,8 +573,7 @@ pub unsafe extern "C" fn celt_decode_with_ec(
 
         c = 0;
         loop {
-            decode_mem[c as usize] =
-                (*st).decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
+            decode_mem[c as usize] = (*st).decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
             out_mem[c as usize] = decode_mem[c as usize].add((DECODE_BUFFER_SIZE - MAX_PERIOD) as usize);
             overlap_mem[c as usize] = decode_mem[c as usize].add(DECODE_BUFFER_SIZE as usize);
             c += 1;
@@ -693,10 +653,8 @@ pub unsafe extern "C" fn celt_decode_with_ec(
 
         if c_channels == 1 {
             for ii in 0..(*(*st).mode).nb_ebands {
-                *old_band_e.add(ii as usize) = max16(
-                    *old_band_e.add(ii as usize),
-                    *old_band_e.add(((*(*st).mode).nb_ebands + ii) as usize),
-                );
+                *old_band_e.add(ii as usize) =
+                    max16(*old_band_e.add(ii as usize), *old_band_e.add(((*(*st).mode).nb_ebands + ii) as usize));
             }
         }
 
@@ -790,18 +748,11 @@ pub unsafe extern "C" fn celt_decode_with_ec(
         }
 
         let mut fine_quant = vec![0i32; (*(*st).mode).nb_ebands as usize];
-        let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits {
-            ec_dec_icdf(dec, TRIM_ICDF.as_ptr(), 7)
-        } else {
-            5
-        };
+        let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, TRIM_ICDF.as_ptr(), 7) } else { 5 };
 
         let mut bits: i32 = ((len as i32 * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
-        let anti_collapse_rsv: c_int = if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) {
-            1 << BITRES
-        } else {
-            0
-        };
+        let anti_collapse_rsv: c_int =
+            if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) { 1 << BITRES } else { 0 };
         bits -= anti_collapse_rsv;
         let mut intensity: c_int = 0;
         let mut dual_stereo: c_int = 0;
@@ -827,15 +778,7 @@ pub unsafe extern "C" fn celt_decode_with_ec(
             0,
         );
 
-        unquant_fine_energy(
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            old_band_e,
-            fine_quant.as_mut_ptr(),
-            dec,
-            c_channels,
-        );
+        unquant_fine_energy((*st).mode, (*st).start, (*st).end, old_band_e, fine_quant.as_mut_ptr(), dec, c_channels);
 
         // Decode fixed codebook
         let mut collapse_masks = vec![0u8; (c_channels * (*(*st).mode).nb_ebands) as usize];
@@ -906,28 +849,12 @@ pub unsafe extern "C" fn celt_decode_with_ec(
             }
         }
         // Synthesis
-        denormalise_bands(
-            (*st).mode,
-            x.as_mut_ptr(),
-            freq.as_mut_ptr(),
-            band_e.as_mut_ptr(),
-            eff_end,
-            c_channels,
-            m,
-        );
+        denormalise_bands((*st).mode, x.as_mut_ptr(), freq.as_mut_ptr(), band_e.as_mut_ptr(), eff_end, c_channels, m);
 
         // OPUS_MOVE: memmove decode_mem forward by N
-        std::ptr::copy(
-            decode_mem[0].add(n as usize),
-            decode_mem[0],
-            (DECODE_BUFFER_SIZE - n) as usize,
-        );
+        std::ptr::copy(decode_mem[0].add(n as usize), decode_mem[0], (DECODE_BUFFER_SIZE - n) as usize);
         if cc == 2 {
-            std::ptr::copy(
-                decode_mem[1].add(n as usize),
-                decode_mem[1],
-                (DECODE_BUFFER_SIZE - n) as usize,
-            );
+            std::ptr::copy(decode_mem[1].add(n as usize), decode_mem[1], (DECODE_BUFFER_SIZE - n) as usize);
         }
 
         c = 0;
@@ -972,15 +899,7 @@ pub unsafe extern "C" fn celt_decode_with_ec(
         }
 
         // Compute inverse MDCTs
-        compute_inv_mdcts(
-            (*st).mode,
-            short_blocks,
-            freq.as_mut_ptr(),
-            out_syn.as_mut_ptr(),
-            overlap_mem.as_mut_ptr(),
-            cc,
-            lm,
-        );
+        compute_inv_mdcts((*st).mode, short_blocks, freq.as_mut_ptr(), out_syn.as_mut_ptr(), overlap_mem.as_mut_ptr(), cc, lm);
 
         c = 0;
         loop {

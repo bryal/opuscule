@@ -14,8 +14,7 @@ use std::os::raw::c_int;
 
 use crate::arch::*;
 use crate::opus_decoder::{
-    OpusDecCtl, OpusDecoder, align, opus_decode_native, opus_decoder_ctl, opus_decoder_get_size,
-    opus_decoder_init,
+    OpusDecCtl, OpusDecoder, align, opus_decode_native, opus_decoder_ctl, opus_decoder_get_size, opus_decoder_init,
 };
 
 #[cfg(not(feature = "fixed-point"))]
@@ -65,9 +64,7 @@ fn validate_layout(layout: &ChannelLayout) -> c_int {
     }
     let mut i = 0;
     while i < layout.nb_channels {
-        if layout.mapping[i as usize] as c_int >= max_channel
-            && layout.mapping[i as usize] != 255
-        {
+        if layout.mapping[i as usize] as c_int >= max_channel && layout.mapping[i as usize] != 255 {
             return 0;
         }
         i += 1;
@@ -111,10 +108,7 @@ fn get_mono_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_
 // -- get_size / init / create / destroy --
 
 #[unsafe(no_mangle)]
-pub extern "C" fn opus_multistream_decoder_get_size(
-    nb_streams: c_int,
-    nb_coupled_streams: c_int,
-) -> i32 {
+pub extern "C" fn opus_multistream_decoder_get_size(nb_streams: c_int, nb_coupled_streams: c_int) -> i32 {
     if nb_streams < 1 || nb_coupled_streams > nb_streams || nb_coupled_streams < 0 {
         return 0;
     }
@@ -190,11 +184,8 @@ pub unsafe extern "C" fn opus_multistream_decoder_create(
             }
             return std::ptr::null_mut();
         }
-        let layout = std::alloc::Layout::from_size_align(
-            size as usize,
-            std::mem::align_of::<OpusMSDecoder>(),
-        )
-        .expect("invalid layout for OpusMSDecoder");
+        let layout = std::alloc::Layout::from_size_align(size as usize, std::mem::align_of::<OpusMSDecoder>())
+            .expect("invalid layout for OpusMSDecoder");
         let ptr = std::alloc::alloc_zeroed(layout) as *mut OpusMSDecoder;
         if ptr.is_null() {
             if !error.is_null() {
@@ -220,13 +211,9 @@ pub unsafe extern "C" fn opus_multistream_decoder_destroy(st: *mut OpusMSDecoder
         if st.is_null() {
             return;
         }
-        let size =
-            opus_multistream_decoder_get_size((*st).layout.nb_streams, (*st).layout.nb_coupled_streams);
-        let layout = std::alloc::Layout::from_size_align(
-            size as usize,
-            std::mem::align_of::<OpusMSDecoder>(),
-        )
-        .expect("invalid layout for OpusMSDecoder");
+        let size = opus_multistream_decoder_get_size((*st).layout.nb_streams, (*st).layout.nb_coupled_streams);
+        let layout = std::alloc::Layout::from_size_align(size as usize, std::mem::align_of::<OpusMSDecoder>())
+            .expect("invalid layout for OpusMSDecoder");
         std::alloc::dealloc(st as *mut u8, layout);
     }
 }
@@ -302,8 +289,7 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
-                            buf[(2 * i) as usize];
+                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = buf[(2 * i) as usize];
                         i += 1;
                     }
                     prev = chan;
@@ -317,8 +303,7 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
-                            buf[(2 * i + 1) as usize];
+                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = buf[(2 * i + 1) as usize];
                         i += 1;
                     }
                     prev = chan;
@@ -333,8 +318,7 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
-                            buf[i as usize];
+                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = buf[i as usize];
                         i += 1;
                     }
                     prev = chan;
@@ -386,8 +370,7 @@ pub unsafe extern "C" fn opus_multistream_decode(
     unsafe {
         let nb_channels = (*st).layout.nb_channels;
         let mut out: Vec<f32> = vec![0.0f32; (frame_size * nb_channels) as usize];
-        let ret =
-            opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
+        let ret = opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
         if ret > 0 {
             let mut i = 0;
             while i < ret * nb_channels {
@@ -425,8 +408,7 @@ pub unsafe extern "C" fn opus_multistream_decode_float(
     unsafe {
         let nb_channels = (*st).layout.nb_channels;
         let mut out: Vec<i16> = vec![0i16; (frame_size * nb_channels) as usize];
-        let ret =
-            opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
+        let ret = opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
         if ret > 0 {
             let mut i = 0;
             while i < ret * nb_channels {
@@ -450,10 +432,7 @@ pub enum OpusMSDecCtl {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decoder_ctl(
-    st: *mut OpusMSDecoder,
-    request: OpusMSDecCtl,
-) -> c_int {
+pub unsafe extern "C" fn opus_multistream_decoder_ctl(st: *mut OpusMSDecoder, request: OpusMSDecCtl) -> c_int {
     unsafe {
         let coupled_size = opus_decoder_get_size(2);
         let mono_size = opus_decoder_get_size(1);
@@ -524,4 +503,3 @@ pub unsafe extern "C" fn opus_multistream_decoder_ctl(
         }
     }
 }
-

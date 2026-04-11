@@ -10,16 +10,15 @@ use std::os::raw::c_int;
 
 use crate::arch::*;
 use crate::celt::{
-    CELTDecoder, CeltDecCtl, OpusCustomDecoder,
-    celt_decode_with_ec, celt_decoder_ctl, celt_decoder_get_size, celt_decoder_init,
-    DECODE_BUFFER_SIZE,
+    CELTDecoder, CeltDecCtl, DECODE_BUFFER_SIZE, OpusCustomDecoder, celt_decode_with_ec, celt_decoder_ctl,
+    celt_decoder_get_size, celt_decoder_init,
 };
 use crate::entcode::ec_ctx;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::modes::CELTMode;
 use crate::packet::{
-    opus_packet_get_bandwidth, opus_packet_get_mode, opus_packet_get_nb_channels,
-    opus_packet_get_nb_frames, opus_packet_get_samples_per_frame, opus_packet_parse_impl,
+    opus_packet_get_bandwidth, opus_packet_get_mode, opus_packet_get_nb_channels, opus_packet_get_nb_frames,
+    opus_packet_get_samples_per_frame, opus_packet_parse_impl,
 };
 
 // -- Constants --
@@ -147,9 +146,7 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channels: c_int) -> c_int {
     unsafe {
-        if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000)
-            || (channels != 1 && channels != 2)
-        {
+        if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2) {
             return OPUS_BAD_ARG;
         }
 
@@ -195,9 +192,7 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_create(fs: i32, channels: c_int, error: *mut c_int) -> *mut OpusDecoder {
     unsafe {
-        if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000)
-            || (channels != 1 && channels != 2)
-        {
+        if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2) {
             if !error.is_null() {
                 *error = OPUS_BAD_ARG;
             }
@@ -254,10 +249,8 @@ unsafe fn smooth_fade(
         let inc = 48000 / fs;
         for c in 0..channels {
             for i in 0..overlap {
-                let w: OpusVal16 = mult16_16_q15(
-                    *window.offset((i * inc) as isize),
-                    *window.offset((i * inc) as isize),
-                ) as OpusVal16;
+                let w: OpusVal16 =
+                    mult16_16_q15(*window.offset((i * inc) as isize), *window.offset((i * inc) as isize)) as OpusVal16;
                 *out.offset((i * channels + c) as isize) = shr32(
                     mac16_16(
                         mult16_16(w, *in2.offset((i * channels + c) as isize)),
@@ -375,7 +368,14 @@ unsafe fn opus_decode_frame(
         if data.is_null() && frame_size > f20 && mode != MODE_SILK_ONLY {
             let mut nb_samples: c_int = 0;
             loop {
-                let ret = opus_decode_frame(st, std::ptr::null(), 0, pcm.offset((nb_samples * (*st).channels) as isize) as *mut OpusVal16, f20, 0);
+                let ret = opus_decode_frame(
+                    st,
+                    std::ptr::null(),
+                    0,
+                    pcm.offset((nb_samples * (*st).channels) as isize) as *mut OpusVal16,
+                    f20,
+                    0,
+                );
                 if ret != f20 {
                     return OPUS_INTERNAL_ERROR;
                 }
@@ -392,9 +392,7 @@ unsafe fn opus_decode_frame(
 
         if !data.is_null()
             && (*st).prev_mode > 0
-            && ((mode == MODE_CELT_ONLY
-                && (*st).prev_mode != MODE_CELT_ONLY
-                && (*st).prev_redundancy == 0)
+            && ((mode == MODE_CELT_ONLY && (*st).prev_mode != MODE_CELT_ONLY && (*st).prev_redundancy == 0)
                 || (mode != MODE_CELT_ONLY && (*st).prev_mode == MODE_CELT_ONLY))
         {
             transition = 1;
@@ -487,8 +485,7 @@ unsafe fn opus_decode_frame(
         if decode_fec == 0
             && mode != MODE_CELT_ONLY
             && !data.is_null()
-            && ec_tell(&mut dec) + 17 + 20 * (if (*st).mode == MODE_HYBRID { 1 } else { 0 })
-                <= 8 * len
+            && ec_tell(&mut dec) + 17 + 20 * (if (*st).mode == MODE_HYBRID { 1 } else { 0 }) <= 8 * len
         {
             // Check if we have a redundant 0-8 kHz band
             if mode == MODE_HYBRID {
@@ -581,18 +578,9 @@ unsafe fn opus_decode_frame(
             }
             // For hybrid -> SILK transitions, we let the CELT MDCT
             // do a fade-out by decoding a silence frame
-            if (*st).prev_mode == MODE_HYBRID
-                && !(redundancy != 0 && celt_to_silk != 0 && (*st).prev_redundancy != 0)
-            {
+            if (*st).prev_mode == MODE_HYBRID && !(redundancy != 0 && celt_to_silk != 0 && (*st).prev_redundancy != 0) {
                 celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
-                celt_decode_with_ec(
-                    celt_dec,
-                    silence.as_ptr(),
-                    2,
-                    pcm,
-                    f2_5,
-                    std::ptr::null_mut(),
-                );
+                celt_decode_with_ec(celt_dec, silence.as_ptr(), 2, pcm, f2_5, std::ptr::null_mut());
             }
         }
 
@@ -601,8 +589,7 @@ unsafe fn opus_decode_frame(
             {
                 i = 0;
                 while i < frame_size * (*st).channels {
-                    *pcm.offset(i as isize) =
-                        sat16(*pcm.offset(i as isize) as i32 + *pcm_silk.offset(i as isize) as i32);
+                    *pcm.offset(i as isize) = sat16(*pcm.offset(i as isize) as i32 + *pcm_silk.offset(i as isize) as i32);
                     i += 1;
                 }
             }
@@ -610,8 +597,7 @@ unsafe fn opus_decode_frame(
             {
                 i = 0;
                 while i < frame_size * (*st).channels {
-                    *pcm.offset(i as isize) =
-                        *pcm.offset(i as isize) + (1.0 / 32768.0) * *pcm_silk.offset(i as isize) as f32;
+                    *pcm.offset(i as isize) = *pcm.offset(i as isize) + (1.0 / 32768.0) * *pcm_silk.offset(i as isize) as f32;
                     i += 1;
                 }
             }
@@ -653,8 +639,7 @@ unsafe fn opus_decode_frame(
             while c < (*st).channels {
                 i = 0;
                 while i < f2_5 {
-                    *pcm.offset(((*st).channels * i + c) as isize) =
-                        *redundant_audio.offset(((*st).channels * i + c) as isize);
+                    *pcm.offset(((*st).channels * i + c) as isize) = *redundant_audio.offset(((*st).channels * i + c) as isize);
                     i += 1;
                 }
                 c += 1;
@@ -739,15 +724,8 @@ pub unsafe extern "C" fn opus_decode_native(
         (*st).frame_size = opus_packet_get_samples_per_frame(data, (*st).fs);
         (*st).stream_channels = opus_packet_get_nb_channels(data);
 
-        count = opus_packet_parse_impl(
-            data,
-            len,
-            self_delimited,
-            &mut toc,
-            std::ptr::null_mut(),
-            size.as_mut_ptr(),
-            &mut offset,
-        );
+        count =
+            opus_packet_parse_impl(data, len, self_delimited, &mut toc, std::ptr::null_mut(), size.as_mut_ptr(), &mut offset);
         if count < 0 {
             return count;
         }
@@ -761,14 +739,7 @@ pub unsafe extern "C" fn opus_decode_native(
         nb_samples = 0;
         i = 0;
         while i < count {
-            let ret = opus_decode_frame(
-                st,
-                data,
-                size[i as usize] as c_int,
-                pcm,
-                frame_size - nb_samples,
-                decode_fec,
-            );
+            let ret = opus_decode_frame(st, data, size[i as usize] as c_int, pcm, frame_size - nb_samples, decode_fec);
             if ret < 0 {
                 return ret;
             }
@@ -816,16 +787,7 @@ pub unsafe extern "C" fn opus_decode(
         }
 
         let mut out_buf: Vec<f32> = vec![0.0f32; (frame_size * (*st).channels) as usize];
-        let ret = opus_decode_native(
-            st,
-            data,
-            len,
-            out_buf.as_mut_ptr(),
-            frame_size,
-            decode_fec,
-            0,
-            std::ptr::null_mut(),
-        );
+        let ret = opus_decode_native(st, data, len, out_buf.as_mut_ptr(), frame_size, decode_fec, 0, std::ptr::null_mut());
         if ret > 0 {
             let mut i = 0;
             while i < ret * (*st).channels {
@@ -864,16 +826,7 @@ pub unsafe extern "C" fn opus_decode_float(
 ) -> c_int {
     unsafe {
         let mut out_buf: Vec<i16> = vec![0i16; (frame_size * (*st).channels) as usize];
-        let ret = opus_decode_native(
-            st,
-            data,
-            len,
-            out_buf.as_mut_ptr(),
-            frame_size,
-            decode_fec,
-            0,
-            std::ptr::null_mut(),
-        );
+        let ret = opus_decode_native(st, data, len, out_buf.as_mut_ptr(), frame_size, decode_fec, 0, std::ptr::null_mut());
         if ret > 0 {
             let mut i = 0;
             while i < ret * (*st).channels {
@@ -912,11 +865,7 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
             OpusDecCtl::ResetState => {
                 let reset_start = opus_decoder_reset_offset();
                 let total = opus_decoder_get_size((*st).channels) as usize;
-                std::ptr::write_bytes(
-                    (st as *mut u8).add(reset_start),
-                    0,
-                    total - reset_start,
-                );
+                std::ptr::write_bytes((st as *mut u8).add(reset_start), 0, total - reset_start);
                 celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
                 silk_InitDecoder(silk_dec);
                 (*st).stream_channels = (*st).channels;
@@ -940,11 +889,7 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
 // -- opus_decoder_get_nb_samples --
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_decoder_get_nb_samples(
-    dec: *const OpusDecoder,
-    packet: *const u8,
-    len: c_int,
-) -> c_int {
+pub unsafe extern "C" fn opus_decoder_get_nb_samples(dec: *const OpusDecoder, packet: *const u8, len: c_int) -> c_int {
     unsafe {
         let count = opus_packet_get_nb_frames(packet, len);
         if count < 0 {
@@ -952,10 +897,6 @@ pub unsafe extern "C" fn opus_decoder_get_nb_samples(
         }
         let samples = count * opus_packet_get_samples_per_frame(packet, (*dec).fs);
         // Can't have more than 120 ms
-        if samples * 25 > (*dec).fs * 3 {
-            OPUS_INVALID_PACKET
-        } else {
-            samples
-        }
+        if samples * 25 > (*dec).fs * 3 { OPUS_INVALID_PACKET } else { samples }
     }
 }

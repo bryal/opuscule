@@ -7,9 +7,7 @@
 
 use opuscule::celt::{opus_get_version_string, opus_strerror};
 use opuscule::ffi;
-use opuscule::opus_decoder::{
-    OpusDecCtl, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy,
-};
+use opuscule::opus_decoder::{OpusDecCtl, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy};
 
 const OPUS_OK: i32 = 0;
 
