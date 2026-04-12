@@ -119,6 +119,21 @@ pub fn silk_add_lshift32(a: i32, b: i32, shift: i32) -> i32 {
     a.wrapping_add(silk_lshift(b, shift))
 }
 
+/// `silk_SAT16` — saturate an i32 to the i16 range.
+#[inline]
+pub fn silk_sat16(a: i32) -> i32 {
+    a.max(i16::MIN as i32).min(i16::MAX as i32)
+}
+
+/// `silk_ADD_LSHIFT` — `a + (b << shift)`, signed.
+///
+/// Same as [`silk_add_lshift32`] but the C macro is used with mixed-width
+/// arguments in some call sites, so we keep the name.
+#[inline]
+pub fn silk_add_lshift(a: i32, b: i32, shift: i32) -> i32 {
+    silk_add_lshift32(a, b, shift)
+}
+
 /// `silk_ADD32_ovflw` — wrapping 32-bit add (`(u32)a + (u32)b` cast back to `i32`).
 #[inline]
 pub fn silk_add32_ovflw(a: i32, b: i32) -> i32 {

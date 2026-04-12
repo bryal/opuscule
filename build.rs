@@ -39,8 +39,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/tables_other.c",
     "silk/tables_pitch_lag.c",
     "silk/tables_pulses_per_block.c",
-    "silk/biquad_alt.c",
-    "silk/debug.c",
     "silk/LPC_inv_pred_gain.c",
     "silk/table_LSF_cos.c",
     "silk/resampler.c",
