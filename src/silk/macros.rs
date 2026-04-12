@@ -94,6 +94,31 @@ pub fn silk_rshift_round(a: i32, shift: i32) -> i32 {
     if shift == 1 { (a >> 1) + (a & 1) } else { ((a >> (shift - 1)) + 1) >> 1 }
 }
 
+/// `silk_LIMIT_int` — clamp `a` to `[limit1, limit2]` (or `[limit2, limit1]`
+/// if `limit1 > limit2`).
+#[inline]
+pub fn silk_limit_int(a: i32, limit1: i32, limit2: i32) -> i32 {
+    if limit1 > limit2 { a.max(limit2).min(limit1) } else { a.max(limit1).min(limit2) }
+}
+
+/// `silk_min_32` — min of two i32.
+#[inline]
+pub fn silk_min_32(a: i32, b: i32) -> i32 {
+    a.min(b)
+}
+
+/// `silk_max_int` — max of two i32.
+#[inline]
+pub fn silk_max_int(a: i32, b: i32) -> i32 {
+    a.max(b)
+}
+
+/// `silk_ADD_LSHIFT32` — `a + (b << shift)`, 32-bit.
+#[inline]
+pub fn silk_add_lshift32(a: i32, b: i32, shift: i32) -> i32 {
+    a.wrapping_add(silk_lshift(b, shift))
+}
+
 /// `silk_ADD32_ovflw` — wrapping 32-bit add (`(u32)a + (u32)b` cast back to `i32`).
 #[inline]
 pub fn silk_add32_ovflw(a: i32, b: i32) -> i32 {

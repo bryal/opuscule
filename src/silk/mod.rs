@@ -8,6 +8,7 @@
 
 pub mod bwexpander;
 pub mod bwexpander_32;
+pub mod gain_quant;
 pub mod inner_prod_aligned;
 pub mod interpolate;
 pub mod lin2log;
