@@ -6,6 +6,9 @@
 //! split in the original C only affected the SILK *encoder* (silk/float vs
 //! silk/fixed). This module is therefore feature-agnostic.
 
+pub mod bwexpander;
+pub mod bwexpander_32;
+pub mod inner_prod_aligned;
 pub mod lin2log;
 pub mod log2lin;
 pub mod macros;

@@ -73,10 +73,52 @@ pub fn silk_add_rshift(a: i32, b: i32, shift: i32) -> i32 {
     a.wrapping_add(b >> shift)
 }
 
+/// `silk_ADD_RSHIFT32` — alias of [`silk_add_rshift`] for the 32-bit form.
+///
+/// In C the two macros are textually different but compile to the same
+/// expression; preserved here under both names so call sites read like
+/// the original.
+#[inline]
+pub fn silk_add_rshift32(a32: i32, b32: i32, shift: i32) -> i32 {
+    silk_add_rshift(a32, b32, shift)
+}
+
+/// `silk_RSHIFT_ROUND` — round-to-nearest right shift (signed, ties up).
+///
+/// Mirrors the C macro's two-branch form. The `shift == 1` branch avoids
+/// the `(a >> 0) + 1` overflow on `i32::MAX` that the general branch would
+/// hit; the general branch implements `(a + (1 << (shift-1))) >> shift`
+/// using only one shift of the input.
+#[inline]
+pub fn silk_rshift_round(a: i32, shift: i32) -> i32 {
+    if shift == 1 { (a >> 1) + (a & 1) } else { ((a >> (shift - 1)) + 1) >> 1 }
+}
+
 /// `silk_SMULBB` — `(int16)a * (int16)b`, returning the full 32-bit product.
 #[inline]
 pub fn silk_smulbb(a32: i32, b32: i32) -> i32 {
     (a32 as i16 as i32).wrapping_mul(b32 as i16 as i32)
+}
+
+/// `silk_SMULWB` — `(a32 * (int16)b32) >> 16`.
+///
+/// Split-half formulation matching `silk/macros.h` — the same structure as
+/// [`silk_smlawb`] but without the accumulator add.
+#[inline]
+pub fn silk_smulwb(a32: i32, b32: i32) -> i32 {
+    let b16 = b32 as i16 as i32;
+    let hi = (a32 >> 16).wrapping_mul(b16);
+    let lo = ((a32 & 0xFFFF).wrapping_mul(b16)) >> 16;
+    hi.wrapping_add(lo)
+}
+
+/// `silk_SMULWW` — full 32×32 → 32 multiply (top 32 bits of the 64-bit product,
+/// with rounding).
+///
+/// Equivalent to `silk_MLA(silk_SMULWB(a, b), a, silk_RSHIFT_ROUND(b, 16))`.
+#[inline]
+pub fn silk_smulww(a32: i32, b32: i32) -> i32 {
+    silk_mla(silk_smulwb(a32, b32), a32, silk_rshift_round(b32, 16))
 }
 
 /// `silk_SMLAWB` — `a32 + ((b32 * (int16)c32) >> 16)`.
