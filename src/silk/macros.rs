@@ -94,6 +94,30 @@ pub fn silk_rshift_round(a: i32, shift: i32) -> i32 {
     if shift == 1 { (a >> 1) + (a & 1) } else { ((a >> (shift - 1)) + 1) >> 1 }
 }
 
+/// `silk_ADD32_ovflw` — wrapping 32-bit add (`(u32)a + (u32)b` cast back to `i32`).
+#[inline]
+pub fn silk_add32_ovflw(a: i32, b: i32) -> i32 {
+    a.wrapping_add(b)
+}
+
+/// `silk_SMLABB_ovflw` — `a + (int16)b * (int16)c`, with wrapping add.
+#[inline]
+pub fn silk_smlabb_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {
+    silk_add32_ovflw(a32, (b32 as i16 as i32).wrapping_mul(c32 as i16 as i32))
+}
+
+/// `silk_RSHIFT_uint` — unsigned right shift.
+#[inline]
+pub fn silk_rshift_uint(a: u32, shift: i32) -> u32 {
+    a >> shift as u32
+}
+
+/// `silk_ADD_RSHIFT_uint` — `a + (b >> shift)`, unsigned.
+#[inline]
+pub fn silk_add_rshift_uint(a: u32, b: u32, shift: i32) -> u32 {
+    a + (b >> shift as u32)
+}
+
 /// `silk_SMULBB` — `(int16)a * (int16)b`, returning the full 32-bit product.
 #[inline]
 pub fn silk_smulbb(a32: i32, b32: i32) -> i32 {

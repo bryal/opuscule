@@ -52,8 +52,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/resampler_private_IIR_FIR.c",
     "silk/resampler_private_up2_HQ.c",
     "silk/resampler_rom.c",
-    "silk/sort.c",
-    "silk/sum_sqr_shift.c",
     "silk/stereo_MS_to_LR.c",
     "silk/stereo_decode_pred.c",
 ];
