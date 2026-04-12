@@ -9,6 +9,8 @@
 pub mod bwexpander;
 pub mod bwexpander_32;
 pub mod inner_prod_aligned;
+pub mod interpolate;
 pub mod lin2log;
 pub mod log2lin;
 pub mod macros;
+pub mod sigm_q15;
