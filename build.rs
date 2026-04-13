@@ -27,8 +27,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/NLSF_decode.c",
     "silk/NLSF_unpack.c",
     "silk/NLSF2A.c",
-    "silk/NLSF_stabilize.c",
-    "silk/NLSF_VQ_weights_laroia.c",
     "silk/process_NLSFs.c",
     "silk/shell_coder.c",
     "silk/tables_gain.c",

@@ -17,6 +17,8 @@ pub mod log2lin;
 pub mod lpc_analysis_filter;
 pub mod lpc_inv_pred_gain;
 pub mod macros;
+pub mod nlsf_stabilize;
+pub mod nlsf_vq_weights_laroia;
 pub mod sigm_q15;
 pub mod sort;
 pub mod sum_sqr_shift;

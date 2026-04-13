@@ -1,0 +1,41 @@
+//! Translated from `c/silk/NLSF_VQ_weights_laroia.c` (RFC 6716).
+//!
+//! Low-complexity NLSF VQ weights after Laroia, Phamdo & Farvardin (1991).
+
+use super::macros::{silk_div32_16, silk_max_int, silk_min_32 as silk_min_int};
+
+const NLSF_W_Q: i32 = 2;
+
+/// `silk_NLSF_VQ_weights_laroia` — compute per-coefficient VQ weights for
+/// an NLSF vector. The weights are inversely proportional to the inter-
+/// coefficient spacing, so narrow gaps get higher weight.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn silk_NLSF_VQ_weights_laroia(p_nlsfw_q_out: *mut i16, p_nlsf_q15: *const i16, d: i32) {
+    unsafe {
+        /* First value */
+        let mut tmp1_int = silk_max_int(*p_nlsf_q15.offset(0) as i32, 1);
+        tmp1_int = silk_div32_16(1 << (15 + NLSF_W_Q), tmp1_int);
+        let mut tmp2_int = silk_max_int(*p_nlsf_q15.offset(1) as i32 - *p_nlsf_q15.offset(0) as i32, 1);
+        tmp2_int = silk_div32_16(1 << (15 + NLSF_W_Q), tmp2_int);
+        *p_nlsfw_q_out.offset(0) = silk_min_int(tmp1_int + tmp2_int, i16::MAX as i32) as i16;
+
+        /* Main loop */
+        let mut k = 1;
+        while k < d - 1 {
+            tmp1_int = silk_max_int(*p_nlsf_q15.offset((k + 1) as isize) as i32 - *p_nlsf_q15.offset(k as isize) as i32, 1);
+            tmp1_int = silk_div32_16(1 << (15 + NLSF_W_Q), tmp1_int);
+            *p_nlsfw_q_out.offset(k as isize) = silk_min_int(tmp1_int + tmp2_int, i16::MAX as i32) as i16;
+
+            tmp2_int =
+                silk_max_int(*p_nlsf_q15.offset((k + 2) as isize) as i32 - *p_nlsf_q15.offset((k + 1) as isize) as i32, 1);
+            tmp2_int = silk_div32_16(1 << (15 + NLSF_W_Q), tmp2_int);
+            *p_nlsfw_q_out.offset((k + 1) as isize) = silk_min_int(tmp1_int + tmp2_int, i16::MAX as i32) as i16;
+            k += 2;
+        }
+
+        /* Last value */
+        tmp1_int = silk_max_int((1 << 15) - *p_nlsf_q15.offset((d - 1) as isize) as i32, 1);
+        tmp1_int = silk_div32_16(1 << (15 + NLSF_W_Q), tmp1_int);
+        *p_nlsfw_q_out.offset((d - 1) as isize) = silk_min_int(tmp1_int + tmp2_int, i16::MAX as i32) as i16;
+    }
+}
