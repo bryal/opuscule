@@ -23,7 +23,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/PLC.c",
     "silk/decode_pitch.c",
     // Shared (used by decoder path)
-    "silk/LPC_analysis_filter.c",
     "silk/pitch_est_tables.c",
     "silk/NLSF_decode.c",
     "silk/NLSF_unpack.c",
@@ -39,7 +38,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/tables_other.c",
     "silk/tables_pitch_lag.c",
     "silk/tables_pulses_per_block.c",
-    "silk/table_LSF_cos.c",
     "silk/resampler.c",
     "silk/resampler_down2_3.c",
     "silk/resampler_down2.c",
