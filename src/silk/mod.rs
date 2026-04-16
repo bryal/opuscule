@@ -9,6 +9,8 @@
 pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
+pub mod code_signs;
+pub mod decode_pitch;
 pub mod gain_quant;
 pub mod inner_prod_aligned;
 pub mod interpolate;
@@ -23,6 +25,8 @@ pub mod nlsf_vq_weights_laroia;
 pub mod pitch_est_tables;
 pub mod sigm_q15;
 pub mod sort;
+pub mod stereo_decode_pred;
+pub mod stereo_ms_to_lr;
 pub mod structs;
 pub mod sum_sqr_shift;
 pub mod table_lsf_cos;

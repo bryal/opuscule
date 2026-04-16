@@ -28,3 +28,11 @@ pub struct SilkNlsfCbStruct {
 // and live for the entire program, so sharing across threads is safe.
 unsafe impl Sync for SilkNlsfCbStruct {}
 unsafe impl Send for SilkNlsfCbStruct {}
+
+/// `stereo_dec_state` — stereo decoder state.
+#[repr(C)]
+pub struct StereoDecState {
+    pub pred_prev_q13: [i16; 2],
+    pub s_mid: [i16; 2],
+    pub s_side: [i16; 2],
+}

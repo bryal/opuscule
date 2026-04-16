@@ -11,7 +11,6 @@ const CELT_SOURCES: &[&str] = &[];
 const SILK_SOURCES: &[&str] = &[
     // Decoder
     "silk/CNG.c",
-    "silk/code_signs.c",
     "silk/init_decoder.c",
     "silk/decode_core.c",
     "silk/decode_frame.c",
@@ -21,7 +20,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/decoder_set_fs.c",
     "silk/dec_API.c",
     "silk/PLC.c",
-    "silk/decode_pitch.c",
     // Shared (used by decoder path)
     "silk/NLSF_decode.c",
     "silk/NLSF2A.c",
@@ -35,8 +33,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/resampler_private_IIR_FIR.c",
     "silk/resampler_private_up2_HQ.c",
     "silk/resampler_rom.c",
-    "silk/stereo_MS_to_LR.c",
-    "silk/stereo_decode_pred.c",
 ];
 
 const OPUS_SOURCES: &[&str] = &[];
