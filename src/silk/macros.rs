@@ -119,6 +119,22 @@ pub fn silk_add_lshift32(a: i32, b: i32, shift: i32) -> i32 {
     a.wrapping_add(silk_lshift(b, shift))
 }
 
+/// `silk_ADD32` — plain 32-bit addition.
+///
+/// The C macro is just `((a) + (b))`. Signed overflow is UB in C but the
+/// codec implicitly relies on two's-complement wrap on every supported
+/// compiler, so we use `wrapping_add` to match the de-facto semantics.
+#[inline]
+pub fn silk_add32(a: i32, b: i32) -> i32 {
+    a.wrapping_add(b)
+}
+
+/// `silk_SUB32` — plain 32-bit subtraction (wrapping, see [`silk_add32`]).
+#[inline]
+pub fn silk_sub32(a: i32, b: i32) -> i32 {
+    a.wrapping_sub(b)
+}
+
 /// `silk_SAT16` — saturate an i32 to the i16 range.
 #[inline]
 pub fn silk_sat16(a: i32) -> i32 {
