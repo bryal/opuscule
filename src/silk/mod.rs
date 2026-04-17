@@ -26,6 +26,7 @@ pub mod pitch_est_tables;
 pub mod resampler_down2;
 pub mod resampler_down2_3;
 pub mod resampler_private_AR2;
+pub mod resampler_private_IIR_FIR;
 pub mod resampler_private_up2_HQ;
 pub mod resampler_rom;
 pub mod shell_coder;
