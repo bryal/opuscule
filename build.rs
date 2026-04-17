@@ -25,7 +25,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/NLSF2A.c",
     "silk/process_NLSFs.c",
     "silk/resampler.c",
-    "silk/resampler_private_down_FIR.c",
 ];
 
 const OPUS_SOURCES: &[&str] = &[];
