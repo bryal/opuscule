@@ -24,7 +24,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/NLSF_decode.c",
     "silk/NLSF2A.c",
     "silk/process_NLSFs.c",
-    "silk/shell_coder.c",
     "silk/resampler.c",
     "silk/resampler_private_down_FIR.c",
     "silk/resampler_private_IIR_FIR.c",
