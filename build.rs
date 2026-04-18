@@ -14,7 +14,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/init_decoder.c",
     "silk/decode_core.c",
     "silk/decode_frame.c",
-    "silk/decode_parameters.c",
     "silk/decoder_set_fs.c",
     "silk/dec_API.c",
     "silk/PLC.c",

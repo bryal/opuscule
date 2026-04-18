@@ -175,6 +175,22 @@ pub struct SilkDecoderState {
     pub s_plc: SilkPlcStruct,
 }
 
+/// `silk_decoder_control` — per-frame decoder output of
+/// `silk_decode_parameters` (`c/silk/structs.h:313`). Holds dequantized
+/// gains, LPC prediction coefficients (with first/second-half interp),
+/// pitch lags, LTP coefficients, and the LTP scale.
+#[repr(C)]
+pub struct SilkDecoderControl {
+    pub pitch_l: [core::ffi::c_int; MAX_NB_SUBFR],
+    pub gains_q16: [i32; MAX_NB_SUBFR],
+    /// Holds interpolated and final coefficients; the C side tags this
+    /// 4-byte aligned via `silk_DWORD_ALIGN`, but the natural alignment
+    /// of `i16` arrays already satisfies that on every supported target.
+    pub pred_coef_q12: [[i16; MAX_LPC_ORDER]; 2],
+    pub ltp_coef_q14: [i16; LTP_ORDER * MAX_NB_SUBFR],
+    pub ltp_scale_q14: core::ffi::c_int,
+}
+
 // Compile-time ABI assertions against the C sizeof/offsetof measurements
 // (see `c/silk/structs.h`). Each constant is the value printed by a small
 // C probe — if any of these fires, the Rust struct layout has diverged
@@ -189,4 +205,8 @@ const _: () = {
     assert!(core::mem::offset_of!(SilkDecoderState, resampler_state) == 2448);
     assert!(core::mem::offset_of!(SilkDecoderState, indices) == 2760);
     assert!(core::mem::offset_of!(SilkDecoderState, s_plc) == 4192);
+    assert!(core::mem::size_of::<SilkDecoderControl>() == 140);
+    assert!(core::mem::offset_of!(SilkDecoderControl, pred_coef_q12) == 32);
+    assert!(core::mem::offset_of!(SilkDecoderControl, ltp_coef_q14) == 96);
+    assert!(core::mem::offset_of!(SilkDecoderControl, ltp_scale_q14) == 136);
 };
