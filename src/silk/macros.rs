@@ -55,6 +55,12 @@ pub fn silk_rshift(a: i32, shift: i32) -> i32 {
     a >> shift
 }
 
+/// `silk_RSHIFT32` — alias of [`silk_rshift`] for the 32-bit form.
+#[inline]
+pub fn silk_rshift32(a: i32, shift: i32) -> i32 {
+    a >> shift
+}
+
 /// `silk_MUL` — 32 × 32 → 32 multiply (wrapping).
 #[inline]
 pub fn silk_mul(a32: i32, b32: i32) -> i32 {
@@ -220,6 +226,25 @@ pub fn silk_abs_int32(a: i32) -> i32 {
 #[inline]
 pub fn silk_div32_16(a32: i32, b16: i32) -> i32 {
     a32 / b16
+}
+
+/// `silk_DIV32` — 32/32 signed division.
+#[inline]
+pub fn silk_div32(a32: i32, b32: i32) -> i32 {
+    a32 / b32
+}
+
+/// `silk_min` — min of two i32.
+#[inline]
+pub fn silk_min(a: i32, b: i32) -> i32 {
+    a.min(b)
+}
+
+/// `silk_abs` — absolute value. WARNING: returns wrong for `i32::MIN`
+/// (matches the C macro's `(a>0)?a:-a` behaviour).
+#[inline]
+pub fn silk_abs(a: i32) -> i32 {
+    a.wrapping_abs()
 }
 
 /// `silk_LSHIFT_SAT32` — left shift with saturation.

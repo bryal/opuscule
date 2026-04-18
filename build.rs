@@ -22,7 +22,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/PLC.c",
     // Shared (used by decoder path)
     "silk/NLSF_decode.c",
-    "silk/NLSF2A.c",
     "silk/process_NLSFs.c",
     "silk/resampler.c",
 ];
