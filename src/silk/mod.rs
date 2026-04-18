@@ -7,6 +7,7 @@
 //! silk/fixed). This module is therefore feature-agnostic.
 
 pub mod NLSF2A;
+pub mod NLSF_decode;
 pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
@@ -34,6 +35,7 @@ pub mod resampler_rom;
 pub mod shell_coder;
 pub mod sigm_q15;
 pub mod sort;
+pub mod sqrt_approx;
 pub mod stereo_decode_pred;
 pub mod stereo_ms_to_lr;
 pub mod structs;
