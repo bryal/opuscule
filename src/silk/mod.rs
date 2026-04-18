@@ -12,6 +12,7 @@ pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
 pub mod code_signs;
+pub mod decode_indices;
 pub mod decode_pitch;
 pub mod decode_pulses;
 pub mod gain_quant;
