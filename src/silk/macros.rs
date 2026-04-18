@@ -162,6 +162,24 @@ pub fn silk_add32_ovflw(a: i32, b: i32) -> i32 {
     a.wrapping_add(b)
 }
 
+/// `silk_MLA_ovflw` — `a + b * c`, fully wrapping.
+#[inline]
+pub fn silk_mla_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {
+    a32.wrapping_add(b32.wrapping_mul(c32))
+}
+
+/// `silk_RAND` — SILK's linear-congruential random sequence.
+#[inline]
+pub fn silk_rand(seed: i32) -> i32 {
+    silk_mla_ovflw(907633515, seed, 196314165)
+}
+
+/// `silk_ADD_SAT16` — saturating 16-bit addition.
+#[inline]
+pub fn silk_add_sat16(a: i16, b: i16) -> i16 {
+    a.saturating_add(b)
+}
+
 /// `silk_SMLABB_ovflw` — `a + (int16)b * (int16)c`, with wrapping add.
 #[inline]
 pub fn silk_smlabb_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {

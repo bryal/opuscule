@@ -10,7 +10,6 @@ const CELT_SOURCES: &[&str] = &[];
 
 const SILK_SOURCES: &[&str] = &[
     // Decoder
-    "silk/CNG.c",
     "silk/init_decoder.c",
     "silk/decode_core.c",
     "silk/decode_frame.c",
