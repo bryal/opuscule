@@ -10,7 +10,6 @@ const CELT_SOURCES: &[&str] = &[];
 
 const SILK_SOURCES: &[&str] = &[
     // Decoder
-    "silk/decode_core.c",
     "silk/decode_frame.c",
     "silk/dec_API.c",
     // Shared (used by decoder path)

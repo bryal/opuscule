@@ -7,8 +7,8 @@
 
 use super::lpc_analysis_filter::silk_LPC_analysis_filter;
 use super::macros::{
-    silk_add32_ovflw, silk_add_lshift32, silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift,
-    silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
+    silk_add_lshift32, silk_add32_ovflw, silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift, silk_rshift_round,
+    silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
 };
 use super::structs::{
     LTP_ORDER, MAX_FRAME_LENGTH, MAX_LPC_ORDER, MAX_NB_SUBFR, MAX_SUB_FRAME_LENGTH, SilkDecoderControl, SilkDecoderState,
@@ -59,11 +59,7 @@ pub unsafe extern "C" fn silk_decode_core(
         }
 
         /* Copy LPC state */
-        core::ptr::copy_nonoverlapping(
-            (*ps_dec).s_lpc_q14_buf.as_ptr(),
-            s_lpc_q14.as_mut_ptr(),
-            MAX_LPC_ORDER,
-        );
+        core::ptr::copy_nonoverlapping((*ps_dec).s_lpc_q14_buf.as_ptr(), s_lpc_q14.as_mut_ptr(), MAX_LPC_ORDER);
 
         let mut pexc_off = 0i32;
         let mut pxq_off = 0i32;
@@ -170,19 +166,14 @@ pub unsafe extern "C" fn silk_decode_core(
                     /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
                     let mut ltp_pred_q13 = 2i32;
                     ltp_pred_q13 = silk_smlawb(ltp_pred_q13, s_ltp_q15[pred_lag_off as usize], *b_q14.offset(0) as i32);
-                    ltp_pred_q13 =
-                        silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 1) as usize], *b_q14.offset(1) as i32);
-                    ltp_pred_q13 =
-                        silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 2) as usize], *b_q14.offset(2) as i32);
-                    ltp_pred_q13 =
-                        silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 3) as usize], *b_q14.offset(3) as i32);
-                    ltp_pred_q13 =
-                        silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 4) as usize], *b_q14.offset(4) as i32);
+                    ltp_pred_q13 = silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 1) as usize], *b_q14.offset(1) as i32);
+                    ltp_pred_q13 = silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 2) as usize], *b_q14.offset(2) as i32);
+                    ltp_pred_q13 = silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 3) as usize], *b_q14.offset(3) as i32);
+                    ltp_pred_q13 = silk_smlawb(ltp_pred_q13, s_ltp_q15[(pred_lag_off - 4) as usize], *b_q14.offset(4) as i32);
                     pred_lag_off += 1;
 
                     /* Generate LPC excitation */
-                    res_q14[i as usize] =
-                        silk_add_lshift32((*ps_dec).exc_q14[(pexc_off + i) as usize], ltp_pred_q13, 1);
+                    res_q14[i as usize] = silk_add_lshift32((*ps_dec).exc_q14[(pexc_off + i) as usize], ltp_pred_q13, 1);
 
                     /* Update states */
                     s_ltp_q15[s_ltp_buf_idx as usize] = silk_lshift(res_q14[i as usize], 1);
@@ -196,11 +187,7 @@ pub unsafe extern "C" fn silk_decode_core(
 
             let mut i = 0i32;
             while i < (*ps_dec).subfr_length {
-                let pres = if pres_is_exc {
-                    (*ps_dec).exc_q14[(pexc_off + i) as usize]
-                } else {
-                    res_q14[i as usize]
-                };
+                let pres = if pres_is_exc { (*ps_dec).exc_q14[(pexc_off + i) as usize] } else { res_q14[i as usize] };
 
                 /* Short-term prediction */
                 /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
@@ -234,22 +221,13 @@ pub unsafe extern "C" fn silk_decode_core(
             }
 
             /* Update LPC filter state */
-            core::ptr::copy(
-                s_lpc_q14.as_ptr().add((*ps_dec).subfr_length as usize),
-                s_lpc_q14.as_mut_ptr(),
-                MAX_LPC_ORDER,
-            );
+            core::ptr::copy(s_lpc_q14.as_ptr().add((*ps_dec).subfr_length as usize), s_lpc_q14.as_mut_ptr(), MAX_LPC_ORDER);
             pexc_off += (*ps_dec).subfr_length;
             pxq_off += (*ps_dec).subfr_length;
             k += 1;
         }
 
         /* Save LPC state */
-        core::ptr::copy_nonoverlapping(
-            s_lpc_q14.as_ptr(),
-            (*ps_dec).s_lpc_q14_buf.as_mut_ptr(),
-            MAX_LPC_ORDER,
-        );
-
+        core::ptr::copy_nonoverlapping(s_lpc_q14.as_ptr(), (*ps_dec).s_lpc_q14_buf.as_mut_ptr(), MAX_LPC_ORDER);
     }
 }

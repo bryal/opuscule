@@ -14,6 +14,7 @@ pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
 pub mod code_signs;
+pub mod decode_core;
 pub mod decode_indices;
 pub mod decode_parameters;
 pub mod decode_pitch;
