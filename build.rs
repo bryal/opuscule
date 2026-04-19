@@ -15,7 +15,6 @@ const SILK_SOURCES: &[&str] = &[
     "silk/decode_frame.c",
     "silk/decoder_set_fs.c",
     "silk/dec_API.c",
-    "silk/PLC.c",
     // Shared (used by decoder path)
     "silk/resampler.c",
 ];

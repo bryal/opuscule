@@ -9,6 +9,7 @@
 pub mod CNG;
 pub mod NLSF2A;
 pub mod NLSF_decode;
+pub mod PLC;
 pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;

@@ -113,6 +113,30 @@ pub fn silk_min_32(a: i32, b: i32) -> i32 {
     a.min(b)
 }
 
+/// `silk_min_int` — min of two i32.
+#[inline]
+pub fn silk_min_int(a: i32, b: i32) -> i32 {
+    a.min(b)
+}
+
+/// `silk_max_32` — max of two i32.
+#[inline]
+pub fn silk_max_32(a: i32, b: i32) -> i32 {
+    a.max(b)
+}
+
+/// `silk_max_16` — max of two i16 (taking/returning i32 for call-site ergonomics).
+#[inline]
+pub fn silk_max_16(a: i32, b: i32) -> i32 {
+    a.max(b)
+}
+
+/// `silk_LSHIFT32` — alias of [`silk_lshift`] for the 32-bit form.
+#[inline]
+pub fn silk_lshift32(a: i32, shift: i32) -> i32 {
+    silk_lshift(a, shift)
+}
+
 /// `silk_max_int` — max of two i32.
 #[inline]
 pub fn silk_max_int(a: i32, b: i32) -> i32 {
