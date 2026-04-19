@@ -5,7 +5,8 @@
 //! sampling rate changes, and (re)initialises the resampler if the
 //! API-side sample rate or internal rate moves.
 
-use super::structs::{MAX_LPC_ORDER, MAX_NB_SUBFR, SilkDecoderState, SilkResamplerStateStruct};
+use super::resampler::silk_resampler_init;
+use super::structs::{MAX_LPC_ORDER, MAX_NB_SUBFR, SilkDecoderState};
 use super::tables_nlsf_cb_nb_mb::silk_NLSF_CB_NB_MB;
 use super::tables_nlsf_cb_wb::silk_NLSF_CB_WB;
 use super::tables_other::{silk_uniform4_iCDF, silk_uniform6_iCDF, silk_uniform8_iCDF};
@@ -17,10 +18,6 @@ const SUB_FRAME_LENGTH_MS: i32 = 5;
 const LTP_MEM_LENGTH_MS: i32 = 20;
 const MIN_LPC_ORDER: i32 = 10;
 const TYPE_NO_VOICE_ACTIVITY: i32 = 0;
-
-unsafe extern "C" {
-    fn silk_resampler_init(s: *mut SilkResamplerStateStruct, fs_hz_in: i32, fs_hz_out: i32, forEnc: i32) -> i32;
-}
 
 /// `silk_decoder_set_fs` — set SILK internal / API sample rates.
 #[unsafe(no_mangle)]

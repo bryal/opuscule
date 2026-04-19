@@ -11,8 +11,6 @@ const CELT_SOURCES: &[&str] = &[];
 const SILK_SOURCES: &[&str] = &[
     // Decoder
     "silk/dec_API.c",
-    // Shared (used by decoder path)
-    "silk/resampler.c",
 ];
 
 const OPUS_SOURCES: &[&str] = &[];

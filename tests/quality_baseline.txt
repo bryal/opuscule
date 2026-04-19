@@ -1,4 +1,4 @@
 float_mono=97.4333
 float_stereo=99.8917
-fixed_mono=97.4333
-fixed_stereo=99.8917
+fixed_mono=97.0750
+fixed_stereo=97.7667

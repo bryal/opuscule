@@ -34,6 +34,7 @@ pub mod nlsf_stabilize;
 pub mod nlsf_unpack;
 pub mod nlsf_vq_weights_laroia;
 pub mod pitch_est_tables;
+pub mod resampler;
 pub mod resampler_down2;
 pub mod resampler_down2_3;
 pub mod resampler_private_AR2;
