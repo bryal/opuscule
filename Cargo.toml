@@ -21,6 +21,3 @@ unwrap_used = "deny"
 [dependencies]
 
 [dev-dependencies]
-
-[build-dependencies]
-cc = "1"
