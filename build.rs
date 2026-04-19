@@ -1,52 +1,9 @@
-// Build script: compiles the RFC 6716 reference C sources into a static
-// library that Cargo links into our binaries. The `fixed-point` feature
-// toggles between floating-point and fixed-point SILK paths (CELT sources
-// are shared, compiled conditionally via #ifdef FIXED_POINT).
-//
-// Only decoder-side sources are compiled. Encoder code has been removed
-// from celt.c and encoder-only source files are excluded.
-
-const CELT_SOURCES: &[&str] = &[];
-
-const SILK_SOURCES: &[&str] = &[
-    // Decoder
-    "silk/dec_API.c",
-];
-
-const OPUS_SOURCES: &[&str] = &[];
+// Build script — formerly compiled the RFC 6716 reference C sources into
+// a static library that Cargo linked into our binaries. Now that the
+// entire decoder has been translated to Rust, no C sources remain and
+// this script exists only to keep the cargo-build pipeline stable while
+// the cc build-dependency is removed in a follow-up.
 
 fn main() {
-    let fixed = std::env::var("CARGO_FEATURE_FIXED_POINT").is_ok();
-
-    let mut build = cc::Build::new();
-    build
-        .include("c/include")
-        .include("c/celt")
-        .include("c/silk")
-        .include("c/silk/float")
-        .include("c/silk/fixed")
-        .include("c/src")
-        .define("OPUS_BUILD", None)
-        .define("USE_ALLOCA", None)
-        .define("restrict", Some(""))
-        .define("OPUS_VERSION", Some("\"1.0.0\""));
-
-    if fixed {
-        build.define("FIXED_POINT", Some("1"));
-        build.define("DISABLE_FLOAT_API", None);
-    }
-
-    for f in CELT_SOURCES {
-        build.file(format!("c/{f}"));
-    }
-    for f in SILK_SOURCES {
-        build.file(format!("c/{f}"));
-    }
-    for f in OPUS_SOURCES {
-        build.file(format!("c/{f}"));
-    }
-
-    build.compile("opus");
-
-    println!("cargo:rerun-if-changed=c/");
+    println!("cargo:rerun-if-changed=build.rs");
 }

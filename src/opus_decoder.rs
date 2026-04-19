@@ -20,6 +20,7 @@ use crate::packet::{
     opus_packet_get_bandwidth, opus_packet_get_mode, opus_packet_get_nb_channels, opus_packet_get_nb_frames,
     opus_packet_get_samples_per_frame, opus_packet_parse_impl,
 };
+use crate::silk::dec_API::{SilkDecControlStruct, silk_Decode, silk_Get_Decoder_Size, silk_InitDecoder};
 
 // -- Constants --
 
@@ -48,33 +49,6 @@ const OPUS_GET_PITCH_REQUEST: c_int = 4033;
 
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
-
-// -- SILK FFI --
-
-/// SILK decoder control structure (mirrors silk_DecControlStruct from silk/control.h).
-#[repr(C)]
-pub struct SilkDecControlStruct {
-    pub n_channels_api: i32,
-    pub n_channels_internal: i32,
-    pub api_sample_rate: i32,
-    pub internal_sample_rate: i32,
-    pub payload_size_ms: c_int,
-    pub prev_pitch_lag: c_int,
-}
-
-unsafe extern "C" {
-    fn silk_Get_Decoder_Size(dec_size_bytes: *mut c_int) -> c_int;
-    fn silk_InitDecoder(dec_state: *mut u8) -> c_int;
-    fn silk_Decode(
-        dec_state: *mut u8,
-        dec_control: *mut SilkDecControlStruct,
-        lost_flag: c_int,
-        new_packet_flag: c_int,
-        ps_range_dec: *mut ec_ctx,
-        samples_out: *mut i16,
-        n_samples_out: *mut i32,
-    ) -> c_int;
-}
 
 // -- Alignment helper (matches C align()) --
 
