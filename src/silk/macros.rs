@@ -339,6 +339,30 @@ pub fn silk_inverse32_varq(b32: i32, qres: i32) -> i32 {
     if lshift <= 0 { silk_lshift_sat32(result, -lshift) } else { if lshift < 32 { silk_rshift(result, lshift) } else { 0 } }
 }
 
+/// `silk_DIV32_varQ` — approximate `(a32 << Qres) / b32` via Newton iteration.
+#[inline]
+pub fn silk_div32_varq(a32: i32, b32: i32, qres: i32) -> i32 {
+    let a_headrm = silk_clz32(silk_abs_int32(a32)) - 1;
+    let mut a32_nrm = silk_lshift(a32, a_headrm);
+    let b_headrm = silk_clz32(silk_abs_int32(b32)) - 1;
+    let b32_nrm = silk_lshift(b32, b_headrm);
+
+    let b32_inv = silk_div32_16(i32::MAX >> 2, silk_rshift(b32_nrm, 16));
+
+    let mut result = silk_smulwb(a32_nrm, b32_inv);
+    a32_nrm = silk_sub32_ovflw(a32_nrm, silk_lshift_ovflw(silk_smmul(b32_nrm, result), 3));
+    result = silk_smlawb(result, a32_nrm, b32_inv);
+
+    let lshift = 29 + a_headrm - b_headrm - qres;
+    if lshift < 0 {
+        silk_lshift_sat32(result, -lshift)
+    } else if lshift < 32 {
+        silk_rshift(result, lshift)
+    } else {
+        0
+    }
+}
+
 /// `silk_SMULBB` — `(int16)a * (int16)b`, returning the full 32-bit product.
 #[inline]
 pub fn silk_smulbb(a32: i32, b32: i32) -> i32 {
