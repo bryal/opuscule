@@ -5,7 +5,7 @@
 
 use super::lin2log::silk_lin2log;
 use super::log2lin::silk_log2lin;
-use super::macros::{silk_add_lshift32, silk_limit_int, silk_lshift, silk_max_int, silk_min_32, silk_rshift, silk_smulwb};
+use super::macros::{silk_add_lshift32, silk_limit_int, silk_lshift, silk_rshift, silk_smulwb};
 
 // -- Constants from c/silk/define.h --
 
@@ -78,8 +78,7 @@ pub unsafe extern "C" fn silk_gains_quant(
             }
 
             /* Scale and convert to linear scale */
-            *gain_q16.offset(k as isize) =
-                silk_log2lin(silk_min_32(silk_smulwb(INV_SCALE_Q16, *prev_ind as i32) + OFFSET, 3967)); /* 3967 = 31 in Q7 */
+            *gain_q16.offset(k as isize) = silk_log2lin((silk_smulwb(INV_SCALE_Q16, *prev_ind as i32) + OFFSET).min(3967)); /* 3967 = 31 in Q7 */
             k += 1;
         }
     }
@@ -99,7 +98,7 @@ pub unsafe extern "C" fn silk_gains_dequant(
         while k < nb_subfr {
             if k == 0 && conditional == 0 {
                 /* Gain index is not allowed to go down more than 16 steps (~21.8 dB) */
-                *prev_ind = silk_max_int(*ind.offset(k as isize) as i32, *prev_ind as i32 - 16) as i8;
+                *prev_ind = (*ind.offset(k as isize) as i32).max(*prev_ind as i32 - 16) as i8;
             } else {
                 /* Delta index */
                 let ind_tmp = *ind.offset(k as isize) as i32 + MIN_DELTA_GAIN_QUANT;
@@ -115,8 +114,7 @@ pub unsafe extern "C" fn silk_gains_dequant(
             *prev_ind = silk_limit_int(*prev_ind as i32, 0, N_LEVELS_QGAIN - 1) as i8;
 
             /* Scale and convert to linear scale */
-            *gain_q16.offset(k as isize) =
-                silk_log2lin(silk_min_32(silk_smulwb(INV_SCALE_Q16, *prev_ind as i32) + OFFSET, 3967)); /* 3967 = 31 in Q7 */
+            *gain_q16.offset(k as isize) = silk_log2lin((silk_smulwb(INV_SCALE_Q16, *prev_ind as i32) + OFFSET).min(3967)); /* 3967 = 31 in Q7 */
             k += 1;
         }
     }

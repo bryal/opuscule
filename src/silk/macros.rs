@@ -107,42 +107,6 @@ pub fn silk_limit_int(a: i32, limit1: i32, limit2: i32) -> i32 {
     if limit1 > limit2 { a.max(limit2).min(limit1) } else { a.max(limit1).min(limit2) }
 }
 
-/// `silk_min_32` — min of two i32.
-#[inline]
-pub fn silk_min_32(a: i32, b: i32) -> i32 {
-    a.min(b)
-}
-
-/// `silk_min_int` — min of two i32.
-#[inline]
-pub fn silk_min_int(a: i32, b: i32) -> i32 {
-    a.min(b)
-}
-
-/// `silk_max_32` — max of two i32.
-#[inline]
-pub fn silk_max_32(a: i32, b: i32) -> i32 {
-    a.max(b)
-}
-
-/// `silk_max_16` — max of two i16 (taking/returning i32 for call-site ergonomics).
-#[inline]
-pub fn silk_max_16(a: i32, b: i32) -> i32 {
-    a.max(b)
-}
-
-/// `silk_LSHIFT32` — alias of [`silk_lshift`] for the 32-bit form.
-#[inline]
-pub fn silk_lshift32(a: i32, shift: i32) -> i32 {
-    silk_lshift(a, shift)
-}
-
-/// `silk_max_int` — max of two i32.
-#[inline]
-pub fn silk_max_int(a: i32, b: i32) -> i32 {
-    a.max(b)
-}
-
 /// `silk_ADD_LSHIFT32` — `a + (b << shift)`, 32-bit.
 #[inline]
 pub fn silk_add_lshift32(a: i32, b: i32, shift: i32) -> i32 {
@@ -196,12 +160,6 @@ pub fn silk_mla_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {
 #[inline]
 pub fn silk_rand(seed: i32) -> i32 {
     silk_mla_ovflw(907633515, seed, 196314165)
-}
-
-/// `silk_ADD_SAT16` — saturating 16-bit addition.
-#[inline]
-pub fn silk_add_sat16(a: i16, b: i16) -> i16 {
-    a.saturating_add(b)
 }
 
 /// `silk_SMLABB_ovflw` — `a + (int16)b * (int16)c`, with wrapping add.
@@ -274,19 +232,6 @@ pub fn silk_div32_16(a32: i32, b16: i32) -> i32 {
 #[inline]
 pub fn silk_div32(a32: i32, b32: i32) -> i32 {
     a32 / b32
-}
-
-/// `silk_min` — min of two i32.
-#[inline]
-pub fn silk_min(a: i32, b: i32) -> i32 {
-    a.min(b)
-}
-
-/// `silk_abs` — absolute value. WARNING: returns wrong for `i32::MIN`
-/// (matches the C macro's `(a>0)?a:-a` behaviour).
-#[inline]
-pub fn silk_abs(a: i32) -> i32 {
-    a.wrapping_abs()
 }
 
 /// `silk_LSHIFT_SAT32` — left shift with saturation.

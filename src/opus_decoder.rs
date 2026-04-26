@@ -261,16 +261,6 @@ fn sat16(x: i32) -> i16 {
     }
 }
 
-// -- IMIN / IMAX --
-
-fn imin(a: c_int, b: c_int) -> c_int {
-    if a < b { a } else { b }
-}
-
-fn imax(a: c_int, b: c_int) -> c_int {
-    if a > b { a } else { b }
-}
-
 // -- opus_decode_frame --
 
 unsafe fn opus_decode_frame(
@@ -316,7 +306,7 @@ unsafe fn opus_decode_frame(
         if len <= 1 {
             data = std::ptr::null();
             // In that case, don't conceal more than what the ToC says
-            frame_size = imin(frame_size, (*st).frame_size);
+            frame_size = frame_size.min((*st).frame_size);
         }
 
         if !data.is_null() {
@@ -371,7 +361,7 @@ unsafe fn opus_decode_frame(
         {
             transition = 1;
             if mode == MODE_CELT_ONLY {
-                opus_decode_frame(st, std::ptr::null(), 0, pcm_transition, imin(f5, audiosize), 0);
+                opus_decode_frame(st, std::ptr::null(), 0, pcm_transition, f5.min(audiosize), 0);
             }
         }
 
@@ -381,7 +371,7 @@ unsafe fn opus_decode_frame(
             frame_size = audiosize;
         }
 
-        let mut pcm_silk_buf: Vec<i16> = vec![0i16; (imax(f10, frame_size) * (*st).channels) as usize];
+        let mut pcm_silk_buf: Vec<i16> = vec![0i16; (f10.max(frame_size) * (*st).channels) as usize];
         let pcm_silk = pcm_silk_buf.as_mut_ptr();
         let mut redundant_audio_buf: Vec<OpusVal16> = vec![0 as OpusVal16; (f5 * (*st).channels) as usize];
         let redundant_audio = redundant_audio_buf.as_mut_ptr();
@@ -399,7 +389,7 @@ unsafe fn opus_decode_frame(
             }
 
             // The SILK PLC cannot produce frames of less than 10 ms
-            (*st).dec_control.payload_size_ms = imax(10, 1000 * audiosize / (*st).fs);
+            (*st).dec_control.payload_size_ms = (1000 * audiosize / (*st).fs).max(10);
 
             if !data.is_null() {
                 (*st).dec_control.n_channels_internal = (*st).stream_channels;
@@ -508,7 +498,7 @@ unsafe fn opus_decode_frame(
         }
 
         if transition != 0 && mode != MODE_CELT_ONLY {
-            opus_decode_frame(st, std::ptr::null(), 0, pcm_transition, imin(f5, audiosize), 0);
+            opus_decode_frame(st, std::ptr::null(), 0, pcm_transition, f5.min(audiosize), 0);
         }
 
         // 5 ms redundant frame for CELT->SILK
@@ -529,7 +519,7 @@ unsafe fn opus_decode_frame(
         celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(start_band));
 
         if mode != MODE_SILK_ONLY {
-            let celt_frame_size = imin(f20, frame_size);
+            let celt_frame_size = f20.min(frame_size);
             // Make sure to discard any previous CELT state
             if mode != (*st).prev_mode && (*st).prev_mode > 0 && (*st).prev_redundancy == 0 {
                 celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);

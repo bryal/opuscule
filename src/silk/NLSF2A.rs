@@ -14,8 +14,8 @@
 use super::bwexpander_32::silk_bwexpander_32;
 use super::lpc_inv_pred_gain::silk_LPC_inverse_pred_gain;
 use super::macros::{
-    silk_abs, silk_div32, silk_lshift, silk_min, silk_mul, silk_rshift, silk_rshift_round, silk_rshift_round64, silk_rshift32,
-    silk_sat16, silk_smull,
+    silk_div32, silk_lshift, silk_mul, silk_rshift, silk_rshift_round, silk_rshift_round64, silk_rshift32, silk_sat16,
+    silk_smull,
 };
 use super::table_lsf_cos::silk_LSFCosTab_FIX_Q12;
 
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) 
             let mut maxabs: i32 = 0;
             let mut k = 0i32;
             while k < d {
-                let absval = silk_abs(a32_qa1[k as usize]);
+                let absval = a32_qa1[k as usize].wrapping_abs();
                 if absval > maxabs {
                     maxabs = absval;
                     idx = k;
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) 
 
             if maxabs > i16::MAX as i32 {
                 /* Reduce magnitude of prediction coefficients */
-                let maxabs = silk_min(maxabs, 163838); /* (silk_int32_MAX >> 14) + silk_int16_MAX = 163838 */
+                let maxabs = maxabs.min(163838); /* (silk_int32_MAX >> 14) + silk_int16_MAX = 163838 */
                 let sc_q16 = SC_BASE_Q16
                     - silk_div32(silk_lshift(maxabs - i16::MAX as i32, 14), silk_rshift32(silk_mul(maxabs, idx + 1), 2));
                 silk_bwexpander_32(a32_qa1.as_mut_ptr(), d, sc_q16);

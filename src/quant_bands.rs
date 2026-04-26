@@ -115,13 +115,6 @@ unsafe extern "C" {
     fn ec_dec_bits(this: *mut ec_ctx, bits: u32) -> u32;
 }
 
-// -- Helper matching C macro --
-
-#[inline]
-fn imin(a: i32, b: i32) -> i32 {
-    a.min(b)
-}
-
 // -- Decoder functions --
 
 /// Decode coarse energy from the bitstream using a Laplace-like model.
@@ -164,7 +157,7 @@ pub unsafe extern "C" fn unquant_coarse_energy(
                 let tell = ec_tell(&*dec);
                 let qi: c_int;
                 if budget - tell >= 15 {
-                    let pi = 2 * imin(i as i32, 20) as usize;
+                    let pi = 2 * (i as i32).min(20) as usize;
                     qi = ec_laplace_decode(dec, (prob_model[pi] as u32) << 7, ((prob_model[pi + 1] as u32) << 6) as c_int);
                 } else if budget - tell >= 2 {
                     let raw = ec_dec_icdf(dec, SMALL_ENERGY_ICDF.as_ptr(), 2);

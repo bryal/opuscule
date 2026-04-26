@@ -16,7 +16,7 @@ use super::decode_indices::silk_decode_indices;
 use super::decode_pulses::silk_decode_pulses;
 use super::decoder_set_fs::silk_decoder_set_fs;
 use super::init_decoder::silk_init_decoder;
-use super::macros::{silk_div32, silk_lshift, silk_min, silk_rshift, silk_smulbb};
+use super::macros::{silk_div32, silk_lshift, silk_rshift, silk_smulbb};
 use super::resampler::silk_resampler;
 use super::stereo_decode_pred::{silk_stereo_decode_mid_only, silk_stereo_decode_pred};
 use super::stereo_ms_to_lr::silk_stereo_MS_to_LR;
@@ -357,7 +357,7 @@ pub unsafe extern "C" fn silk_Decode(
         /* Set up pointers to temp buffers */
         let resample_out_ptr = if (*dec_control).n_channels_api == 2 { samples_out2_tmp.as_mut_ptr() } else { samples_out };
 
-        let loop_n = silk_min((*dec_control).n_channels_api, (*dec_control).n_channels_internal);
+        let loop_n = (*dec_control).n_channels_api.min((*dec_control).n_channels_internal);
         for n in 0..loop_n as usize {
             let cs = channel_state.add(n);
             /* Resample decoded signal to API_sampleRate */

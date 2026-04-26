@@ -6,8 +6,8 @@
 
 use super::NLSF2A::silk_NLSF2A;
 use super::macros::{
-    silk_add_lshift, silk_add_sat16, silk_div32_16, silk_mla_ovflw, silk_rshift, silk_rshift_round, silk_sat16, silk_smlawb,
-    silk_smulwb, silk_smulww,
+    silk_add_lshift, silk_div32_16, silk_mla_ovflw, silk_rshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb,
+    silk_smulww,
 };
 use super::structs::{MAX_FRAME_LENGTH, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn silk_CNG(
                 /* Update states */
                 cng_sig_q10[MAX_LPC_ORDER + i as usize] = silk_add_lshift(cng_sig_q10[MAX_LPC_ORDER + i as usize], sum_q6, 4);
 
-                *frame.offset(i as isize) = silk_add_sat16(*frame.offset(i as isize), silk_rshift_round(sum_q6, 6) as i16);
+                *frame.offset(i as isize) = (*frame.offset(i as isize)).saturating_add(silk_rshift_round(sum_q6, 6) as i16);
                 i += 1;
             }
             core::ptr::copy_nonoverlapping(

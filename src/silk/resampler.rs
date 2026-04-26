@@ -7,7 +7,7 @@
 
 use core::ffi::c_void;
 
-use super::macros::{silk_div32, silk_div32_16, silk_lshift32, silk_mul, silk_smulww};
+use super::macros::{silk_div32, silk_div32_16, silk_lshift, silk_mul, silk_smulww};
 use super::resampler_private_IIR_FIR::silk_resampler_private_IIR_FIR;
 use super::resampler_private_down_FIR::silk_resampler_private_down_FIR;
 use super::resampler_private_up2_HQ::silk_resampler_private_up2_HQ_wrapper;
@@ -133,9 +133,9 @@ pub unsafe extern "C" fn silk_resampler_init(
         }
 
         /* Ratio of input/output samples */
-        (*s).inv_ratio_q16 = silk_lshift32(silk_div32(silk_lshift32(fs_hz_in, 14 + up2x), fs_hz_out), 2);
+        (*s).inv_ratio_q16 = silk_lshift(silk_div32(silk_lshift(fs_hz_in, 14 + up2x), fs_hz_out), 2);
         /* Make sure the ratio is rounded up */
-        while silk_smulww((*s).inv_ratio_q16, fs_hz_out) < silk_lshift32(fs_hz_in, up2x) {
+        while silk_smulww((*s).inv_ratio_q16, fs_hz_out) < silk_lshift(fs_hz_in, up2x) {
             (*s).inv_ratio_q16 += 1;
         }
 

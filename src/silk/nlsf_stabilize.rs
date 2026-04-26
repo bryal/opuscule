@@ -3,7 +3,7 @@
 //! Stabilizer for Normalized Line Spectral Frequencies: enforces minimum
 //! spacing between coefficients and pushes them away from boundaries.
 
-use super::macros::{silk_limit_int, silk_max_int, silk_min_32, silk_rshift, silk_rshift_round};
+use super::macros::{silk_limit_int, silk_rshift, silk_rshift_round};
 use super::sort::silk_insertion_sort_increasing_all_values_int16;
 
 const MAX_LOOPS: i32 = 20;
@@ -91,30 +91,27 @@ pub unsafe extern "C" fn silk_NLSF_stabilize(nlsf_q15: *mut i16, n_delta_min_q15
             silk_insertion_sort_increasing_all_values_int16(nlsf_q15, l);
 
             /* First NLSF should be no less than NDeltaMin[0] */
-            *nlsf_q15.offset(0) = silk_max_int(*nlsf_q15.offset(0) as i32, *n_delta_min_q15.offset(0) as i32) as i16;
+            *nlsf_q15.offset(0) = (*nlsf_q15.offset(0) as i32).max(*n_delta_min_q15.offset(0) as i32) as i16;
 
             /* Keep delta_min distance between the NLSFs */
             let mut i = 1;
             while i < l {
-                *nlsf_q15.offset(i as isize) = silk_max_int(
-                    *nlsf_q15.offset(i as isize) as i32,
-                    *nlsf_q15.offset((i - 1) as isize) as i32 + *n_delta_min_q15.offset(i as isize) as i32,
-                ) as i16;
+                *nlsf_q15.offset(i as isize) = (*nlsf_q15.offset(i as isize) as i32)
+                    .max(*nlsf_q15.offset((i - 1) as isize) as i32 + *n_delta_min_q15.offset(i as isize) as i32)
+                    as i16;
                 i += 1;
             }
 
             /* Last NLSF should be no higher than 1 - NDeltaMin[L] */
             *nlsf_q15.offset((l - 1) as isize) =
-                silk_min_32(*nlsf_q15.offset((l - 1) as isize) as i32, (1 << 15) - *n_delta_min_q15.offset(l as isize) as i32)
-                    as i16;
+                (*nlsf_q15.offset((l - 1) as isize) as i32).min((1 << 15) - *n_delta_min_q15.offset(l as isize) as i32) as i16;
 
             /* Keep NDeltaMin distance between the NLSFs */
             let mut i = l - 2;
             while i >= 0 {
-                *nlsf_q15.offset(i as isize) = silk_min_32(
-                    *nlsf_q15.offset(i as isize) as i32,
-                    *nlsf_q15.offset((i + 1) as isize) as i32 - *n_delta_min_q15.offset((i + 1) as isize) as i32,
-                ) as i16;
+                *nlsf_q15.offset(i as isize) = (*nlsf_q15.offset(i as isize) as i32)
+                    .min(*nlsf_q15.offset((i + 1) as isize) as i32 - *n_delta_min_q15.offset((i + 1) as isize) as i32)
+                    as i16;
                 i -= 1;
             }
         }
