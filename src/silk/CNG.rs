@@ -5,9 +5,7 @@
 //! noise signal that is mixed into the decoder output.
 
 use super::NLSF2A::silk_NLSF2A;
-use super::macros::{
-    silk_add_lshift32, silk_mla_ovflw, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
-};
+use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww};
 use super::structs::{MAX_FRAME_LENGTH, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 
 const CNG_BUF_MASK_MAX: i32 = 255;
@@ -27,7 +25,7 @@ unsafe fn silk_CNG_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16
         let mut seed = *rand_seed;
         let mut i = 0i32;
         while i < length {
-            seed = silk_mla_ovflw(907633515, seed, 196314165);
+            seed = 907633515i32.wrapping_add(seed.wrapping_mul(196314165));
             let idx = (seed >> 24) & exc_mask;
             *residual_q10.offset(i as isize) =
                 silk_sat16(silk_smulww(*exc_buf_q14.offset(idx as isize), gain_q16 >> 4)) as i16 as i32;
@@ -159,7 +157,7 @@ pub unsafe extern "C" fn silk_CNG(
                 }
 
                 /* Update states */
-                cng_sig_q10[MAX_LPC_ORDER + i as usize] = silk_add_lshift32(cng_sig_q10[MAX_LPC_ORDER + i as usize], sum_q6, 4);
+                cng_sig_q10[MAX_LPC_ORDER + i as usize] += silk_lshift(sum_q6, 4);
 
                 *frame.offset(i as isize) = (*frame.offset(i as isize)).saturating_add(silk_rshift_round(sum_q6, 6) as i16);
                 i += 1;

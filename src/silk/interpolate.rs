@@ -2,7 +2,7 @@
 //!
 //! Linear interpolation of two `i16` coefficient vectors.
 
-use super::macros::{silk_add_rshift, silk_smulbb};
+use super::macros::silk_smulbb;
 
 /// `silk_interpolate` — interpolate two `i16` vectors with a Q2 blend factor.
 ///
@@ -13,11 +13,9 @@ pub unsafe extern "C" fn silk_interpolate(xi: *mut i16, x0: *const i16, x1: *con
     unsafe {
         let mut i = 0;
         while i < d {
-            *xi.offset(i as isize) = silk_add_rshift(
-                *x0.offset(i as isize) as i32,
-                silk_smulbb(*x1.offset(i as isize) as i32 - *x0.offset(i as isize) as i32, ifact_q2),
-                2,
-            ) as i16;
+            *xi.offset(i as isize) = (*x0.offset(i as isize) as i32
+                + (silk_smulbb(*x1.offset(i as isize) as i32 - *x0.offset(i as isize) as i32, ifact_q2) >> 2))
+                as i16;
             i += 1;
         }
     }

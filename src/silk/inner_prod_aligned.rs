@@ -2,7 +2,7 @@
 //!
 //! Scaled inner product of two `i16` vectors.
 
-use super::macros::{silk_add_rshift, silk_smulbb};
+use super::macros::silk_smulbb;
 
 /// `silk_inner_prod_aligned_scale` — compute the inner product of two
 /// `i16` vectors, right-shifting each partial product by `scale` bits
@@ -13,11 +13,7 @@ pub unsafe extern "C" fn silk_inner_prod_aligned_scale(in_vec1: *const i16, in_v
         let mut sum: i32 = 0;
         let mut i = 0;
         while i < len {
-            sum = silk_add_rshift(
-                sum,
-                silk_smulbb(*in_vec1.offset(i as isize) as i32, *in_vec2.offset(i as isize) as i32),
-                scale,
-            );
+            sum += silk_smulbb(*in_vec1.offset(i as isize) as i32, *in_vec2.offset(i as isize) as i32) >> scale;
             i += 1;
         }
         sum

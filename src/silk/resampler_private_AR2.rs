@@ -3,7 +3,7 @@
 //! Second-order AR filter with single delay elements, used internally by
 //! the resampler.
 
-use super::macros::{silk_add_lshift32, silk_lshift, silk_smlawb, silk_smulwb};
+use super::macros::{silk_lshift, silk_smlawb, silk_smulwb};
 
 /// `silk_resampler_private_AR2` — second-order AR section.
 ///
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn silk_resampler_private_AR2(
     unsafe {
         let mut k = 0;
         while k < len {
-            let mut out32 = silk_add_lshift32(*s.offset(0), *in_.offset(k as isize) as i32, 8);
+            let mut out32 = *s.offset(0) + silk_lshift(*in_.offset(k as isize) as i32, 8);
             *out_q8.offset(k as isize) = out32;
             out32 = silk_lshift(out32, 2);
             *s.offset(0) = silk_smlawb(*s.offset(1), out32, *a_q14.offset(0) as i32);

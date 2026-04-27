@@ -11,8 +11,8 @@ use super::bwexpander::silk_bwexpander;
 use super::lpc_analysis_filter::silk_LPC_analysis_filter;
 use super::lpc_inv_pred_gain::silk_LPC_inverse_pred_gain;
 use super::macros::{
-    silk_add_lshift32, silk_clz32, silk_inverse32_varq, silk_lshift, silk_mla_ovflw, silk_rshift_round, silk_sat16, silk_smlawb,
-    silk_smulbb, silk_smulwb, silk_smulww,
+    silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulbb, silk_smulwb,
+    silk_smulww,
 };
 use super::sqrt_approx::silk_sqrt_approx;
 use super::structs::{
@@ -292,7 +292,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
                 pred_lag_off += 1;
 
                 /* Generate LPC excitation */
-                rand_seed = silk_mla_ovflw(907633515, rand_seed, 196314165);
+                rand_seed = 907633515i32.wrapping_add(rand_seed.wrapping_mul(196314165));
                 let ridx = (rand_seed >> 25) & RAND_BUF_MASK;
                 s_ltp_q14[s_ltp_buf_idx as usize] =
                     silk_lshift(silk_smlawb(ltp_pred_q12, *rand_ptr.offset(ridx as isize), rand_scale_q14 as i32), 2);
@@ -347,7 +347,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
             }
 
             /* Add prediction to LPC excitation */
-            s_ltp_q14[base] = silk_add_lshift32(s_ltp_q14[base], lpc_pred_q10, 4);
+            s_ltp_q14[base] += silk_lshift(lpc_pred_q10, 4);
 
             /* Scale with Gain */
             *frame.offset(i as isize) =

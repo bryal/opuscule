@@ -7,8 +7,7 @@
 
 use super::lpc_analysis_filter::silk_LPC_analysis_filter;
 use super::macros::{
-    silk_add_lshift32, silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb,
-    silk_smulwb, silk_smulww,
+    silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
 };
 use super::structs::{
     LTP_ORDER, MAX_FRAME_LENGTH, MAX_LPC_ORDER, MAX_NB_SUBFR, MAX_SUB_FRAME_LENGTH, SilkDecoderControl, SilkDecoderState,
@@ -173,7 +172,7 @@ pub unsafe extern "C" fn silk_decode_core(
                     pred_lag_off += 1;
 
                     /* Generate LPC excitation */
-                    res_q14[i as usize] = silk_add_lshift32((*ps_dec).exc_q14[(pexc_off + i) as usize], ltp_pred_q13, 1);
+                    res_q14[i as usize] = (*ps_dec).exc_q14[(pexc_off + i) as usize] + silk_lshift(ltp_pred_q13, 1);
 
                     /* Update states */
                     s_ltp_q15[s_ltp_buf_idx as usize] = silk_lshift(res_q14[i as usize], 1);
@@ -212,7 +211,7 @@ pub unsafe extern "C" fn silk_decode_core(
                 }
 
                 /* Add prediction to LPC excitation */
-                s_lpc_q14[MAX_LPC_ORDER + i as usize] = silk_add_lshift32(pres, lpc_pred_q10, 4);
+                s_lpc_q14[MAX_LPC_ORDER + i as usize] = pres + silk_lshift(lpc_pred_q10, 4);
 
                 /* Scale with gain */
                 *xq.offset((pxq_off + i) as isize) =

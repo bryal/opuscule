@@ -49,18 +49,6 @@ pub fn silk_lshift(a: i32, shift: i32) -> i32 {
     a.wrapping_shl(shift as u32)
 }
 
-/// `silk_MLA` — `a + b * c`, 32-bit wrapping.
-#[inline]
-pub fn silk_mla(a32: i32, b32: i32, c32: i32) -> i32 {
-    a32.wrapping_add(b32.wrapping_mul(c32))
-}
-
-/// `silk_ADD_RSHIFT` — `a + (b >> shift)` (32-bit signed).
-#[inline]
-pub fn silk_add_rshift(a: i32, b: i32, shift: i32) -> i32 {
-    a.wrapping_add(b >> shift)
-}
-
 /// `silk_RSHIFT_ROUND` — round-to-nearest right shift (signed, ties up).
 ///
 /// Mirrors the C macro's two-branch form. The `shift == 1` branch avoids
@@ -79,40 +67,16 @@ pub fn silk_limit_int(a: i32, limit1: i32, limit2: i32) -> i32 {
     if limit1 > limit2 { a.max(limit2).min(limit1) } else { a.max(limit1).min(limit2) }
 }
 
-/// `silk_ADD_LSHIFT32` — `a + (b << shift)`, 32-bit.
-#[inline]
-pub fn silk_add_lshift32(a: i32, b: i32, shift: i32) -> i32 {
-    a.wrapping_add(silk_lshift(b, shift))
-}
-
 /// `silk_SAT16` — saturate an i32 to the i16 range.
 #[inline]
 pub fn silk_sat16(a: i32) -> i32 {
     a.max(i16::MIN as i32).min(i16::MAX as i32)
 }
 
-/// `silk_MLA_ovflw` — `a + b * c`, fully wrapping.
-#[inline]
-pub fn silk_mla_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {
-    a32.wrapping_add(b32.wrapping_mul(c32))
-}
-
-/// `silk_RAND` — SILK's linear-congruential random sequence.
-#[inline]
-pub fn silk_rand(seed: i32) -> i32 {
-    silk_mla_ovflw(907633515, seed, 196314165)
-}
-
 /// `silk_SMLABB_ovflw` — `a + (int16)b * (int16)c`, with wrapping add.
 #[inline]
 pub fn silk_smlabb_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {
     a32.wrapping_add((b32 as i16 as i32).wrapping_mul(c32 as i16 as i32))
-}
-
-/// `silk_ADD_RSHIFT_uint` — `a + (b >> shift)`, unsigned.
-#[inline]
-pub fn silk_add_rshift_uint(a: u32, b: u32, shift: i32) -> u32 {
-    a + (b >> shift as u32)
 }
 
 // -- 64-bit helpers --
@@ -153,10 +117,10 @@ pub fn silk_smlabb(a32: i32, b32: i32, c32: i32) -> i32 {
 
 /// `silk_SMLAWW` — `a32 + ((b32 * c32) >> 16)`, rounded.
 ///
-/// `silk_MLA(silk_SMLAWB(a, b, c), b, silk_RSHIFT_ROUND(c, 16))`
+/// `silk_SMLAWB(a, b, c) + b * silk_RSHIFT_ROUND(c, 16)`
 #[inline]
 pub fn silk_smlaww(a32: i32, b32: i32, c32: i32) -> i32 {
-    silk_mla(silk_smlawb(a32, b32, c32), b32, silk_rshift_round(c32, 16))
+    silk_smlawb(a32, b32, c32) + b32 * silk_rshift_round(c32, 16)
 }
 
 /// `silk_INVERSE32_varQ` — approximate `(1 << Qres) / b32` via Newton iteration.
@@ -230,10 +194,10 @@ pub fn silk_smulwb(a32: i32, b32: i32) -> i32 {
 /// `silk_SMULWW` — full 32×32 → 32 multiply (top 32 bits of the 64-bit product,
 /// with rounding).
 ///
-/// Equivalent to `silk_MLA(silk_SMULWB(a, b), a, silk_RSHIFT_ROUND(b, 16))`.
+/// Equivalent to `silk_SMULWB(a, b) + a * silk_RSHIFT_ROUND(b, 16)`.
 #[inline]
 pub fn silk_smulww(a32: i32, b32: i32) -> i32 {
-    silk_mla(silk_smulwb(a32, b32), a32, silk_rshift_round(b32, 16))
+    silk_smulwb(a32, b32) + a32 * silk_rshift_round(b32, 16)
 }
 
 /// `silk_SMLAWB` — `a32 + ((b32 * (int16)c32) >> 16)`.

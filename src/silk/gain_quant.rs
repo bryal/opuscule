@@ -5,7 +5,7 @@
 
 use super::lin2log::silk_lin2log;
 use super::log2lin::silk_log2lin;
-use super::macros::{silk_add_lshift32, silk_limit_int, silk_lshift, silk_smulwb};
+use super::macros::{silk_limit_int, silk_lshift, silk_smulwb};
 
 // -- Constants from c/silk/define.h --
 
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn silk_gains_ID(ind: *const i8, nb_subfr: i32) -> i32 {
         let mut gains_id: i32 = 0;
         let mut k = 0;
         while k < nb_subfr {
-            gains_id = silk_add_lshift32(*ind.offset(k as isize) as i32, gains_id, 8);
+            gains_id = *ind.offset(k as isize) as i32 + silk_lshift(gains_id, 8);
             k += 1;
         }
         gains_id

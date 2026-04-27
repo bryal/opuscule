@@ -2,7 +2,7 @@
 //!
 //! Converts adaptive Mid/Side representation to Left/Right stereo signal.
 
-use super::macros::{silk_add_lshift32, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulbb};
+use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulbb};
 use super::structs::StereoDecState;
 
 const STEREO_INTERP_LEN_MS: i32 = 8;
@@ -35,11 +35,9 @@ pub unsafe extern "C" fn silk_stereo_MS_to_LR(
             pred0_q13 += delta0_q13;
             pred1_q13 += delta1_q13;
             let sum = silk_lshift(
-                silk_add_lshift32(
-                    *x1.offset(n as isize) as i32 + *x1.offset((n + 2) as isize) as i32,
-                    *x1.offset((n + 1) as isize) as i32,
-                    1,
-                ),
+                *x1.offset(n as isize) as i32
+                    + *x1.offset((n + 2) as isize) as i32
+                    + silk_lshift(*x1.offset((n + 1) as isize) as i32, 1),
                 9,
             ); /* Q11 */
             let sum = silk_smlawb(silk_lshift(*x2.offset((n + 1) as isize) as i32, 8), sum, pred0_q13); /* Q8 */
@@ -51,11 +49,9 @@ pub unsafe extern "C" fn silk_stereo_MS_to_LR(
         let pred1_q13 = *pred_q13.offset(1);
         while n < frame_length {
             let sum = silk_lshift(
-                silk_add_lshift32(
-                    *x1.offset(n as isize) as i32 + *x1.offset((n + 2) as isize) as i32,
-                    *x1.offset((n + 1) as isize) as i32,
-                    1,
-                ),
+                *x1.offset(n as isize) as i32
+                    + *x1.offset((n + 2) as isize) as i32
+                    + silk_lshift(*x1.offset((n + 1) as isize) as i32, 1),
                 9,
             ); /* Q11 */
             let sum = silk_smlawb(silk_lshift(*x2.offset((n + 1) as isize) as i32, 8), sum, pred0_q13); /* Q8 */
