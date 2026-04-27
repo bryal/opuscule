@@ -3,7 +3,7 @@
 //! Chirp (bandwidth expansion) of an LP AR filter stored as Q12 `i16`
 //! coefficients.
 
-use super::macros::{silk_mul, silk_rshift_round};
+use super::macros::silk_rshift_round;
 
 /// `silk_bwexpander` — bandwidth-expand an AR filter by applying a
 /// geometrically decaying chirp factor.
@@ -22,10 +22,10 @@ pub unsafe extern "C" fn silk_bwexpander(ar: *mut i16, d: i32, mut chirp_q16: i3
         /* Bias in silk_SMULWB can lead to unstable filters                                */
         let mut i = 0;
         while i < d - 1 {
-            *ar.offset(i as isize) = silk_rshift_round(silk_mul(chirp_q16, *ar.offset(i as isize) as i32), 16) as i16;
-            chirp_q16 += silk_rshift_round(silk_mul(chirp_q16, chirp_minus_one_q16), 16);
+            *ar.offset(i as isize) = silk_rshift_round(chirp_q16 * *ar.offset(i as isize) as i32, 16) as i16;
+            chirp_q16 += silk_rshift_round(chirp_q16 * chirp_minus_one_q16, 16);
             i += 1;
         }
-        *ar.offset((d - 1) as isize) = silk_rshift_round(silk_mul(chirp_q16, *ar.offset((d - 1) as isize) as i32), 16) as i16;
+        *ar.offset((d - 1) as isize) = silk_rshift_round(chirp_q16 * *ar.offset((d - 1) as isize) as i32, 16) as i16;
     }
 }

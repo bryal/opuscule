@@ -5,7 +5,7 @@
 //! whose coefficients live in [`silk_resampler_down2_0`] and
 //! [`silk_resampler_down2_1`].
 
-use super::macros::{silk_add32, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_sub32};
+use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_rom::{silk_resampler_down2_0, silk_resampler_down2_1};
 
 /// `silk_resampler_down2` — downsample by a factor 2.
@@ -24,20 +24,20 @@ pub unsafe extern "C" fn silk_resampler_down2(s: *mut i32, out: *mut i16, in_: *
             let in32 = silk_lshift(*in_.offset((2 * k) as isize) as i32, 10);
 
             /* All-pass section for even input sample */
-            let y = silk_sub32(in32, *s.offset(0));
+            let y = in32 - *s.offset(0);
             let x = silk_smlawb(y, y, silk_resampler_down2_1 as i32);
-            let mut out32 = silk_add32(*s.offset(0), x);
-            *s.offset(0) = silk_add32(in32, x);
+            let mut out32 = *s.offset(0) + x;
+            *s.offset(0) = in32 + x;
 
             /* Convert to Q10 */
             let in32 = silk_lshift(*in_.offset((2 * k + 1) as isize) as i32, 10);
 
             /* All-pass section for odd input sample, and add to output of previous section */
-            let y = silk_sub32(in32, *s.offset(1));
+            let y = in32 - *s.offset(1);
             let x = silk_smulwb(y, silk_resampler_down2_0 as i32);
-            out32 = silk_add32(out32, *s.offset(1));
-            out32 = silk_add32(out32, x);
-            *s.offset(1) = silk_add32(in32, x);
+            out32 += *s.offset(1);
+            out32 += x;
+            *s.offset(1) = in32 + x;
 
             /* Add, convert back to int16 and store to output */
             *out.offset(k as isize) = silk_sat16(silk_rshift_round(out32, 11)) as i16;

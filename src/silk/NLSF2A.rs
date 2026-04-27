@@ -13,10 +13,7 @@
 
 use super::bwexpander_32::silk_bwexpander_32;
 use super::lpc_inv_pred_gain::silk_LPC_inverse_pred_gain;
-use super::macros::{
-    silk_div32, silk_lshift, silk_mul, silk_rshift, silk_rshift_round, silk_rshift_round64, silk_rshift32, silk_sat16,
-    silk_smull,
-};
+use super::macros::{silk_lshift, silk_rshift_round, silk_rshift_round64, silk_sat16, silk_smull};
 use super::table_lsf_cos::silk_LSFCosTab_FIX_Q12;
 
 const QA: i32 = 16;
@@ -78,7 +75,7 @@ pub unsafe extern "C" fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) 
             /* silk_assert(nlsf[k] >= 0); */
 
             /* f_int on a scale 0-127 (rounded down) */
-            let f_int = silk_rshift(*nlsf.offset(k as isize) as i32, 15 - 7);
+            let f_int = *nlsf.offset(k as isize) as i32 >> (15 - 7);
 
             /* f_frac, range: 0..255 */
             let f_frac = *nlsf.offset(k as isize) as i32 - silk_lshift(f_int, 15 - 7);
@@ -93,11 +90,11 @@ pub unsafe extern "C" fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) 
 
             /* Linear interpolation */
             cos_lsf_qa[ordering[k as usize] as usize] =
-                silk_rshift_round(silk_lshift(cos_val, 8) + silk_mul(delta, f_frac), 20 - QA); /* QA */
+                silk_rshift_round(silk_lshift(cos_val, 8) + delta * f_frac, 20 - QA); /* QA */
             k += 1;
         }
 
-        let dd = silk_rshift(d, 1);
+        let dd = d >> 1;
 
         /* generate even and odd polynomials using convolution */
         silk_NLSF2A_find_poly(p_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(0), dd);
@@ -135,8 +132,7 @@ pub unsafe extern "C" fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) 
             if maxabs > i16::MAX as i32 {
                 /* Reduce magnitude of prediction coefficients */
                 let maxabs = maxabs.min(163838); /* (silk_int32_MAX >> 14) + silk_int16_MAX = 163838 */
-                let sc_q16 = SC_BASE_Q16
-                    - silk_div32(silk_lshift(maxabs - i16::MAX as i32, 14), silk_rshift32(silk_mul(maxabs, idx + 1), 2));
+                let sc_q16 = SC_BASE_Q16 - silk_lshift(maxabs - i16::MAX as i32, 14) / (maxabs * (idx + 1) >> 2);
                 silk_bwexpander_32(a32_qa1.as_mut_ptr(), d, sc_q16);
             } else {
                 break;

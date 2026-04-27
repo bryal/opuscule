@@ -3,9 +3,7 @@
 //! Compute inverse of LPC prediction gain and test stability (all poles
 //! within unit circle).
 
-use super::macros::{
-    silk_abs_int32, silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift, silk_rshift_round64, silk_smmul, silk_smull,
-};
+use super::macros::{silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift_round64, silk_smmul, silk_smull};
 
 const SILK_MAX_ORDER_LPC: usize = 16;
 
@@ -41,7 +39,7 @@ fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i3
         let rc_mult1_q30 = (1i32 << 30) - silk_smmul(rc_q31, rc_q31);
 
         /* rc_mult2 range: [ 2^30 : silk_int32_MAX ] */
-        let mult2q = 32 - silk_clz32(silk_abs_int32(rc_mult1_q30));
+        let mult2q = 32 - silk_clz32(rc_mult1_q30.wrapping_abs());
         let rc_mult2 = silk_inverse32_varq(rc_mult1_q30, mult2q + 30);
 
         /* Update inverse gain */
@@ -118,7 +116,7 @@ pub extern "C" fn silk_LPC_inverse_pred_gain_Q24(a_q24: *const i32, order: i32) 
     /* Increase Q domain of the AR coefficients */
     let mut k = 0;
     while k < order {
-        anew_qa[k as usize] = silk_rshift(unsafe { *a_q24.offset(k as isize) }, 24 - QA);
+        anew_qa[k as usize] = unsafe { *a_q24.offset(k as isize) } >> (24 - QA);
         k += 1;
     }
 

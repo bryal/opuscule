@@ -16,7 +16,7 @@ use super::decode_indices::silk_decode_indices;
 use super::decode_pulses::silk_decode_pulses;
 use super::decoder_set_fs::silk_decoder_set_fs;
 use super::init_decoder::silk_init_decoder;
-use super::macros::{silk_div32, silk_lshift, silk_rshift, silk_smulbb};
+use super::macros::{silk_lshift, silk_smulbb};
 use super::resampler::silk_resampler;
 use super::stereo_decode_pred::{silk_stereo_decode_mid_only, silk_stereo_decode_pred};
 use super::stereo_ms_to_lr::silk_stereo_MS_to_LR;
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn silk_Decode(
                             8,
                         ) + 1;
                         for i in 0..(*cs).n_frames_per_packet as usize {
-                            (*cs).lbrr_flags[i] = silk_rshift(lbrr_symbol, i as i32) & 1;
+                            (*cs).lbrr_flags[i] = (lbrr_symbol >> i as i32) & 1;
                         }
                     }
                 }
@@ -352,7 +352,7 @@ pub unsafe extern "C" fn silk_Decode(
 
         /* Number of output samples */
         *n_samples_out =
-            silk_div32(n_samples_out_dec * (*dec_control).api_sample_rate, silk_smulbb((*channel_state).fs_khz, 1000));
+            n_samples_out_dec * (*dec_control).api_sample_rate / silk_smulbb((*channel_state).fs_khz, 1000);
 
         /* Set up pointers to temp buffers */
         let resample_out_ptr = if (*dec_control).n_channels_api == 2 { samples_out2_tmp.as_mut_ptr() } else { samples_out };
@@ -442,12 +442,12 @@ pub unsafe extern "C" fn silk_get_TOC(
         core::ptr::write_bytes(silk_toc as *mut u8, 0, core::mem::size_of::<*const SilkTocStruct>());
 
         /* For stereo, extract the flags for the mid channel */
-        let mut flags = silk_rshift(*payload as i32, 7 - n_frames_per_payload) & (silk_lshift(1, n_frames_per_payload + 1) - 1);
+        let mut flags = (*payload as i32 >> (7 - n_frames_per_payload)) & (silk_lshift(1, n_frames_per_payload + 1) - 1);
 
         (*silk_toc).inband_fec_flag = flags & 1;
         let mut i = n_frames_per_payload - 1;
         while i >= 0 {
-            flags = silk_rshift(flags, 1);
+            flags >>= 1;
             (*silk_toc).vad_flags[i as usize] = flags & 1;
             (*silk_toc).vad_flag |= flags & 1;
             i -= 1;

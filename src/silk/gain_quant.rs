@@ -5,7 +5,7 @@
 
 use super::lin2log::silk_lin2log;
 use super::log2lin::silk_log2lin;
-use super::macros::{silk_add_lshift32, silk_limit_int, silk_lshift, silk_rshift, silk_smulwb};
+use super::macros::{silk_add_lshift32, silk_limit_int, silk_lshift, silk_smulwb};
 
 // -- Constants from c/silk/define.h --
 
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn silk_gains_quant(
                 let double_step_size_threshold = 2 * MAX_DELTA_GAIN_QUANT - N_LEVELS_QGAIN + *prev_ind as i32;
                 if (*ind.offset(k as isize) as i32) > double_step_size_threshold {
                     *ind.offset(k as isize) = (double_step_size_threshold
-                        + silk_rshift(*ind.offset(k as isize) as i32 - double_step_size_threshold + 1, 1))
+                        + (*ind.offset(k as isize) as i32 - double_step_size_threshold + 1 >> 1))
                         as i8;
                 }
 

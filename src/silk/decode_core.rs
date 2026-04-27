@@ -7,8 +7,8 @@
 
 use super::lpc_analysis_filter::silk_LPC_analysis_filter;
 use super::macros::{
-    silk_add_lshift32, silk_add32_ovflw, silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift, silk_rshift_round,
-    silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
+    silk_add_lshift32, silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb,
+    silk_smulwb, silk_smulww,
 };
 use super::structs::{
     LTP_ORDER, MAX_FRAME_LENGTH, MAX_LPC_ORDER, MAX_NB_SUBFR, MAX_SUB_FRAME_LENGTH, SilkDecoderControl, SilkDecoderState,
@@ -54,7 +54,7 @@ pub unsafe extern "C" fn silk_decode_core(
                 v = -v;
             }
             (*ps_dec).exc_q14[i as usize] = v;
-            rand_seed = silk_add32_ovflw(rand_seed, *pulses.offset(i as isize));
+            rand_seed = rand_seed.wrapping_add(*pulses.offset(i as isize));
             i += 1;
         }
 
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn silk_decode_core(
             let b_q14 = (*ps_dec_ctrl).ltp_coef_q14.as_mut_ptr().offset((k * LTP_ORDER as i32) as isize);
             let mut signal_type = (*ps_dec).indices.signal_type as i32;
 
-            let gain_q10 = silk_rshift((*ps_dec_ctrl).gains_q16[k as usize], 6);
+            let gain_q10 = (*ps_dec_ctrl).gains_q16[k as usize] >> 6;
             let mut inv_gain_q31 = silk_inverse32_varq((*ps_dec_ctrl).gains_q16[k as usize], 47);
 
             /* Calculate gain adjustment factor */
@@ -191,7 +191,7 @@ pub unsafe extern "C" fn silk_decode_core(
 
                 /* Short-term prediction */
                 /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
-                let mut lpc_pred_q10 = silk_rshift((*ps_dec).lpc_order, 1);
+                let mut lpc_pred_q10 = (*ps_dec).lpc_order >> 1;
                 lpc_pred_q10 = silk_smlawb(lpc_pred_q10, s_lpc_q14[MAX_LPC_ORDER + i as usize - 1], a_q12_tmp[0] as i32);
                 lpc_pred_q10 = silk_smlawb(lpc_pred_q10, s_lpc_q14[MAX_LPC_ORDER + i as usize - 2], a_q12_tmp[1] as i32);
                 lpc_pred_q10 = silk_smlawb(lpc_pred_q10, s_lpc_q14[MAX_LPC_ORDER + i as usize - 3], a_q12_tmp[2] as i32);

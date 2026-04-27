@@ -6,7 +6,7 @@
 //! the result so it satisfies the codec's monotonicity / minimum-spacing
 //! constraints.
 
-use super::macros::{silk_add32, silk_div32_16, silk_limit_int, silk_lshift, silk_rshift, silk_smlawb, silk_smulbb};
+use super::macros::{silk_limit_int, silk_lshift, silk_smlawb, silk_smulbb};
 use super::nlsf_stabilize::silk_NLSF_stabilize;
 use super::nlsf_unpack::silk_NLSF_unpack;
 use super::nlsf_vq_weights_laroia::silk_NLSF_VQ_weights_laroia;
@@ -30,7 +30,7 @@ unsafe fn silk_NLSF_residual_dequant(
         let mut out_q10: i32 = 0;
         let mut i = order as i32 - 1;
         while i >= 0 {
-            let pred_q10 = silk_rshift(silk_smulbb(out_q10, *pred_coef_q8.offset(i as isize) as i16 as i32), 8);
+            let pred_q10 = silk_smulbb(out_q10, *pred_coef_q8.offset(i as isize) as i16 as i32) >> 8;
             out_q10 = silk_lshift(*indices.offset(i as isize) as i32, 10);
             if out_q10 > 0 {
                 out_q10 -= NLSF_QUANT_LEVEL_ADJ_Q10;
@@ -82,10 +82,8 @@ pub unsafe extern "C" fn silk_NLSF_decode(p_nlsf_q15: *mut i16, nlsf_indices: *m
         let mut i = 0i32;
         while i < order {
             let w_tmp_q9 = silk_sqrt_approx(silk_lshift(w_tmp_qw[i as usize] as i32, 18 - NLSF_W_Q));
-            let nlsf_q15_tmp = silk_add32(
-                *p_nlsf_q15.offset(i as isize) as i32,
-                silk_div32_16(silk_lshift(res_q10[i as usize] as i32, 14), w_tmp_q9),
-            );
+            let nlsf_q15_tmp =
+                *p_nlsf_q15.offset(i as isize) as i32 + silk_lshift(res_q10[i as usize] as i32, 14) / w_tmp_q9;
             *p_nlsf_q15.offset(i as isize) = silk_limit_int(nlsf_q15_tmp, 0, 32767) as i16;
             i += 1;
         }

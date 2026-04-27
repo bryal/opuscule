@@ -6,7 +6,7 @@
 
 use core::ffi::c_void;
 
-use super::macros::{silk_add32, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_sub32};
+use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_rom::{silk_resampler_up2_hq_0, silk_resampler_up2_hq_1};
 
 /// `silk_resampler_private_up2_HQ` — high-quality 2× upsampler.
@@ -29,43 +29,43 @@ pub unsafe extern "C" fn silk_resampler_private_up2_HQ(s: *mut i32, out: *mut i1
             let in32 = silk_lshift(*in_.offset(k as isize) as i32, 10);
 
             /* First all-pass section for even output sample */
-            let y = silk_sub32(in32, *s.offset(0));
+            let y = in32 - *s.offset(0);
             let x = silk_smulwb(y, silk_resampler_up2_hq_0[0] as i32);
-            let mut out32_1 = silk_add32(*s.offset(0), x);
-            *s.offset(0) = silk_add32(in32, x);
+            let mut out32_1 = *s.offset(0) + x;
+            *s.offset(0) = in32 + x;
 
             /* Second all-pass section for even output sample */
-            let y = silk_sub32(out32_1, *s.offset(1));
+            let y = out32_1 - *s.offset(1);
             let x = silk_smulwb(y, silk_resampler_up2_hq_0[1] as i32);
-            let out32_2 = silk_add32(*s.offset(1), x);
-            *s.offset(1) = silk_add32(out32_1, x);
+            let out32_2 = *s.offset(1) + x;
+            *s.offset(1) = out32_1 + x;
 
             /* Third all-pass section for even output sample */
-            let y = silk_sub32(out32_2, *s.offset(2));
+            let y = out32_2 - *s.offset(2);
             let x = silk_smlawb(y, y, silk_resampler_up2_hq_0[2] as i32);
-            out32_1 = silk_add32(*s.offset(2), x);
-            *s.offset(2) = silk_add32(out32_2, x);
+            out32_1 = *s.offset(2) + x;
+            *s.offset(2) = out32_2 + x;
 
             /* Apply gain in Q15, convert back to int16 and store to output */
             *out.offset((2 * k) as isize) = silk_sat16(silk_rshift_round(out32_1, 10)) as i16;
 
             /* First all-pass section for odd output sample */
-            let y = silk_sub32(in32, *s.offset(3));
+            let y = in32 - *s.offset(3);
             let x = silk_smulwb(y, silk_resampler_up2_hq_1[0] as i32);
-            let mut out32_1 = silk_add32(*s.offset(3), x);
-            *s.offset(3) = silk_add32(in32, x);
+            let mut out32_1 = *s.offset(3) + x;
+            *s.offset(3) = in32 + x;
 
             /* Second all-pass section for odd output sample */
-            let y = silk_sub32(out32_1, *s.offset(4));
+            let y = out32_1 - *s.offset(4);
             let x = silk_smulwb(y, silk_resampler_up2_hq_1[1] as i32);
-            let out32_2 = silk_add32(*s.offset(4), x);
-            *s.offset(4) = silk_add32(out32_1, x);
+            let out32_2 = *s.offset(4) + x;
+            *s.offset(4) = out32_1 + x;
 
             /* Third all-pass section for odd output sample */
-            let y = silk_sub32(out32_2, *s.offset(5));
+            let y = out32_2 - *s.offset(5);
             let x = silk_smlawb(y, y, silk_resampler_up2_hq_1[2] as i32);
-            out32_1 = silk_add32(*s.offset(5), x);
-            *s.offset(5) = silk_add32(out32_2, x);
+            out32_1 = *s.offset(5) + x;
+            *s.offset(5) = out32_2 + x;
 
             /* Apply gain in Q15, convert back to int16 and store to output */
             *out.offset((2 * k + 1) as isize) = silk_sat16(silk_rshift_round(out32_1, 10)) as i16;

@@ -11,8 +11,8 @@ use super::bwexpander::silk_bwexpander;
 use super::lpc_analysis_filter::silk_LPC_analysis_filter;
 use super::lpc_inv_pred_gain::silk_LPC_inverse_pred_gain;
 use super::macros::{
-    silk_add_lshift32, silk_clz32, silk_div32, silk_div32_16, silk_inverse32_varq, silk_lshift, silk_mla_ovflw, silk_rshift,
-    silk_rshift_round, silk_sat16, silk_smlawb, silk_smulbb, silk_smulwb, silk_smulww,
+    silk_add_lshift32, silk_clz32, silk_inverse32_varq, silk_lshift, silk_mla_ovflw, silk_rshift_round, silk_sat16, silk_smlawb,
+    silk_smulbb, silk_smulwb, silk_smulww,
 };
 use super::sqrt_approx::silk_sqrt_approx;
 use super::structs::{
@@ -115,20 +115,20 @@ unsafe fn silk_PLC_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkD
             /* Limit LT coefs */
             if ltp_gain_q14 < V_PITCH_GAIN_START_MIN_Q14 {
                 let tmp = silk_lshift(V_PITCH_GAIN_START_MIN_Q14, 10);
-                let scale_q10 = silk_div32(tmp, ltp_gain_q14.max(1));
+                let scale_q10 = tmp / ltp_gain_q14.max(1);
                 let mut i = 0;
                 while i < LTP_ORDER {
                     (*ps_plc).ltp_coef_q14[i] =
-                        silk_rshift(silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q10), 10) as i16;
+                        (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q10) >> 10) as i16;
                     i += 1;
                 }
             } else if ltp_gain_q14 > V_PITCH_GAIN_START_MAX_Q14 {
                 let tmp = silk_lshift(V_PITCH_GAIN_START_MAX_Q14, 14);
-                let scale_q14 = silk_div32(tmp, ltp_gain_q14.max(1));
+                let scale_q14 = tmp / ltp_gain_q14.max(1);
                 let mut i = 0;
                 while i < LTP_ORDER {
                     (*ps_plc).ltp_coef_q14[i] =
-                        silk_rshift(silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q14), 14) as i16;
+                        (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q14) >> 14) as i16;
                     i += 1;
                 }
             }
@@ -166,8 +166,8 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
         let ps_plc = &raw mut (*ps_dec).s_plc;
         let mut prev_gain_q10 = [0i32; 2];
 
-        prev_gain_q10[0] = silk_rshift((*ps_plc).prev_gain_q16[0], 6);
-        prev_gain_q10[1] = silk_rshift((*ps_plc).prev_gain_q16[1], 6);
+        prev_gain_q10[0] = (*ps_plc).prev_gain_q16[0] >> 6;
+        prev_gain_q10[1] = (*ps_plc).prev_gain_q16[1] >> 6;
 
         if (*ps_dec).first_frame_after_reset != 0 {
             core::ptr::write_bytes((*ps_plc).prev_lpc_q12.as_mut_ptr(), 0, MAX_LPC_ORDER);
@@ -182,10 +182,10 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
         while k < 2 {
             let mut i = 0i32;
             while i < subfr_length {
-                exc_buf[exc_buf_off + i as usize] = silk_sat16(silk_rshift(
-                    silk_smulww((*ps_dec).exc_q14[(i + (k + nb_subfr - 2) * subfr_length) as usize], prev_gain_q10[k as usize]),
-                    8,
-                )) as i16;
+                exc_buf[exc_buf_off + i as usize] = silk_sat16(
+                    silk_smulww((*ps_dec).exc_q14[(i + (k + nb_subfr - 2) * subfr_length) as usize], prev_gain_q10[k as usize])
+                        >> 8,
+                ) as i16;
                 i += 1;
             }
             exc_buf_off += subfr_length as usize;
@@ -199,7 +199,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
         silk_sum_sqr_shift(&mut energy1, &mut shift1, exc_buf.as_ptr(), subfr_length);
         silk_sum_sqr_shift(&mut energy2, &mut shift2, exc_buf.as_ptr().add(subfr_length as usize), subfr_length);
 
-        let rand_ptr: *const i32 = if silk_rshift(energy1, shift2) < silk_rshift(energy2, shift1) {
+        let rand_ptr: *const i32 = if energy1 >> shift2 < energy2 >> shift1 {
             /* First sub-frame has lowest energy */
             (*ps_dec).exc_q14.as_ptr().add(((nb_subfr - 1) * subfr_length - RAND_BUF_SIZE).max(0) as usize)
         } else {
@@ -237,17 +237,16 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
                     i += 1;
                 }
                 rand_scale_q14 = 3277i32.max(rand_scale_q14 as i32) as i16;
-                rand_scale_q14 =
-                    silk_rshift(silk_smulbb(rand_scale_q14 as i32, (*ps_plc).prev_ltp_scale_q14 as i32), 14) as i16;
+                rand_scale_q14 = (silk_smulbb(rand_scale_q14 as i32, (*ps_plc).prev_ltp_scale_q14 as i32) >> 14) as i16;
             } else {
                 /* Reduce random noise for unvoiced frames with high LPC gain */
                 let inv_gain_q30 = silk_LPC_inverse_pred_gain((*ps_plc).prev_lpc_q12.as_ptr(), (*ps_dec).lpc_order);
 
-                let mut down_scale_q30 = silk_rshift(1 << 30, LOG2_INV_LPC_GAIN_HIGH_THRES).min(inv_gain_q30);
-                down_scale_q30 = silk_rshift(1 << 30, LOG2_INV_LPC_GAIN_LOW_THRES).max(down_scale_q30);
+                let mut down_scale_q30 = ((1 << 30) >> LOG2_INV_LPC_GAIN_HIGH_THRES).min(inv_gain_q30);
+                down_scale_q30 = ((1 << 30) >> LOG2_INV_LPC_GAIN_LOW_THRES).max(down_scale_q30);
                 down_scale_q30 = silk_lshift(down_scale_q30, LOG2_INV_LPC_GAIN_HIGH_THRES);
 
-                rand_gain_q15 = silk_rshift(silk_smulwb(down_scale_q30, rand_gain_q15), 14);
+                rand_gain_q15 = silk_smulwb(down_scale_q30, rand_gain_q15) >> 14;
             }
         }
 
@@ -294,7 +293,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
 
                 /* Generate LPC excitation */
                 rand_seed = silk_mla_ovflw(907633515, rand_seed, 196314165);
-                let ridx = silk_rshift(rand_seed, 25) & RAND_BUF_MASK;
+                let ridx = (rand_seed >> 25) & RAND_BUF_MASK;
                 s_ltp_q14[s_ltp_buf_idx as usize] =
                     silk_lshift(silk_smlawb(ltp_pred_q12, *rand_ptr.offset(ridx as isize), rand_scale_q14 as i32), 2);
                 s_ltp_buf_idx += 1;
@@ -304,12 +303,11 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
             /* Gradually reduce LTP gain */
             let mut j = 0i32;
             while j < LTP_ORDER as i32 {
-                *b_q14.offset(j as isize) =
-                    silk_rshift(silk_smulbb(harm_gain_q15, *b_q14.offset(j as isize) as i32), 15) as i16;
+                *b_q14.offset(j as isize) = (silk_smulbb(harm_gain_q15, *b_q14.offset(j as isize) as i32) >> 15) as i16;
                 j += 1;
             }
             /* Gradually reduce excitation gain */
-            rand_scale_q14 = silk_rshift(silk_smulbb(rand_scale_q14 as i32, rand_gain_q15), 15) as i16;
+            rand_scale_q14 = (silk_smulbb(rand_scale_q14 as i32, rand_gain_q15) >> 15) as i16;
 
             /* Slowly increase pitch lag */
             (*ps_plc).pitch_l_q8 = silk_smlawb((*ps_plc).pitch_l_q8, (*ps_plc).pitch_l_q8, PITCH_DRIFT_FAC_Q16);
@@ -331,7 +329,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
             /* partly unrolled */
             /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
             let base = s_lpc_off + MAX_LPC_ORDER + i as usize;
-            let mut lpc_pred_q10 = silk_rshift((*ps_dec).lpc_order, 1);
+            let mut lpc_pred_q10 = (*ps_dec).lpc_order >> 1;
             lpc_pred_q10 = silk_smlawb(lpc_pred_q10, s_ltp_q14[base - 1], a_q12[0] as i32);
             lpc_pred_q10 = silk_smlawb(lpc_pred_q10, s_ltp_q14[base - 2], a_q12[1] as i32);
             lpc_pred_q10 = silk_smlawb(lpc_pred_q10, s_ltp_q14[base - 3], a_q12[2] as i32);
@@ -396,9 +394,9 @@ pub unsafe extern "C" fn silk_PLC_glue_frames(ps_dec: *mut SilkDecoderState, fra
 
                 /* Normalize energies */
                 if energy_shift > (*ps_plc).conc_energy_shift {
-                    (*ps_plc).conc_energy = silk_rshift((*ps_plc).conc_energy, energy_shift - (*ps_plc).conc_energy_shift);
+                    (*ps_plc).conc_energy >>= energy_shift - (*ps_plc).conc_energy_shift;
                 } else if energy_shift < (*ps_plc).conc_energy_shift {
-                    energy = silk_rshift(energy, (*ps_plc).conc_energy_shift - energy_shift);
+                    energy >>= (*ps_plc).conc_energy_shift - energy_shift;
                 }
 
                 /* Fade in the energy difference */
@@ -406,12 +404,12 @@ pub unsafe extern "C" fn silk_PLC_glue_frames(ps_dec: *mut SilkDecoderState, fra
                     let mut lz = silk_clz32((*ps_plc).conc_energy);
                     lz -= 1;
                     (*ps_plc).conc_energy = silk_lshift((*ps_plc).conc_energy, lz);
-                    energy = silk_rshift(energy, (24 - lz).max(0));
+                    energy >>= (24 - lz).max(0);
 
-                    let frac_q24 = silk_div32((*ps_plc).conc_energy, energy.max(1));
+                    let frac_q24 = (*ps_plc).conc_energy / energy.max(1);
 
                     let mut gain_q16 = silk_lshift(silk_sqrt_approx(frac_q24), 4);
-                    let mut slope_q16 = silk_div32_16((1 << 16) - gain_q16, length);
+                    let mut slope_q16 = ((1 << 16) - gain_q16) / length;
                     /* Make slope 4x steeper to avoid missing onsets after DTX */
                     slope_q16 = silk_lshift(slope_q16, 2);
 

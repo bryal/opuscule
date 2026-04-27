@@ -9,7 +9,7 @@
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_icdf;
 
-use super::macros::{silk_lshift, silk_rshift};
+use super::macros::silk_lshift;
 use super::nlsf_unpack::silk_NLSF_unpack;
 use super::structs::{MAX_LPC_ORDER, MAX_NB_SUBFR, SilkDecoderState};
 use super::tables_gain::{silk_delta_gain_iCDF, silk_gain_iCDF};
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn silk_decode_indices(
         } else {
             ec_dec_icdf(ps_range_dec, silk_type_offset_no_VAD_iCDF.as_ptr(), 8)
         };
-        (*ps_dec).indices.signal_type = silk_rshift(ix, 1) as i8;
+        (*ps_dec).indices.signal_type = (ix >> 1) as i8;
         (*ps_dec).indices.quant_offset_type = (ix & 1) as i8;
 
         /****************/
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn silk_decode_indices(
             if decode_absolute_lag_index != 0 {
                 /* Absolute decoding */
                 (*ps_dec).indices.lag_index = (ec_dec_icdf(ps_range_dec, silk_pitch_lag_iCDF.as_ptr(), 8) as i16)
-                    * silk_rshift((*ps_dec).fs_khz, 1) as i16;
+                    * ((*ps_dec).fs_khz >> 1) as i16;
                 (*ps_dec).indices.lag_index += ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_lag_low_bits_icdf, 8) as i16;
             }
             (*ps_dec).ec_prev_lag_index = (*ps_dec).indices.lag_index;

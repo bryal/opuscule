@@ -49,24 +49,6 @@ pub fn silk_lshift(a: i32, shift: i32) -> i32 {
     a.wrapping_shl(shift as u32)
 }
 
-/// `silk_RSHIFT` — arithmetic right shift (32-bit signed).
-#[inline]
-pub fn silk_rshift(a: i32, shift: i32) -> i32 {
-    a >> shift
-}
-
-/// `silk_RSHIFT32` — alias of [`silk_rshift`] for the 32-bit form.
-#[inline]
-pub fn silk_rshift32(a: i32, shift: i32) -> i32 {
-    a >> shift
-}
-
-/// `silk_MUL` — 32 × 32 → 32 multiply (wrapping).
-#[inline]
-pub fn silk_mul(a32: i32, b32: i32) -> i32 {
-    a32.wrapping_mul(b32)
-}
-
 /// `silk_MLA` — `a + b * c`, 32-bit wrapping.
 #[inline]
 pub fn silk_mla(a32: i32, b32: i32, c32: i32) -> i32 {
@@ -77,16 +59,6 @@ pub fn silk_mla(a32: i32, b32: i32, c32: i32) -> i32 {
 #[inline]
 pub fn silk_add_rshift(a: i32, b: i32, shift: i32) -> i32 {
     a.wrapping_add(b >> shift)
-}
-
-/// `silk_ADD_RSHIFT32` — alias of [`silk_add_rshift`] for the 32-bit form.
-///
-/// In C the two macros are textually different but compile to the same
-/// expression; preserved here under both names so call sites read like
-/// the original.
-#[inline]
-pub fn silk_add_rshift32(a32: i32, b32: i32, shift: i32) -> i32 {
-    silk_add_rshift(a32, b32, shift)
 }
 
 /// `silk_RSHIFT_ROUND` — round-to-nearest right shift (signed, ties up).
@@ -113,41 +85,10 @@ pub fn silk_add_lshift32(a: i32, b: i32, shift: i32) -> i32 {
     a.wrapping_add(silk_lshift(b, shift))
 }
 
-/// `silk_ADD32` — plain 32-bit addition.
-///
-/// The C macro is just `((a) + (b))`. Signed overflow is UB in C but the
-/// codec implicitly relies on two's-complement wrap on every supported
-/// compiler, so we use `wrapping_add` to match the de-facto semantics.
-#[inline]
-pub fn silk_add32(a: i32, b: i32) -> i32 {
-    a.wrapping_add(b)
-}
-
-/// `silk_SUB32` — plain 32-bit subtraction (wrapping, see [`silk_add32`]).
-#[inline]
-pub fn silk_sub32(a: i32, b: i32) -> i32 {
-    a.wrapping_sub(b)
-}
-
 /// `silk_SAT16` — saturate an i32 to the i16 range.
 #[inline]
 pub fn silk_sat16(a: i32) -> i32 {
     a.max(i16::MIN as i32).min(i16::MAX as i32)
-}
-
-/// `silk_ADD_LSHIFT` — `a + (b << shift)`, signed.
-///
-/// Same as [`silk_add_lshift32`] but the C macro is used with mixed-width
-/// arguments in some call sites, so we keep the name.
-#[inline]
-pub fn silk_add_lshift(a: i32, b: i32, shift: i32) -> i32 {
-    silk_add_lshift32(a, b, shift)
-}
-
-/// `silk_ADD32_ovflw` — wrapping 32-bit add (`(u32)a + (u32)b` cast back to `i32`).
-#[inline]
-pub fn silk_add32_ovflw(a: i32, b: i32) -> i32 {
-    a.wrapping_add(b)
 }
 
 /// `silk_MLA_ovflw` — `a + b * c`, fully wrapping.
@@ -165,13 +106,7 @@ pub fn silk_rand(seed: i32) -> i32 {
 /// `silk_SMLABB_ovflw` — `a + (int16)b * (int16)c`, with wrapping add.
 #[inline]
 pub fn silk_smlabb_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {
-    silk_add32_ovflw(a32, (b32 as i16 as i32).wrapping_mul(c32 as i16 as i32))
-}
-
-/// `silk_RSHIFT_uint` — unsigned right shift.
-#[inline]
-pub fn silk_rshift_uint(a: u32, shift: i32) -> u32 {
-    a >> shift as u32
+    a32.wrapping_add((b32 as i16 as i32).wrapping_mul(c32 as i16 as i32))
 }
 
 /// `silk_ADD_RSHIFT_uint` — `a + (b >> shift)`, unsigned.
@@ -198,40 +133,6 @@ pub fn silk_smmul(a32: i32, b32: i32) -> i32 {
 #[inline]
 pub fn silk_rshift_round64(a: i64, shift: i32) -> i64 {
     if shift == 1 { (a >> 1) + (a & 1) } else { ((a >> (shift - 1)) + 1) >> 1 }
-}
-
-// -- Overflow-tolerant operations --
-
-/// `silk_SUB32_ovflw` — wrapping 32-bit subtract.
-#[inline]
-pub fn silk_sub32_ovflw(a: i32, b: i32) -> i32 {
-    a.wrapping_sub(b)
-}
-
-/// `silk_LSHIFT_ovflw` — left shift, wrapping (same as [`silk_lshift`]).
-#[inline]
-pub fn silk_lshift_ovflw(a: i32, shift: i32) -> i32 {
-    a.wrapping_shl(shift as u32)
-}
-
-// -- Miscellaneous --
-
-/// `silk_abs` — absolute value. WARNING: returns wrong for `i32::MIN`.
-#[inline]
-pub fn silk_abs_int32(a: i32) -> i32 {
-    a.wrapping_abs()
-}
-
-/// `silk_DIV32_16` — divide i32 by i16-range value, returning i32.
-#[inline]
-pub fn silk_div32_16(a32: i32, b16: i32) -> i32 {
-    a32 / b16
-}
-
-/// `silk_DIV32` — 32/32 signed division.
-#[inline]
-pub fn silk_div32(a32: i32, b32: i32) -> i32 {
-    a32 / b32
 }
 
 /// `silk_LSHIFT_SAT32` — left shift with saturation.
@@ -264,11 +165,11 @@ pub fn silk_smlaww(a32: i32, b32: i32, c32: i32) -> i32 {
 #[inline]
 pub fn silk_inverse32_varq(b32: i32, qres: i32) -> i32 {
     /* Compute number of bits head room and normalize input */
-    let b_headrm = silk_clz32(silk_abs_int32(b32)) - 1;
+    let b_headrm = silk_clz32(b32.wrapping_abs()) - 1;
     let b32_nrm = silk_lshift(b32, b_headrm); /* Q: b_headrm */
 
     /* Inverse of b32, with 14 bits of precision */
-    let b32_inv = silk_div32_16(i32::MAX >> 2, silk_rshift(b32_nrm, 16)); /* Q: 29 + 16 - b_headrm */
+    let b32_inv = (i32::MAX >> 2) / (b32_nrm >> 16); /* Q: 29 + 16 - b_headrm */
 
     /* First approximation */
     let mut result = silk_lshift(b32_inv, 16); /* Q: 61 - b_headrm */
@@ -281,28 +182,28 @@ pub fn silk_inverse32_varq(b32: i32, qres: i32) -> i32 {
 
     /* Convert to Qres domain */
     let lshift = 61 - b_headrm - qres;
-    if lshift <= 0 { silk_lshift_sat32(result, -lshift) } else { if lshift < 32 { silk_rshift(result, lshift) } else { 0 } }
+    if lshift <= 0 { silk_lshift_sat32(result, -lshift) } else { if lshift < 32 { result >> lshift } else { 0 } }
 }
 
 /// `silk_DIV32_varQ` — approximate `(a32 << Qres) / b32` via Newton iteration.
 #[inline]
 pub fn silk_div32_varq(a32: i32, b32: i32, qres: i32) -> i32 {
-    let a_headrm = silk_clz32(silk_abs_int32(a32)) - 1;
+    let a_headrm = silk_clz32(a32.wrapping_abs()) - 1;
     let mut a32_nrm = silk_lshift(a32, a_headrm);
-    let b_headrm = silk_clz32(silk_abs_int32(b32)) - 1;
+    let b_headrm = silk_clz32(b32.wrapping_abs()) - 1;
     let b32_nrm = silk_lshift(b32, b_headrm);
 
-    let b32_inv = silk_div32_16(i32::MAX >> 2, silk_rshift(b32_nrm, 16));
+    let b32_inv = (i32::MAX >> 2) / (b32_nrm >> 16);
 
     let mut result = silk_smulwb(a32_nrm, b32_inv);
-    a32_nrm = silk_sub32_ovflw(a32_nrm, silk_lshift_ovflw(silk_smmul(b32_nrm, result), 3));
+    a32_nrm = a32_nrm.wrapping_sub(silk_smmul(b32_nrm, result).wrapping_shl(3));
     result = silk_smlawb(result, a32_nrm, b32_inv);
 
     let lshift = 29 + a_headrm - b_headrm - qres;
     if lshift < 0 {
         silk_lshift_sat32(result, -lshift)
     } else if lshift < 32 {
-        silk_rshift(result, lshift)
+        result >> lshift
     } else {
         0
     }

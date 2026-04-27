@@ -7,7 +7,7 @@
 
 use core::ffi::c_void;
 
-use super::macros::{silk_div32, silk_div32_16, silk_lshift, silk_mul, silk_smulww};
+use super::macros::{silk_lshift, silk_smulww};
 use super::resampler_private_IIR_FIR::silk_resampler_private_IIR_FIR;
 use super::resampler_private_down_FIR::silk_resampler_private_down_FIR;
 use super::resampler_private_up2_HQ::silk_resampler_private_up2_HQ_wrapper;
@@ -78,8 +78,8 @@ pub unsafe extern "C" fn silk_resampler_init(
             (*s).input_delay = DELAY_MATRIX_DEC[rate_id(fs_hz_in) as usize][rate_id(fs_hz_out) as usize] as i32;
         }
 
-        (*s).fs_in_khz = silk_div32_16(fs_hz_in, 1000);
-        (*s).fs_out_khz = silk_div32_16(fs_hz_out, 1000);
+        (*s).fs_in_khz = fs_hz_in / 1000;
+        (*s).fs_out_khz = fs_hz_out / 1000;
 
         /* Number of samples processed per batch */
         (*s).batch_size = (*s).fs_in_khz * RESAMPLER_MAX_BATCH_SIZE_MS;
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn silk_resampler_init(
         let mut up2x = 0i32;
         if fs_hz_out > fs_hz_in {
             /* Upsample */
-            if fs_hz_out == silk_mul(fs_hz_in, 2) {
+            if fs_hz_out == fs_hz_in * 2 {
                 /* Special case: directly use 2x upsampler */
                 (*s).resampler_function = USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER;
             } else {
@@ -99,27 +99,27 @@ pub unsafe extern "C" fn silk_resampler_init(
         } else if fs_hz_out < fs_hz_in {
             /* Downsample */
             (*s).resampler_function = USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR;
-            if silk_mul(fs_hz_out, 4) == silk_mul(fs_hz_in, 3) {
+            if fs_hz_out * 4 == fs_hz_in * 3 {
                 (*s).fir_fracs = 3;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
                 (*s).coefs = silk_Resampler_3_4_COEFS.as_ptr();
-            } else if silk_mul(fs_hz_out, 3) == silk_mul(fs_hz_in, 2) {
+            } else if fs_hz_out * 3 == fs_hz_in * 2 {
                 (*s).fir_fracs = 2;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
                 (*s).coefs = silk_Resampler_2_3_COEFS.as_ptr();
-            } else if silk_mul(fs_hz_out, 2) == fs_hz_in {
+            } else if fs_hz_out * 2 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR1 as i32;
                 (*s).coefs = silk_Resampler_1_2_COEFS.as_ptr();
-            } else if silk_mul(fs_hz_out, 3) == fs_hz_in {
+            } else if fs_hz_out * 3 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
                 (*s).coefs = silk_Resampler_1_3_COEFS.as_ptr();
-            } else if silk_mul(fs_hz_out, 4) == fs_hz_in {
+            } else if fs_hz_out * 4 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
                 (*s).coefs = silk_Resampler_1_4_COEFS.as_ptr();
-            } else if silk_mul(fs_hz_out, 6) == fs_hz_in {
+            } else if fs_hz_out * 6 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
                 (*s).coefs = silk_Resampler_1_6_COEFS.as_ptr();
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn silk_resampler_init(
         }
 
         /* Ratio of input/output samples */
-        (*s).inv_ratio_q16 = silk_lshift(silk_div32(silk_lshift(fs_hz_in, 14 + up2x), fs_hz_out), 2);
+        (*s).inv_ratio_q16 = silk_lshift(silk_lshift(fs_hz_in, 14 + up2x) / fs_hz_out, 2);
         /* Make sure the ratio is rounded up */
         while silk_smulww((*s).inv_ratio_q16, fs_hz_out) < silk_lshift(fs_hz_in, up2x) {
             (*s).inv_ratio_q16 += 1;

@@ -10,7 +10,7 @@ use super::NLSF2A::silk_NLSF2A;
 use super::bwexpander::silk_bwexpander;
 use super::decode_pitch::silk_decode_pitch;
 use super::gain_quant::silk_gains_dequant;
-use super::macros::{silk_lshift, silk_mul, silk_rshift};
+use super::macros::silk_lshift;
 use super::structs::{LTP_ORDER, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 use super::tables_ltp::silk_LTP_vq_ptrs_Q7;
 use super::tables_other::silk_LTPScales_table_Q14;
@@ -59,13 +59,9 @@ pub unsafe extern "C" fn silk_decode_parameters(
             let mut i = 0i32;
             while i < (*ps_dec).lpc_order {
                 p_nlsf0_q15[i as usize] = (*ps_dec).prev_nlsf_q15[i as usize]
-                    + silk_rshift(
-                        silk_mul(
-                            (*ps_dec).indices.nlsf_interp_coef_q2 as i32,
-                            (p_nlsf_q15[i as usize] - (*ps_dec).prev_nlsf_q15[i as usize]) as i32,
-                        ),
-                        2,
-                    ) as i16;
+                    + ((*ps_dec).indices.nlsf_interp_coef_q2 as i32
+                        * (p_nlsf_q15[i as usize] - (*ps_dec).prev_nlsf_q15[i as usize]) as i32
+                        >> 2) as i16;
                 i += 1;
             }
 

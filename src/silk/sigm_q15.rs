@@ -3,7 +3,7 @@
 //! Approximate sigmoid function using lookup tables with linear
 //! interpolation.
 
-use super::macros::{silk_rshift, silk_smulbb};
+use super::macros::silk_smulbb;
 
 /// Slopes of the piecewise-linear segments (Q10).
 /// `round(1024 * ([1./(1+exp(-(1:5))), 1] - 1./(1+exp(-(0:5)))))`
@@ -27,7 +27,7 @@ pub extern "C" fn silk_sigm_Q15(in_q5: i32) -> i32 {
             return 0; /* Clip */
         } else {
             /* Linear interpolation of look up table */
-            let ind = silk_rshift(in_q5, 5) as usize;
+            let ind = (in_q5 >> 5) as usize;
             return SIGM_LUT_NEG_Q15[ind] - silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F);
         }
     } else {
@@ -36,7 +36,7 @@ pub extern "C" fn silk_sigm_Q15(in_q5: i32) -> i32 {
             return 32767; /* clip */
         } else {
             /* Linear interpolation of look up table */
-            let ind = silk_rshift(in_q5, 5) as usize;
+            let ind = (in_q5 >> 5) as usize;
             return SIGM_LUT_POS_Q15[ind] + silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F);
         }
     }

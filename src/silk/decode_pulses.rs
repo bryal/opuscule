@@ -8,7 +8,7 @@ use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_icdf;
 
 use super::code_signs::silk_decode_signs;
-use super::macros::{silk_lshift, silk_rshift, silk_smulbb};
+use super::macros::{silk_lshift, silk_smulbb};
 use super::shell_coder::silk_shell_decoder;
 use super::tables_other::silk_lsb_iCDF;
 use super::tables_pulses_per_block::{silk_pulses_per_block_iCDF, silk_rate_levels_iCDF};
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn silk_decode_pulses(
 
         /* Calculate number of shell blocks */
         /* silk_assert(1 << LOG2_SHELL_CODEC_FRAME_LENGTH == SHELL_CODEC_FRAME_LENGTH); */
-        let mut iter = silk_rshift(frame_length, LOG2_SHELL_CODEC_FRAME_LENGTH);
+        let mut iter = frame_length >> LOG2_SHELL_CODEC_FRAME_LENGTH;
         if iter * SHELL_CODEC_FRAME_LENGTH < frame_length {
             /* silk_assert(frame_length == 12 * 10); Make sure only happens for 10 ms @ 12 kHz */
             iter += 1;

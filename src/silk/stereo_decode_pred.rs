@@ -5,7 +5,7 @@
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_icdf;
 
-use super::macros::{silk_div32_16, silk_smlabb, silk_smulwb};
+use super::macros::{silk_smlabb, silk_smulwb};
 use super::tables_other::{
     silk_stereo_only_code_mid_iCDF, silk_stereo_pred_joint_iCDF, silk_stereo_pred_quant_Q13, silk_uniform3_iCDF,
     silk_uniform5_iCDF,
@@ -24,7 +24,7 @@ pub unsafe extern "C" fn silk_stereo_decode_pred(ps_range_dec: *mut ec_dec, pred
 
         /* Entropy decoding */
         let n = ec_dec_icdf(ps_range_dec, silk_stereo_pred_joint_iCDF.as_ptr(), 8);
-        ix[0][2] = silk_div32_16(n, 5);
+        ix[0][2] = n / 5;
         ix[1][2] = n - 5 * ix[0][2];
         let mut n = 0;
         while n < 2 {

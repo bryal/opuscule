@@ -3,7 +3,7 @@
 //! Computes the sum-of-squares energy of an `i16` vector, auto-scaling
 //! the accumulator by powers of two to prevent overflow.
 
-use super::macros::{silk_add_rshift_uint, silk_rshift_uint, silk_smlabb_ovflw, silk_smulbb};
+use super::macros::{silk_add_rshift_uint, silk_smlabb_ovflw, silk_smulbb};
 
 /// `silk_sum_sqr_shift` — compute the energy (sum of squares) of `x[0..len]`,
 /// returning both the energy value and the number of right-shift bits applied
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn silk_sum_sqr_shift(energy: *mut i32, shift: *mut i32, x
             nrg = silk_smlabb_ovflw(nrg, *x.offset((i + 1) as isize) as i32, *x.offset((i + 1) as isize) as i32);
             if nrg < 0 {
                 /* Scale down */
-                nrg = silk_rshift_uint(nrg as u32, 2) as i32;
+                nrg = (nrg as u32 >> 2) as i32;
                 shft = 2;
                 i += 2;
                 break;
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn silk_sum_sqr_shift(energy: *mut i32, shift: *mut i32, x
             nrg = silk_add_rshift_uint(nrg as u32, nrg_tmp as u32, shft) as i32;
             if nrg < 0 {
                 /* Scale down */
-                nrg = silk_rshift_uint(nrg as u32, 2) as i32;
+                nrg = (nrg as u32 >> 2) as i32;
                 shft += 2;
             }
             i += 2;
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn silk_sum_sqr_shift(energy: *mut i32, shift: *mut i32, x
 
         /* Make sure to have at least one extra leading zero (two leading zeros in total) */
         if nrg & (0xC0000000u32 as i32) != 0 {
-            nrg = silk_rshift_uint(nrg as u32, 2) as i32;
+            nrg = (nrg as u32 >> 2) as i32;
             shft += 2;
         }
 

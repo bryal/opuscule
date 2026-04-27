@@ -3,7 +3,7 @@
 //! Cheap square-root approximation used by the NLSF decoder and PLC.
 //! Accuracy: < ±10% for outputs > 15, < ±2.5% for outputs > 120.
 
-use super::macros::{silk_clz_frac, silk_rshift, silk_smlawb, silk_smulbb};
+use super::macros::{silk_clz_frac, silk_smlawb, silk_smulbb};
 
 /// `silk_SQRT_APPROX` — approximate `sqrt(x)`.
 #[inline]
@@ -23,7 +23,7 @@ pub fn silk_sqrt_approx(x: i32) -> i32 {
     };
 
     /* get scaling right */
-    y >>= silk_rshift(lz, 1);
+    y >>= lz >> 1;
 
     /* increment using fractional part of input */
     y = silk_smlawb(y, y, silk_smulbb(213, frac_q7));

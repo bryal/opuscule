@@ -3,7 +3,7 @@
 //! FIR prediction-error filter: computes `out = in - predicted(in)`.
 //! The first `d` output samples are set to zero (filter warm-up).
 
-use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlabb_ovflw, silk_smulbb, silk_sub32_ovflw};
+use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlabb_ovflw, silk_smulbb};
 
 /// `silk_LPC_analysis_filter` — apply an LPC analysis filter of order `d`
 /// (must be even and ≥ 6) to `in_[0..len]`, writing the residual to
@@ -32,7 +32,7 @@ pub unsafe extern "C" fn silk_LPC_analysis_filter(out: *mut i16, in_: *const i16
             }
 
             /* Subtract prediction */
-            out32_q12 = silk_sub32_ovflw(silk_lshift(*in_ptr.offset(1) as i32, 12), out32_q12);
+            out32_q12 = silk_lshift(*in_ptr.offset(1) as i32, 12).wrapping_sub(out32_q12);
 
             /* Scale to Q0 */
             let out32 = silk_rshift_round(out32_q12, 12);

@@ -6,8 +6,7 @@
 
 use super::NLSF2A::silk_NLSF2A;
 use super::macros::{
-    silk_add_lshift, silk_div32_16, silk_mla_ovflw, silk_rshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb,
-    silk_smulww,
+    silk_add_lshift32, silk_mla_ovflw, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
 };
 use super::structs::{MAX_FRAME_LENGTH, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 
@@ -22,14 +21,14 @@ unsafe fn silk_CNG_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16
     unsafe {
         let mut exc_mask = CNG_BUF_MASK_MAX;
         while exc_mask > length {
-            exc_mask = silk_rshift(exc_mask, 1);
+            exc_mask >>= 1;
         }
 
         let mut seed = *rand_seed;
         let mut i = 0i32;
         while i < length {
             seed = silk_mla_ovflw(907633515, seed, 196314165);
-            let idx = silk_rshift(seed, 24) & exc_mask;
+            let idx = (seed >> 24) & exc_mask;
             *residual_q10.offset(i as isize) =
                 silk_sat16(silk_smulww(*exc_buf_q14.offset(idx as isize), gain_q16 >> 4)) as i16 as i32;
             i += 1;
@@ -42,7 +41,7 @@ unsafe fn silk_CNG_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn silk_CNG_Reset(ps_dec: *mut SilkDecoderState) {
     unsafe {
-        let nlsf_step_q15 = silk_div32_16(SILK_INT16_MAX, (*ps_dec).lpc_order + 1);
+        let nlsf_step_q15 = SILK_INT16_MAX / ((*ps_dec).lpc_order + 1);
         let mut nlsf_acc_q15 = 0i32;
         let mut i = 0i32;
         while i < (*ps_dec).lpc_order {
@@ -139,7 +138,7 @@ pub unsafe extern "C" fn silk_CNG(
             let mut i = 0i32;
             while i < length {
                 /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
-                let mut sum_q6 = silk_rshift((*ps_dec).lpc_order, 1);
+                let mut sum_q6 = (*ps_dec).lpc_order >> 1;
                 sum_q6 = silk_smlawb(sum_q6, cng_sig_q10[MAX_LPC_ORDER + i as usize - 1], a_q12[0] as i32);
                 sum_q6 = silk_smlawb(sum_q6, cng_sig_q10[MAX_LPC_ORDER + i as usize - 2], a_q12[1] as i32);
                 sum_q6 = silk_smlawb(sum_q6, cng_sig_q10[MAX_LPC_ORDER + i as usize - 3], a_q12[2] as i32);
@@ -160,7 +159,7 @@ pub unsafe extern "C" fn silk_CNG(
                 }
 
                 /* Update states */
-                cng_sig_q10[MAX_LPC_ORDER + i as usize] = silk_add_lshift(cng_sig_q10[MAX_LPC_ORDER + i as usize], sum_q6, 4);
+                cng_sig_q10[MAX_LPC_ORDER + i as usize] = silk_add_lshift32(cng_sig_q10[MAX_LPC_ORDER + i as usize], sum_q6, 4);
 
                 *frame.offset(i as isize) = (*frame.offset(i as isize)).saturating_add(silk_rshift_round(sum_q6, 6) as i16);
                 i += 1;

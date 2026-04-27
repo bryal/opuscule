@@ -2,7 +2,7 @@
 //!
 //! Second-order ARMA filter (direct form II transposed).
 
-use super::macros::{silk_lshift, silk_rshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
+use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 
 /// `silk_biquad_alt` — second-order ARMA filter, alternative implementation.
 ///
@@ -24,9 +24,9 @@ pub unsafe extern "C" fn silk_biquad_alt(
 
         /* Negate A_Q28 values and split in two parts */
         let a0_l_q28 = (-*a_q28.offset(0)) & 0x00003FFF; /* lower part */
-        let a0_u_q28 = silk_rshift(-*a_q28.offset(0), 14); /* upper part */
+        let a0_u_q28 = -*a_q28.offset(0) >> 14; /* upper part */
         let a1_l_q28 = (-*a_q28.offset(1)) & 0x00003FFF; /* lower part */
-        let a1_u_q28 = silk_rshift(-*a_q28.offset(1), 14); /* upper part */
+        let a1_u_q28 = -*a_q28.offset(1) >> 14; /* upper part */
 
         let mut k = 0;
         while k < len {
@@ -43,7 +43,7 @@ pub unsafe extern "C" fn silk_biquad_alt(
             *s.offset(1) = silk_smlawb(*s.offset(1), *b_q28.offset(2), inval);
 
             /* Scale back to Q0 and saturate */
-            *out.offset((k * stride) as isize) = silk_sat16(silk_rshift(out32_q14 + (1 << 14) - 1, 14)) as i16;
+            *out.offset((k * stride) as isize) = silk_sat16((out32_q14 + (1 << 14) - 1) >> 14) as i16;
             k += 1;
         }
     }

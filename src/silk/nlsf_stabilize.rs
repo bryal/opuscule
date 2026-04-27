@@ -3,7 +3,7 @@
 //! Stabilizer for Normalized Line Spectral Frequencies: enforces minimum
 //! spacing between coefficients and pushes them away from boundaries.
 
-use super::macros::{silk_limit_int, silk_rshift, silk_rshift_round};
+use super::macros::{silk_limit_int, silk_rshift_round};
 use super::sort::silk_insertion_sort_increasing_all_values_int16;
 
 const MAX_LOOPS: i32 = 20;
@@ -61,7 +61,7 @@ pub unsafe extern "C" fn silk_NLSF_stabilize(nlsf_q15: *mut i16, n_delta_min_q15
                     min_center_q15 += *n_delta_min_q15.offset(k as isize) as i32;
                     k += 1;
                 }
-                min_center_q15 += silk_rshift(*n_delta_min_q15.offset(i_ as isize) as i32, 1);
+                min_center_q15 += *n_delta_min_q15.offset(i_ as isize) as i32 >> 1;
 
                 /* Find the upper extreme for the location of the current center frequency */
                 let mut max_center_q15: i32 = 1 << 15;
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn silk_NLSF_stabilize(nlsf_q15: *mut i16, n_delta_min_q15
                     max_center_q15 -= *n_delta_min_q15.offset(k as isize) as i32;
                     k -= 1;
                 }
-                max_center_q15 -= silk_rshift(*n_delta_min_q15.offset(i_ as isize) as i32, 1);
+                max_center_q15 -= *n_delta_min_q15.offset(i_ as isize) as i32 >> 1;
 
                 /* Move apart, sorted by value, keeping the same center frequency */
                 let center_freq_q15 = silk_limit_int(
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn silk_NLSF_stabilize(nlsf_q15: *mut i16, n_delta_min_q15
                     max_center_q15,
                 ) as i16;
                 *nlsf_q15.offset((i_ - 1) as isize) =
-                    center_freq_q15 - silk_rshift(*n_delta_min_q15.offset(i_ as isize) as i32, 1) as i16;
+                    center_freq_q15 - (*n_delta_min_q15.offset(i_ as isize) as i32 >> 1) as i16;
                 *nlsf_q15.offset(i_ as isize) = *nlsf_q15.offset((i_ - 1) as isize) + *n_delta_min_q15.offset(i_ as isize);
             }
             loops += 1;
