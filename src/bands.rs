@@ -26,8 +26,7 @@ use crate::vq::{alg_unquant, renormalise_vector};
 /// Linear congruential generator used for pseudo-random noise injection
 /// in the CELT decoder (PLC comfort noise, anti-collapse, spectral folding).
 /// Constants match Numerical Recipes / Knuth MMIX.
-#[unsafe(no_mangle)]
-pub extern "C" fn celt_lcg_rand(seed: u32) -> u32 {
+pub fn celt_lcg_rand(seed: u32) -> u32 {
     seed.wrapping_mul(1664525).wrapping_add(1013904223)
 }
 
@@ -36,8 +35,7 @@ pub extern "C" fn celt_lcg_rand(seed: u32) -> u32 {
 /// Scales each unit-energy band by its decoded energy envelope, producing
 /// the frequency-domain signal that feeds into the inverse MDCT.
 /// Bands beyond `end` are zeroed (above the Nyquist for the coded bandwidth).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn denormalise_bands(
+pub unsafe fn denormalise_bands(
     m: *const CELTMode,
     x: *const CeltNorm,
     freq: *mut CeltSig,
@@ -84,8 +82,7 @@ pub unsafe extern "C" fn denormalise_bands(
 /// for the Hadamard rearrangement that maps between time-domain short
 /// blocks and the band's frequency layout. Applies the unnormalised
 /// Haar butterfly (scaled by 1/sqrt(2)) in-place.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
+pub unsafe fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
     unsafe {
         let n0 = n0 >> 1;
         for i in 0..stride {
@@ -106,8 +103,7 @@ pub unsafe extern "C" fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
 /// Computes the left/right energy ratio for the band, derives mixing
 /// coefficients a1 and a2, and replaces X with the intensity-coded
 /// mono signal. Y is not updated (side is discarded at this point).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn intensity_stereo(
+pub unsafe fn intensity_stereo(
     m: *const CELTMode,
     x: *mut CeltNorm,
     y: *const CeltNorm,
@@ -144,8 +140,7 @@ pub unsafe extern "C" fn intensity_stereo(
 /// Stereo split: convert (L, R) to (mid, side) using Haar-like transform.
 ///
 /// X becomes (L+R)/sqrt(2), Y becomes (R-L)/sqrt(2).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stereo_split(x: *mut CeltNorm, y: *mut CeltNorm, n: c_int) {
+pub unsafe fn stereo_split(x: *mut CeltNorm, y: *mut CeltNorm, n: c_int) {
     unsafe {
         for j in 0..n as usize {
             let l = mult16_16_q15(qconst16(0.70710678, 15), *x.add(j)) as CeltNorm;
@@ -161,8 +156,7 @@ pub unsafe extern "C" fn stereo_split(x: *mut CeltNorm, y: *mut CeltNorm, n: c_i
 /// Uses the energy invariance property to compute proper L/R gains
 /// from the decoded mid and side signals. Falls back to copying mid
 /// to both channels if the energy is near zero.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stereo_merge(x: *mut CeltNorm, y: *mut CeltNorm, mid: OpusVal16, n: c_int) {
+pub unsafe fn stereo_merge(x: *mut CeltNorm, y: *mut CeltNorm, mid: OpusVal16, n: c_int) {
     unsafe {
         let mut xp: OpusVal32 = 0 as OpusVal32;
         let mut side: OpusVal32 = 0 as OpusVal32;
@@ -220,8 +214,7 @@ const ORDERY_TABLE: [c_int; 30] =
 /// Rearranges `X` from interleaved layout (stride-interleaved short blocks)
 /// into contiguous sub-vectors, optionally applying the ordery Hadamard
 /// permutation. Used before recursive band splitting in quant_band.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn deinterleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
+pub unsafe fn deinterleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
     unsafe {
         let n = n0 * stride;
         let mut tmp = vec![0 as CeltNorm; n as usize];
@@ -250,8 +243,7 @@ pub unsafe extern "C" fn deinterleave_hadamard(x: *mut CeltNorm, n0: c_int, stri
 /// Inverse of deinterleave_hadamard: rearranges contiguous sub-vectors
 /// back into stride-interleaved layout, with optional ordery Hadamard
 /// permutation. Used after recursive band reconstruction in quant_band.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn interleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
+pub unsafe fn interleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
     unsafe {
         let n = n0 * stride;
         let mut tmp = vec![0 as CeltNorm; n as usize];
@@ -284,8 +276,7 @@ pub const SPREAD_AGGRESSIVE: c_int = 3;
 /// Compute the number of quantisation levels for a band given the
 /// available bits, band size, and pulse cap. Used by quant_band to
 /// decide how finely to quantise the angular parameter theta.
-#[unsafe(no_mangle)]
-pub extern "C" fn compute_qn(n: c_int, b: c_int, offset: c_int, pulse_cap: c_int, stereo: c_int) -> c_int {
+pub fn compute_qn(n: c_int, b: c_int, offset: c_int, pulse_cap: c_int, stereo: c_int) -> c_int {
     const EXP2_TABLE8: [i16; 8] = [16384, 17866, 19483, 21247, 23170, 25267, 27554, 30048];
     let mut n2 = 2 * n - 1;
     if stereo != 0 && n == 2 {
@@ -330,8 +321,7 @@ fn bitexact_log2tan(isin: c_int, icos: c_int) -> c_int {
 /// it with shaped pseudo-random noise at a level derived from the energy
 /// difference between the current and previous frames, then renormalises.
 /// This avoids audible "holes" in transient signals decoded at low bitrate.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn anti_collapse(
+pub unsafe fn anti_collapse(
     m: *const CELTMode,
     x_: *mut CeltNorm,
     collapse_masks: *const u8,
@@ -458,8 +448,7 @@ pub unsafe extern "C" fn anti_collapse(
 /// - Resynthesis: stereo merge, Hadamard interleaving, lowband output
 ///
 /// Returns the collapse mask (which sub-blocks are non-zero).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn quant_band(
+pub unsafe fn quant_band(
     encode: c_int,
     m: *const CELTMode,
     i: c_int,
@@ -989,8 +978,7 @@ pub unsafe extern "C" fn quant_band(
 /// Handles dual-stereo (separate L/R decoding) vs joint stereo (mid/side),
 /// bit budget management with rebalancing, lowband folding, and
 /// collapse mask tracking.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn quant_all_bands(
+pub unsafe fn quant_all_bands(
     encode: c_int,
     m: *const CELTMode,
     start: c_int,

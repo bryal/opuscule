@@ -67,8 +67,7 @@ fn ec_dec_normalize(this: &mut ec_ctx) {
 /// # Safety
 /// `buf` must point to a valid buffer of at least `storage` bytes that
 /// remains valid for the lifetime of the decoder context.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_dec_init(this: *mut ec_dec, buf: *mut u8, storage: u32) {
+pub unsafe fn ec_dec_init(this: *mut ec_dec, buf: *mut u8, storage: u32) {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     this.buf = buf;
@@ -95,8 +94,7 @@ pub unsafe extern "C" fn ec_dec_init(this: *mut ec_dec, buf: *mut u8, storage: u
 /// ec_dec_update().
 ///
 /// RFC 6716 Section 4.1.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_decode(this: *mut ec_dec, ft: u32) -> u32 {
+pub unsafe fn ec_decode(this: *mut ec_dec, ft: u32) -> u32 {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     this.ext = this.rng / ft;
@@ -108,8 +106,7 @@ pub unsafe extern "C" fn ec_decode(this: *mut ec_dec, ft: u32) -> u32 {
 /// Equivalent to ec_decode() with ft == 1 << bits.
 ///
 /// RFC 6716 Section 4.1.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_decode_bin(this: *mut ec_dec, bits: u32) -> u32 {
+pub unsafe fn ec_decode_bin(this: *mut ec_dec, bits: u32) -> u32 {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     this.ext = this.rng >> bits;
@@ -122,8 +119,7 @@ pub unsafe extern "C" fn ec_decode_bin(this: *mut ec_dec, bits: u32) -> u32 {
 /// Must be called exactly once after ec_decode() / ec_decode_bin().
 ///
 /// RFC 6716 Section 4.1.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_dec_update(this: *mut ec_dec, fl: u32, fh: u32, ft: u32) {
+pub unsafe fn ec_dec_update(this: *mut ec_dec, fl: u32, fh: u32, ft: u32) {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     let s = this.ext.wrapping_mul(ft - fh);
@@ -135,8 +131,7 @@ pub unsafe extern "C" fn ec_dec_update(this: *mut ec_dec, fl: u32, fh: u32, ft: 
 /// Decode a bit that has a 1/(1 << logp) probability of being a one.
 ///
 /// RFC 6716 Section 4.1.3.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_dec_bit_logp(this: *mut ec_dec, logp: u32) -> c_int {
+pub unsafe fn ec_dec_bit_logp(this: *mut ec_dec, logp: u32) -> c_int {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     let r = this.rng;
@@ -160,8 +155,7 @@ pub unsafe extern "C" fn ec_dec_bit_logp(this: *mut ec_dec, logp: u32) -> c_int 
 /// No call to ec_dec_update() is necessary after this call.
 ///
 /// RFC 6716 Section 4.1.3.1.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_dec_icdf(this: *mut ec_dec, icdf: *const u8, ftb: u32) -> c_int {
+pub unsafe fn ec_dec_icdf(this: *mut ec_dec, icdf: *const u8, ftb: u32) -> c_int {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     let mut s = this.rng;
@@ -191,8 +185,7 @@ pub unsafe extern "C" fn ec_dec_icdf(this: *mut ec_dec, icdf: *const u8, ftb: u3
 /// The bits must have been encoded with ec_enc_uint().
 ///
 /// RFC 6716 Section 4.1.5.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_dec_uint(this: *mut ec_dec, ft: u32) -> u32 {
+pub unsafe fn ec_dec_uint(this: *mut ec_dec, ft: u32) -> u32 {
     debug_assert!(ft > 1);
     let ft = ft - 1;
     let ftb = ec_ilog(ft);
@@ -225,8 +218,7 @@ pub unsafe extern "C" fn ec_dec_uint(this: *mut ec_dec, ft: u32) -> u32 {
 /// middle.
 ///
 /// RFC 6716 Section 4.1.4.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_dec_bits(this: *mut ec_dec, bits: u32) -> u32 {
+pub unsafe fn ec_dec_bits(this: *mut ec_dec, bits: u32) -> u32 {
     // SAFETY: caller guarantees `this` is a valid pointer.
     let this = unsafe { &mut *this };
     let mut window = this.end_window;

@@ -32,8 +32,7 @@ pub struct MdctLookup {
 /// `out + N - 1 - (N/2 - overlap)/2`.
 ///
 /// C implementation: mdct.c clt_mdct_backward(), lines 217-237.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn clt_mdct_backward(
+pub unsafe fn clt_mdct_backward(
     l: *const MdctLookup,
     inp: *mut OpusVal32,      // frequency-domain input (N/2 strided values)
     out: *mut OpusVal32,      // time-domain output (overlap-add target)

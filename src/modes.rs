@@ -64,12 +64,10 @@ unsafe impl Sync for OpusCustomMode {}
 
 /// Bark-scale band edge indices for 5 ms short blocks at 48 kHz.
 /// 21 bands + terminator = 22 entries.
-#[unsafe(no_mangle)]
 pub static eband5ms: [i16; 22] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 34, 40, 48, 60, 78, 100];
 
 /// Bit allocation table: 11 rate points × 21 bands = 231 entries.
 /// Units of 1/32 bit/sample (0.1875 dB SNR).
-#[unsafe(no_mangle)]
 pub static band_allocation: [u8; 231] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 80, 75, 69, 63, 56, 49, 40, 34, 29, 20, 18, 10, 0, 0, 0,
     0, 0, 0, 0, 0, 110, 100, 90, 84, 78, 71, 65, 58, 51, 45, 39, 32, 26, 20, 12, 0, 0, 0, 0, 0, 0, 118, 110, 103, 93, 86, 80,

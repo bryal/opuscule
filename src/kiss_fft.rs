@@ -276,8 +276,7 @@ pub fn ki_bfly5(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: u
 /// pairs. For example, an N=120 FFT might factor as 4×30, then 30 = 2×15,
 /// 15 = 3×5, 5 = 5×1 — giving factors = [4,30, 2,15, 3,5, 5,1].
 /// The butterfly stages are applied in reverse: bfly5, bfly3, bfly2, bfly4.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_ifft(st: *const KissFftState, fin: *const KissFftCpx, fout: *mut KissFftCpx) {
+pub unsafe fn opus_ifft(st: *const KissFftState, fin: *const KissFftCpx, fout: *mut KissFftCpx) {
     unsafe {
         let st = &*st;
         let nfft = st.nfft as usize;

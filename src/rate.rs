@@ -353,9 +353,8 @@ unsafe fn interp_bits2pulses(
 ///
 /// # Safety
 /// All pointer parameters must be valid. `m` must point to a valid CELTMode.
-#[unsafe(no_mangle)]
 #[allow(clippy::too_many_arguments)]
-pub unsafe extern "C" fn compute_allocation(
+pub unsafe fn compute_allocation(
     m: *const CELTMode,
     start: c_int,
     end: c_int,

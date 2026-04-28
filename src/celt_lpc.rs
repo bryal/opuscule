@@ -23,8 +23,7 @@ pub const LPC_ORDER: usize = 24;
 /// Computes `p` LPC coefficients from `p+1` autocorrelation values.
 /// Bails out early if prediction gain exceeds ~30 dB (error < ac[0]/1024
 /// in fixed-point, error < 0.001*ac[0] in float).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn _celt_lpc(_lpc: *mut OpusVal16, ac: *const OpusVal32, p: c_int) {
+pub unsafe fn _celt_lpc(_lpc: *mut OpusVal16, ac: *const OpusVal32, p: c_int) {
     unsafe {
         let p = p as usize;
 
@@ -90,8 +89,7 @@ pub unsafe extern "C" fn _celt_lpc(_lpc: *mut OpusVal16, ac: *const OpusVal32, p
 ///
 /// Applies an `ord`-tap FIR filter to `N` input samples, writing to `y`.
 /// `mem` holds `ord` state samples, updated in-place (shift register).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_fir(
+pub unsafe fn celt_fir(
     x: *const OpusVal16,
     num: *const OpusVal16,
     y: *mut OpusVal16,
@@ -121,8 +119,7 @@ pub unsafe extern "C" fn celt_fir(
 /// Applies an `ord`-tap IIR filter to `N` input samples, writing to `y`.
 /// `mem` holds `ord` state samples, updated in-place (shift register).
 /// Used in the PLC path to resynthesize audio from LPC coefficients.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_iir(
+pub unsafe fn celt_iir(
     x: *const OpusVal32,
     den: *const OpusVal16,
     y: *mut OpusVal32,
@@ -153,8 +150,7 @@ pub unsafe extern "C" fn celt_iir(
 /// applying `window[0..overlap-1]` symmetrically to the edges.
 /// In fixed-point mode, normalizes to prevent overflow.
 /// Adds a small bias (+10) to ac[0] to avoid division by zero.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn _celt_autocorr(
+pub unsafe fn _celt_autocorr(
     x: *const OpusVal16,
     ac: *mut OpusVal32,
     window: *const OpusVal16,

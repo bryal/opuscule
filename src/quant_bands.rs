@@ -104,16 +104,8 @@ static E_PROB_MODEL: [[[u8; 42]; 2]; 4] = [
 
 static SMALL_ENERGY_ICDF: [u8; 3] = [2, 1, 0];
 
-// -- Extern declarations for range decoder functions --
-// These are already translated to Rust in entdec.rs / laplace.rs
-// but called here via their C ABI names.
-
-unsafe extern "C" {
-    fn ec_laplace_decode(dec: *mut ec_ctx, fs: u32, decay: c_int) -> c_int;
-    fn ec_dec_icdf(this: *mut ec_ctx, icdf: *const u8, ftb: u32) -> c_int;
-    fn ec_dec_bit_logp(this: *mut ec_ctx, logp: u32) -> c_int;
-    fn ec_dec_bits(this: *mut ec_ctx, bits: u32) -> u32;
-}
+use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf};
+use crate::laplace::ec_laplace_decode;
 
 // -- Decoder functions --
 
@@ -122,8 +114,7 @@ unsafe extern "C" {
 ///
 /// Uses inter-frame prediction (unless `intra`), applying the probability
 /// model selected by frame size (`LM`) and prediction mode.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unquant_coarse_energy(
+pub unsafe fn unquant_coarse_energy(
     m: *const CELTMode,
     start: c_int,
     end: c_int,
@@ -191,8 +182,7 @@ pub unsafe extern "C" fn unquant_coarse_energy(
 /// RFC 6716 Section 4.3.1.
 ///
 /// Reads `fine_quant[i]` bits per band to refine the coarse energy estimate.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unquant_fine_energy(
+pub unsafe fn unquant_fine_energy(
     m: *const CELTMode,
     start: c_int,
     end: c_int,
@@ -239,8 +229,7 @@ pub unsafe extern "C" fn unquant_fine_energy(
 ///
 /// Iterates by priority (0 then 1), reading 1 bit per band to adjust
 /// the energy estimate by half a fine-quant step.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn unquant_energy_finalise(
+pub unsafe fn unquant_energy_finalise(
     m: *const CELTMode,
     start: c_int,
     end: c_int,
@@ -291,8 +280,7 @@ pub unsafe extern "C" fn unquant_energy_finalise(
 ///
 /// Computes eBands[i] = 2^(oldEBands[i] + eMeans[i]) / 16 for active bands,
 /// zeroing bands outside [start, end).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn log2Amp(
+pub unsafe fn log2Amp(
     m: *const CELTMode,
     start: c_int,
     end: c_int,
@@ -326,8 +314,7 @@ pub unsafe extern "C" fn log2Amp(
 ///
 /// Computes bandLogE[i] = log2(bandE[i] * 4) - eMeans[i] for active bands,
 /// setting inactive bands to -14.0 (Q10).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn amp2Log2(
+pub unsafe fn amp2Log2(
     m: *const CELTMode,
     eff_end: c_int,
     end: c_int,

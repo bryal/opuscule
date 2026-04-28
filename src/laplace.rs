@@ -34,8 +34,7 @@ fn ec_laplace_get_freq1(fs0: u32, decay: c_int) -> u32 {
 ///
 /// `fs` is the probability of zero (times 32768).
 /// `decay` controls how fast the tail probability decays.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_laplace_decode(dec: *mut ec_dec, fs: u32, decay: c_int) -> c_int {
+pub unsafe fn ec_laplace_decode(dec: *mut ec_dec, fs: u32, decay: c_int) -> c_int {
     let mut val: c_int = 0;
     let mut fl: u32;
     let mut fs = fs;

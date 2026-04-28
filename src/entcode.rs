@@ -100,8 +100,7 @@ pub fn ec_ilog(mut v: u32) -> i32 {
 ///
 /// Translated from c/celt/entcode.c ec_tell_frac().
 /// See RFC 6716 Section 4.1.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn ec_tell_frac(this: *mut ec_ctx) -> u32 {
+pub unsafe fn ec_tell_frac(this: *mut ec_ctx) -> u32 {
     // SAFETY: caller must pass a valid ec_ctx pointer.
     let this = unsafe { &*this };
     let nbits = (this.nbits_total as u32) << BITRES;

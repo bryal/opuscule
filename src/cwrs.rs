@@ -282,8 +282,7 @@ fn cwrsi(n: usize, k: i32, i: u32, y: &mut [c_int], u: &mut [u32]) {
 /// # Safety
 /// `y` must point to at least `n` writable i32 elements.
 /// `dec` must be a valid decoder context.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn decode_pulses(y: *mut c_int, n: c_int, k: c_int, dec: *mut ec_dec) {
+pub unsafe fn decode_pulses(y: *mut c_int, n: c_int, k: c_int, dec: *mut ec_dec) {
     debug_assert!(k > 0);
     let n = n as usize;
     // SAFETY: caller guarantees y points to n elements.

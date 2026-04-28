@@ -15,8 +15,7 @@ use crate::entcode::ec_ilog;
 /// Translated from c/celt/mathops.c isqrt32().
 ///
 /// This has been tested on all possible 32-bit inputs (in the C version).
-#[unsafe(no_mangle)]
-pub extern "C" fn isqrt32(val: u32) -> u32 {
+pub fn isqrt32(val: u32) -> u32 {
     if val == 0 {
         return 0;
     }

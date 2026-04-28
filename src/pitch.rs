@@ -134,8 +134,7 @@ unsafe fn celt_maxabs16(x: *const OpusVal16, len: i32) -> OpusVal16 {
 /// has produced the half-rate LP-filtered signal.
 ///
 /// C implementation: pitch.c lines 159-265.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pitch_search(
+pub unsafe fn pitch_search(
     x_lp: *const OpusVal16, // LP-filtered signal (len/2 samples from pitch_downsample)
     y: *mut OpusVal16,      // decode memory buffer (lag = len + max_pitch samples)
     len: i32,
@@ -267,8 +266,7 @@ pub unsafe extern "C" fn pitch_search(
 /// followed by a 1st-order highpass-ish pre-emphasis filter (0.8 at Q12).
 ///
 /// C implementation: pitch.c lines 108-157.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn pitch_downsample(
+pub unsafe fn pitch_downsample(
     x: *const *const OpusVal32, // C channel pointers, each `len` samples
     x_lp: *mut OpusVal16,       // output: len/2 samples
     len: i32,

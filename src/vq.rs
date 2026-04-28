@@ -155,8 +155,7 @@ fn extract_collapse_mask(iy: &[c_int], n: usize, b: usize) -> u32 {
 /// # Safety
 /// `x` must point to N writable celt_norm elements.
 /// `dec` must be a valid entropy decoder context.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn alg_unquant(
+pub unsafe fn alg_unquant(
     x: *mut CeltNorm,
     n: c_int,
     k: c_int,
@@ -192,8 +191,7 @@ pub unsafe extern "C" fn alg_unquant(
 ///
 /// # Safety
 /// `x` must point to N writable celt_norm elements.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn renormalise_vector(x: *mut CeltNorm, n: c_int, gain: OpusVal16) {
+pub unsafe fn renormalise_vector(x: *mut CeltNorm, n: c_int, gain: OpusVal16) {
     let n = n as usize;
     let x = unsafe { std::slice::from_raw_parts_mut(x, n) };
 
@@ -226,8 +224,7 @@ pub unsafe extern "C" fn renormalise_vector(x: *mut CeltNorm, n: c_int, gain: Op
 ///
 /// # Safety
 /// `x` and `y` must each point to N readable celt_norm elements.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn stereo_itheta(x: *const CeltNorm, y: *const CeltNorm, stereo: c_int, n: c_int) -> c_int {
+pub unsafe fn stereo_itheta(x: *const CeltNorm, y: *const CeltNorm, stereo: c_int, n: c_int) -> c_int {
     let n = n as usize;
     let x = unsafe { std::slice::from_raw_parts(x, n) };
     let y = unsafe { std::slice::from_raw_parts(y, n) };

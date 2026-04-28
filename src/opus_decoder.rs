@@ -653,8 +653,7 @@ unsafe fn opus_decode_frame(
 
 // -- opus_decode_native --
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_decode_native(
+pub unsafe fn opus_decode_native(
     st: *mut OpusDecoder,
     data: *const u8,
     len: c_int,

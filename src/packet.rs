@@ -122,8 +122,7 @@ fn parse_size(data: *const u8, len: c_int, size: *mut i16) -> c_int {
 /// This handles all four code types (0-3) including CBR/VBR multi-frame packets,
 /// self-delimited framing, and padding. Called by both `opus_packet_parse`
 /// (self_delimited=0) and `opus_decode_native` (self_delimited from packet).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_parse_impl(
+pub unsafe fn opus_packet_parse_impl(
     data: *const u8,
     len: c_int,
     self_delimited: c_int,

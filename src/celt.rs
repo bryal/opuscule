@@ -101,8 +101,7 @@ pub type CELTDecoder = OpusCustomDecoder;
 // -- Decoder size and init functions --
 
 /// Return the size in bytes of a CELT decoder for the standard Opus mode.
-#[unsafe(no_mangle)]
-pub extern "C" fn celt_decoder_get_size(_channels: c_int) -> c_int {
+pub fn celt_decoder_get_size(_channels: c_int) -> c_int {
     std::mem::size_of::<OpusCustomDecoder>() as c_int
 }
 
@@ -113,8 +112,7 @@ pub extern "C" fn opus_custom_decoder_get_size(_mode: *const CELTMode, _channels
 }
 
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_decoder_init(st: *mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
+pub unsafe fn celt_decoder_init(st: *mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
     unsafe {
         let ret = opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, std::ptr::null_mut()), channels);
         if ret != OPUS_OK {
@@ -161,8 +159,7 @@ pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *c
 ///
 /// This is the logic from `opus_custom_decoder_ctl(..., OPUS_RESET_STATE)`.
 /// Factored out so both `opus_custom_decoder_init` and the ctl handler can call it.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_decoder_reset(st: *mut CELTDecoder) {
+pub unsafe fn celt_decoder_reset(st: *mut CELTDecoder) {
     unsafe {
         // Clear from rng to end of struct
         let reset_start = &mut (*st).rng as *mut u32 as *mut u8;
@@ -186,8 +183,7 @@ pub unsafe extern "C" fn celt_decoder_reset(st: *mut CELTDecoder) {
 ///
 /// Uses noise-based PLC after 5+ consecutive losses (or if start!=0),
 /// otherwise pitch-based PLC with LPC synthesis.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_int, lm: c_int) {
+pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_int, lm: c_int) {
     unsafe {
         let mut c: c_int;
         let pitch_index: c_int;
@@ -550,8 +546,7 @@ static TAPSET_ICDF: [u8; 3] = [2, 1, 0];
 ///
 /// Decodes a CELT frame from the bitstream into PCM samples.
 /// If data is NULL or len <= 1, runs packet loss concealment instead.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_decode_with_ec(
+pub unsafe fn celt_decode_with_ec(
     st: *mut CELTDecoder,
     data: *const u8,
     len: c_int,
@@ -1023,8 +1018,7 @@ static TF_SELECT_TABLE: [[i8; 8]; 4] =
 
 /// Map sample rate to resampling factor.
 /// Only the five standard Opus rates are supported.
-#[unsafe(no_mangle)]
-pub extern "C" fn resampling_factor(rate: i32) -> c_int {
+pub fn resampling_factor(rate: i32) -> c_int {
     match rate {
         48000 => 1,
         24000 => 2,
@@ -1042,18 +1036,16 @@ pub extern "C" fn resampling_factor(rate: i32) -> c_int {
 ///
 /// Fixed-point: right-shift by SIG_SHIFT, clamp to [-32768, 32767].
 /// Float: identity cast (scaling happens in deemphasis via SCALEOUT).
-#[unsafe(no_mangle)]
 #[cfg(feature = "fixed-point")]
-pub extern "C" fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
+pub fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
     let x = pshr32(x, SIG_SHIFT);
     let x = max32(x, -32768);
     let x = min32(x, 32767);
     extract16(x)
 }
 
-#[unsafe(no_mangle)]
 #[cfg(not(feature = "fixed-point"))]
-pub extern "C" fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
+pub fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
     x
 }
 
@@ -1080,8 +1072,7 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn tf_decode(
+pub unsafe fn tf_decode(
     start: c_int,
     end: c_int,
     is_transient: c_int,
@@ -1123,8 +1114,7 @@ pub unsafe extern "C" fn tf_decode(
 // -- init_caps --
 
 /// Initialise the per-band bit allocation caps from the mode's cache.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn init_caps(m: *const CELTMode, cap: *mut c_int, lm: c_int, c: c_int) {
+pub unsafe fn init_caps(m: *const CELTMode, cap: *mut c_int, lm: c_int, c: c_int) {
     unsafe {
         let mode = &*m;
         for i in 0..mode.nb_ebands as usize {
@@ -1143,8 +1133,7 @@ pub unsafe extern "C" fn init_caps(m: *const CELTMode, cap: *mut c_int, lm: c_in
 /// For each channel: runs the IMDCT (possibly multiple short blocks),
 /// overlap-adds with the previous frame's tail, and saves the new tail
 /// into overlap_mem.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn compute_inv_mdcts(
+pub unsafe fn compute_inv_mdcts(
     mode: *const CELTMode,
     short_blocks: c_int,
     x: *mut CeltSig,
@@ -1213,8 +1202,7 @@ pub unsafe extern "C" fn compute_inv_mdcts(
 /// The de-emphasis is a first-order IIR filter that undoes the pre-emphasis
 /// applied before encoding. Also handles downsampling (e.g. 48→8 kHz)
 /// by writing only every `downsample`-th sample.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn deemphasis(
+pub unsafe fn deemphasis(
     in_: *mut *mut CeltSig,
     pcm: *mut OpusVal16,
     n: c_int,
@@ -1261,8 +1249,7 @@ pub unsafe extern "C" fn deemphasis(
 /// Applies a 3-tap comb filter at pitch lag T1 for the steady-state portion,
 /// and crossfades from the old pitch T0 to T1 over the overlap region using
 /// a squared-window interpolation.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn comb_filter(
+pub unsafe fn comb_filter(
     y: *mut OpusVal32,
     x: *mut OpusVal32,
     t0: c_int,
@@ -1420,8 +1407,7 @@ pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: 
 }
 
 /// Convenience wrapper matching the old `celt_decoder_ctl` name.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn celt_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
+pub unsafe fn celt_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
     unsafe { opus_custom_decoder_ctl(st, request) }
 }
 
