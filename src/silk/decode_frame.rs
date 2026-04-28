@@ -18,8 +18,7 @@ const FLAG_DECODE_NORMAL: i32 = 0;
 const FLAG_DECODE_LBRR: i32 = 2;
 
 /// `silk_decode_frame` — decode one SILK frame.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_decode_frame(
+pub unsafe fn silk_decode_frame(
     ps_dec: *mut SilkDecoderState,
     ps_range_dec: *mut ec_dec,
     p_out: *mut i16,

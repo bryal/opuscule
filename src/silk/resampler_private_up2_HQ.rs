@@ -12,8 +12,7 @@ use super::resampler_rom::{silk_resampler_up2_hq_0, silk_resampler_up2_hq_1};
 /// `silk_resampler_private_up2_HQ` — high-quality 2× upsampler.
 ///
 /// `S` is a 6-element resampler state vector (Q10).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_private_up2_HQ(s: *mut i32, out: *mut i16, in_: *const i16, len: i32) {
+pub unsafe fn silk_resampler_private_up2_HQ(s: *mut i32, out: *mut i16, in_: *const i16, len: i32) {
     unsafe {
         /* silk_assert(silk_resampler_up2_hq_0[0] > 0); */
         /* silk_assert(silk_resampler_up2_hq_0[1] > 0); */
@@ -82,8 +81,7 @@ pub unsafe extern "C" fn silk_resampler_private_up2_HQ(s: *mut i32, out: *mut i1
 /// flags this as load-bearing), the cast plus member access is byte-for-byte
 /// equivalent to treating `SS` as `*mut i32`. We rely on the same invariant
 /// here until the resampler state struct is itself translated.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_private_up2_HQ_wrapper(ss: *mut c_void, out: *mut i16, in_: *const i16, len: i32) {
+pub unsafe fn silk_resampler_private_up2_HQ_wrapper(ss: *mut c_void, out: *mut i16, in_: *const i16, len: i32) {
     unsafe {
         silk_resampler_private_up2_HQ(ss as *mut i32, out, in_, len);
     }

@@ -10,8 +10,7 @@ use super::macros::{silk_lshift, silk_smlawb, silk_smulwb};
 /// `S` is a 2-element state vector (Q?), `out_Q8` receives `len` Q8
 /// outputs, `in` is the i16 input, `A_Q14` is a 2-element AR coefficient
 /// vector in Q14.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_private_AR2(
+pub unsafe fn silk_resampler_private_AR2(
     s: *mut i32,
     out_q8: *mut i32,
     in_: *const i16,

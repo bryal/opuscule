@@ -20,8 +20,7 @@ const MIN_LPC_ORDER: i32 = 10;
 const TYPE_NO_VOICE_ACTIVITY: i32 = 0;
 
 /// `silk_decoder_set_fs` — set SILK internal / API sample rates.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_decoder_set_fs(ps_dec: *mut SilkDecoderState, fs_khz: i32, fs_api_hz: i32) -> i32 {
+pub unsafe fn silk_decoder_set_fs(ps_dec: *mut SilkDecoderState, fs_khz: i32, fs_api_hz: i32) -> i32 {
     unsafe {
         let mut ret = 0i32;
 

@@ -8,8 +8,7 @@ use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlabb_ovfl
 /// `silk_LPC_analysis_filter` — apply an LPC analysis filter of order `d`
 /// (must be even and ≥ 6) to `in_[0..len]`, writing the residual to
 /// `out[0..len]`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_LPC_analysis_filter(out: *mut i16, in_: *const i16, b: *const i16, len: i32, d: i32) {
+pub unsafe fn silk_LPC_analysis_filter(out: *mut i16, in_: *const i16, b: *const i16, len: i32, d: i32) {
     unsafe {
         let mut ix = d;
         while ix < len {

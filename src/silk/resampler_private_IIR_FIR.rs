@@ -55,8 +55,7 @@ unsafe fn silk_resampler_private_IIR_FIR_INTERPOL(
 }
 
 /// `silk_resampler_private_IIR_FIR` — 2× IIR upsample + fractional FIR.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_private_IIR_FIR(
+pub unsafe fn silk_resampler_private_IIR_FIR(
     ss: *mut c_void,
     mut out: *mut i16,
     mut in_: *const i16,

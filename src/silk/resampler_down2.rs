@@ -9,8 +9,7 @@ use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, sil
 use super::resampler_rom::{silk_resampler_down2_0, silk_resampler_down2_1};
 
 /// `silk_resampler_down2` — downsample by a factor 2.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_down2(s: *mut i32, out: *mut i16, in_: *const i16, in_len: i32) {
+pub unsafe fn silk_resampler_down2(s: *mut i32, out: *mut i16, in_: *const i16, in_len: i32) {
     unsafe {
         let len2 = in_len >> 1;
 

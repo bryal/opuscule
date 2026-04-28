@@ -10,8 +10,7 @@ const NLSF_QUANT_MAX_AMPLITUDE: i32 = 4;
 
 /// `silk_NLSF_unpack` — unpack predictor values and indices for entropy
 /// coding tables from the codebook.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_NLSF_unpack(
+pub unsafe fn silk_NLSF_unpack(
     ec_ix: *mut i16,
     pred_q8: *mut u8,
     ps_nlsf_cb: *const SilkNlsfCbStruct,

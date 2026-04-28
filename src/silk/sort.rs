@@ -5,8 +5,7 @@
 /// `silk_insertion_sort_increasing` — sort the first `K` smallest elements
 /// of `a[0..L]` into `a[0..K]` in increasing order, writing the original
 /// indices into `idx[0..K]`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_insertion_sort_increasing(a: *mut i32, idx: *mut i32, l: i32, k: i32) {
+pub unsafe fn silk_insertion_sort_increasing(a: *mut i32, idx: *mut i32, l: i32, k: i32) {
     unsafe {
         /* Write start indices in index vector */
         let mut i = 0;
@@ -55,8 +54,7 @@ pub unsafe extern "C" fn silk_insertion_sort_increasing(a: *mut i32, idx: *mut i
 ///
 /// Only used by the fixed-point build in the C source, but we compile it
 /// unconditionally since the linker will discard it if unused.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_insertion_sort_decreasing_int16(a: *mut i16, idx: *mut i32, l: i32, k: i32) {
+pub unsafe fn silk_insertion_sort_decreasing_int16(a: *mut i16, idx: *mut i32, l: i32, k: i32) {
     unsafe {
         /* Write start indices in index vector */
         let mut i = 0;
@@ -102,8 +100,7 @@ pub unsafe extern "C" fn silk_insertion_sort_decreasing_int16(a: *mut i16, idx: 
 
 /// `silk_insertion_sort_increasing_all_values_int16` — sort ALL elements
 /// of an `i16` vector in increasing order (no index tracking).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_insertion_sort_increasing_all_values_int16(a: *mut i16, l: i32) {
+pub unsafe fn silk_insertion_sort_increasing_all_values_int16(a: *mut i16, l: i32) {
     unsafe {
         /* Sort vector elements by value, increasing order */
         let mut i = 1;

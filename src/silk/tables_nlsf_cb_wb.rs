@@ -66,7 +66,6 @@ static SILK_NLSF_PRED_WB_Q8: [u8; 30] = [
 static SILK_NLSF_DELTA_MIN_WB_Q15: [i16; 17] = [100, 3, 40, 3, 3, 3, 5, 14, 14, 10, 11, 3, 8, 9, 7, 3, 347];
 
 /// `silk_NLSF_CB_WB` — NLSF codebook descriptor for WB (order 16, 32 vectors).
-#[unsafe(no_mangle)]
 pub static silk_NLSF_CB_WB: SilkNlsfCbStruct = SilkNlsfCbStruct {
     n_vectors: 32,
     order: 16,

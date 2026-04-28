@@ -9,8 +9,7 @@ use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, sil
 /// Operates on interleaved data when `stride > 1`. The MA coefficients
 /// `B_Q28[3]` and AR coefficients `A_Q28[2]` are Q28 fixed-point. The
 /// state vector `S[2]` is Q12.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_biquad_alt(
+pub unsafe fn silk_biquad_alt(
     in_: *const i16,
     b_q28: *const i32,
     a_q28: *const i32,

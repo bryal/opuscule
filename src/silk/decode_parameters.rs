@@ -20,8 +20,7 @@ const TYPE_VOICED: i32 = 2;
 const BWE_AFTER_LOSS_Q16: i32 = 63570;
 
 /// `silk_decode_parameters` — decode parameters from payload.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_decode_parameters(
+pub unsafe fn silk_decode_parameters(
     ps_dec: *mut SilkDecoderState,
     ps_dec_ctrl: *mut SilkDecoderControl,
     cond_coding: i32,

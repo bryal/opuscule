@@ -13,8 +13,7 @@ const ORDER_FIR: usize = 4;
 const RESAMPLER_MAX_BATCH_SIZE_IN: usize = 10 * 48;
 
 /// `silk_resampler_down2_3` — downsample by a factor 2/3, low quality.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_down2_3(s: *mut i32, out: *mut i16, in_: *const i16, in_len: i32) {
+pub unsafe fn silk_resampler_down2_3(s: *mut i32, out: *mut i16, in_: *const i16, in_len: i32) {
     unsafe {
         let mut buf = [0i32; RESAMPLER_MAX_BATCH_SIZE_IN + ORDER_FIR];
 

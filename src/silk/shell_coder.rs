@@ -31,8 +31,7 @@ unsafe fn decode_split(p_child1: *mut i32, p_child2: *mut i32, ps_range_dec: *mu
 
 /// `silk_shell_decoder` — decode 16 nonnegative pulse amplitudes from a
 /// total pulse count `pulses4` (the root of the shell tree).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_shell_decoder(pulses0: *mut i32, ps_range_dec: *mut ec_dec, pulses4: i32) {
+pub unsafe fn silk_shell_decoder(pulses0: *mut i32, ps_range_dec: *mut ec_dec, pulses4: i32) {
     unsafe {
         let mut pulses3 = [0i32; 2];
         let mut pulses2 = [0i32; 4];

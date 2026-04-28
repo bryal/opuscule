@@ -10,8 +10,7 @@ const MAX_LOOPS: i32 = 20;
 
 /// `silk_NLSF_stabilize` — stabilize an NLSF vector by enforcing minimum
 /// spacing. High effort to minimise Euclidean distance from the input.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_NLSF_stabilize(nlsf_q15: *mut i16, n_delta_min_q15: *const i16, l: i32) {
+pub unsafe fn silk_NLSF_stabilize(nlsf_q15: *mut i16, n_delta_min_q15: *const i16, l: i32) {
     unsafe {
         let mut i_: i32 = 0;
         let mut loops = 0;

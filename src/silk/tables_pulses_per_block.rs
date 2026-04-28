@@ -4,11 +4,9 @@
 //! and sign iCDF used by the SILK entropy coder.
 
 /// `silk_max_pulses_table`
-#[unsafe(no_mangle)]
 pub static silk_max_pulses_table: [u8; 4] = [8, 10, 12, 16];
 
 /// `silk_pulses_per_block_iCDF` — 10×18.
-#[unsafe(no_mangle)]
 pub static silk_pulses_per_block_iCDF: [[u8; 18]; 10] = [
     [125, 51, 26, 18, 15, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
     [198, 105, 45, 22, 15, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
@@ -23,7 +21,6 @@ pub static silk_pulses_per_block_iCDF: [[u8; 18]; 10] = [
 ];
 
 /// `silk_pulses_per_block_BITS_Q5` — 9×18.
-#[unsafe(no_mangle)]
 pub static silk_pulses_per_block_BITS_Q5: [[u8; 18]; 9] = [
     [31, 57, 107, 160, 205, 205, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
     [69, 47, 67, 111, 166, 205, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
@@ -37,17 +34,14 @@ pub static silk_pulses_per_block_BITS_Q5: [[u8; 18]; 9] = [
 ];
 
 /// `silk_rate_levels_iCDF` — 2×9.
-#[unsafe(no_mangle)]
 pub static silk_rate_levels_iCDF: [[u8; 9]; 2] =
     [[241, 190, 178, 132, 87, 74, 41, 14, 0], [223, 193, 157, 140, 106, 57, 39, 18, 0]];
 
 /// `silk_rate_levels_BITS_Q5` — 2×9.
-#[unsafe(no_mangle)]
 pub static silk_rate_levels_BITS_Q5: [[u8; 9]; 2] =
     [[131, 74, 141, 79, 80, 138, 95, 104, 134], [95, 99, 91, 125, 93, 76, 123, 115, 123]];
 
 /// `silk_shell_code_table0` — 152 entries.
-#[unsafe(no_mangle)]
 pub static silk_shell_code_table0: [u8; 152] = [
     128, 0, 214, 42, 0, 235, 128, 21, 0, 244, 184, 72, 11, 0, 248, 214, 128, 42, 7, 0, 248, 225, 170, 80, 25, 5, 0, 251, 236,
     198, 126, 54, 18, 3, 0, 250, 238, 211, 159, 82, 35, 15, 5, 0, 250, 231, 203, 168, 128, 88, 53, 25, 6, 0, 252, 238, 216,
@@ -58,7 +52,6 @@ pub static silk_shell_code_table0: [u8; 152] = [
 ];
 
 /// `silk_shell_code_table1` — 152 entries.
-#[unsafe(no_mangle)]
 pub static silk_shell_code_table1: [u8; 152] = [
     129, 0, 207, 50, 0, 236, 129, 20, 0, 245, 185, 72, 10, 0, 249, 213, 129, 42, 6, 0, 250, 226, 169, 87, 27, 4, 0, 251, 233,
     194, 130, 62, 20, 4, 0, 250, 236, 207, 160, 99, 47, 17, 3, 0, 255, 240, 217, 182, 131, 81, 41, 11, 1, 0, 255, 254, 233,
@@ -69,7 +62,6 @@ pub static silk_shell_code_table1: [u8; 152] = [
 ];
 
 /// `silk_shell_code_table2` — 152 entries.
-#[unsafe(no_mangle)]
 pub static silk_shell_code_table2: [u8; 152] = [
     129, 0, 203, 54, 0, 234, 129, 23, 0, 245, 184, 73, 10, 0, 250, 215, 129, 41, 5, 0, 252, 232, 173, 86, 24, 3, 0, 253, 240,
     200, 129, 56, 15, 2, 0, 253, 244, 217, 164, 94, 38, 10, 1, 0, 253, 245, 226, 189, 132, 71, 27, 7, 1, 0, 253, 246, 231, 203,
@@ -80,7 +72,6 @@ pub static silk_shell_code_table2: [u8; 152] = [
 ];
 
 /// `silk_shell_code_table3` — 152 entries.
-#[unsafe(no_mangle)]
 pub static silk_shell_code_table3: [u8; 152] = [
     130, 0, 200, 58, 0, 231, 130, 26, 0, 244, 184, 76, 12, 0, 249, 214, 130, 43, 6, 0, 252, 232, 173, 87, 24, 3, 0, 253, 241,
     203, 131, 56, 14, 2, 0, 254, 246, 221, 167, 94, 35, 8, 1, 0, 254, 249, 232, 193, 130, 65, 23, 5, 1, 0, 255, 251, 239, 211,
@@ -91,11 +82,9 @@ pub static silk_shell_code_table3: [u8; 152] = [
 ];
 
 /// `silk_shell_code_table_offsets` — 17 entries.
-#[unsafe(no_mangle)]
 pub static silk_shell_code_table_offsets: [u8; 17] = [0, 0, 2, 5, 9, 14, 20, 27, 35, 44, 54, 65, 77, 90, 104, 119, 135];
 
 /// `silk_sign_iCDF` — 42 entries.
-#[unsafe(no_mangle)]
 pub static silk_sign_iCDF: [u8; 42] = [
     254, 49, 67, 77, 82, 93, 99, 198, 11, 18, 24, 31, 36, 45, 255, 46, 66, 78, 87, 94, 104, 208, 14, 21, 32, 42, 51, 66, 255,
     94, 104, 109, 112, 115, 118, 248, 53, 69, 80, 88, 95, 102,

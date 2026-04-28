@@ -8,8 +8,7 @@
 use super::macros::{silk_rshift_round, silk_smulww};
 
 /// `silk_bwexpander_32` — bandwidth-expand an AR filter (32-bit coefficients).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_bwexpander_32(ar: *mut i32, d: i32, mut chirp_q16: i32) {
+pub unsafe fn silk_bwexpander_32(ar: *mut i32, d: i32, mut chirp_q16: i32) {
     unsafe {
         let chirp_minus_one_q16 = chirp_q16 - 65536;
 

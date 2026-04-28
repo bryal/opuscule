@@ -15,8 +15,7 @@ const PE_MIN_LAG_MS: i32 = 2;
 const PE_MAX_LAG_MS: i32 = 18;
 
 /// `silk_decode_pitch` — decode pitch lags from lag index + contour index.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_decode_pitch(
+pub unsafe fn silk_decode_pitch(
     lag_index: i16,
     contour_index: i8,
     pitch_lags: *mut i32,

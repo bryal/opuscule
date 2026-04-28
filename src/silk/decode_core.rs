@@ -18,8 +18,7 @@ const QUANT_LEVEL_ADJUST_Q10: i32 = 80;
 const TYPE_VOICED: i32 = 2;
 
 /// `silk_decode_core` — inverse NSQ (LTP + LPC).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_decode_core(
+pub unsafe fn silk_decode_core(
     ps_dec: *mut SilkDecoderState,
     ps_dec_ctrl: *mut SilkDecoderControl,
     xq: *mut i16,

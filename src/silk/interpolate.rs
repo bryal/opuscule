@@ -8,8 +8,7 @@ use super::macros::silk_smulbb;
 ///
 /// `xi[i] = x0[i] + ((x1[i] - x0[i]) * ifact_Q2) >> 2`, for `i` in `0..d`.
 /// `ifact_Q2` is expected to be in `[0, 4]` (0 → all `x0`, 4 → all `x1`).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_interpolate(xi: *mut i16, x0: *const i16, x1: *const i16, ifact_q2: i32, d: i32) {
+pub unsafe fn silk_interpolate(xi: *mut i16, x0: *const i16, x1: *const i16, ifact_q2: i32, d: i32) {
     unsafe {
         let mut i = 0;
         while i < d {

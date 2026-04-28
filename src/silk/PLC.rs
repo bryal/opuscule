@@ -37,8 +37,7 @@ const LOG2_INV_LPC_GAIN_LOW_THRES: i32 = 8;
 const PITCH_DRIFT_FAC_Q16: i32 = 655;
 
 /// `silk_PLC_Reset` — initialize PLC state after an fs_kHz change.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_PLC_Reset(ps_dec: *mut SilkDecoderState) {
+pub unsafe fn silk_PLC_Reset(ps_dec: *mut SilkDecoderState) {
     unsafe {
         (*ps_dec).s_plc.pitch_l_q8 = silk_lshift((*ps_dec).frame_length, 8 - 1);
         (*ps_dec).s_plc.prev_gain_q16[0] = 1 << 16;
@@ -49,8 +48,7 @@ pub unsafe extern "C" fn silk_PLC_Reset(ps_dec: *mut SilkDecoderState) {
 }
 
 /// `silk_PLC` — PLC control function.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_PLC(
+pub unsafe fn silk_PLC(
     ps_dec: *mut SilkDecoderState,
     ps_dec_ctrl: *mut SilkDecoderControl,
     frame: *mut i16,
@@ -376,8 +374,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
 }
 
 /// `silk_PLC_glue_frames` — glue concealed frames with the next good frame.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_PLC_glue_frames(ps_dec: *mut SilkDecoderState, frame: *mut i16, length: i32) {
+pub unsafe fn silk_PLC_glue_frames(ps_dec: *mut SilkDecoderState, frame: *mut i16, length: i32) {
     unsafe {
         let ps_plc = &raw mut (*ps_dec).s_plc;
 

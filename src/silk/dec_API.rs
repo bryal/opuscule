@@ -82,8 +82,7 @@ pub struct SilkDecoder {
 }
 
 /// `silk_Get_Decoder_Size` — report sizeof(silk_decoder).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_Get_Decoder_Size(dec_size_bytes: *mut c_int) -> c_int {
+pub unsafe fn silk_Get_Decoder_Size(dec_size_bytes: *mut c_int) -> c_int {
     unsafe {
         *dec_size_bytes = core::mem::size_of::<SilkDecoder>() as c_int;
     }
@@ -91,8 +90,7 @@ pub unsafe extern "C" fn silk_Get_Decoder_Size(dec_size_bytes: *mut c_int) -> c_
 }
 
 /// `silk_InitDecoder` — reset the per-channel states.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_InitDecoder(dec_state: *mut u8) -> c_int {
+pub unsafe fn silk_InitDecoder(dec_state: *mut u8) -> c_int {
     unsafe {
         let ps_dec = dec_state as *mut SilkDecoder;
         let channel_state = (*ps_dec).channel_state.as_mut_ptr();
@@ -105,8 +103,7 @@ pub unsafe extern "C" fn silk_InitDecoder(dec_state: *mut u8) -> c_int {
 }
 
 /// `silk_Decode` — decode a SILK frame (mono or stereo, normal/LBRR/PLC).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_Decode(
+pub unsafe fn silk_Decode(
     dec_state: *mut u8,
     dec_control: *mut SilkDecControlStruct,
     lost_flag: i32,
@@ -419,8 +416,7 @@ pub unsafe extern "C" fn silk_Decode(
 }
 
 /// `silk_get_TOC` — extract per-packet VAD / inband-FEC flags.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_get_TOC(
+pub unsafe fn silk_get_TOC(
     payload: *const u8,
     n_bytes_in: i32,
     n_frames_per_payload: i32,

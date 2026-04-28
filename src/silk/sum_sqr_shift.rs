@@ -8,8 +8,7 @@ use super::macros::{silk_smlabb_ovflw, silk_smulbb};
 /// `silk_sum_sqr_shift` — compute the energy (sum of squares) of `x[0..len]`,
 /// returning both the energy value and the number of right-shift bits applied
 /// to keep the result in 32 bits with at least two leading zeros.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_sum_sqr_shift(energy: *mut i32, shift: *mut i32, x: *const i16, len: i32) {
+pub unsafe fn silk_sum_sqr_shift(energy: *mut i32, shift: *mut i32, x: *const i16, len: i32) {
     unsafe {
         let mut nrg: i32 = 0;
         let mut shft: i32 = 0;

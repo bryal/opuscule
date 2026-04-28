@@ -50,8 +50,7 @@ const USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR: i32 = 3;
 
 /// `silk_resampler_init` — initialise/reset resampler state for a given
 /// pair of input/output sampling rates.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_init(
+pub unsafe fn silk_resampler_init(
     s: *mut SilkResamplerStateStruct,
     fs_hz_in: i32,
     fs_hz_out: i32,
@@ -145,8 +144,7 @@ pub unsafe extern "C" fn silk_resampler_init(
 
 /// `silk_resampler` — convert from one sampling rate to another.
 /// Input and output sampling rates are at most 48000 Hz.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler(s: *mut SilkResamplerStateStruct, out: *mut i16, in_: *const i16, in_len: i32) -> i32 {
+pub unsafe fn silk_resampler(s: *mut SilkResamplerStateStruct, out: *mut i16, in_: *const i16, in_len: i32) -> i32 {
     unsafe {
         let n_samples = (*s).fs_in_khz - (*s).input_delay;
 

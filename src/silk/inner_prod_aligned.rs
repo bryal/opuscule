@@ -7,8 +7,7 @@ use super::macros::silk_smulbb;
 /// `silk_inner_prod_aligned_scale` — compute the inner product of two
 /// `i16` vectors, right-shifting each partial product by `scale` bits
 /// before accumulation.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_inner_prod_aligned_scale(in_vec1: *const i16, in_vec2: *const i16, scale: i32, len: i32) -> i32 {
+pub unsafe fn silk_inner_prod_aligned_scale(in_vec1: *const i16, in_vec2: *const i16, scale: i32, len: i32) -> i32 {
     unsafe {
         let mut sum: i32 = 0;
         let mut i = 0;

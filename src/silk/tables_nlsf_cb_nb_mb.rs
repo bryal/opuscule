@@ -52,7 +52,6 @@ static SILK_NLSF_PRED_NB_MB_Q8: [u8; 18] = [179, 138, 140, 148, 151, 149, 153, 1
 static SILK_NLSF_DELTA_MIN_NB_MB_Q15: [i16; 11] = [250, 3, 6, 3, 3, 3, 4, 3, 3, 3, 461];
 
 /// `silk_NLSF_CB_NB_MB` — NLSF codebook descriptor for NB/MB (order 10, 32 vectors).
-#[unsafe(no_mangle)]
 pub static silk_NLSF_CB_NB_MB: SilkNlsfCbStruct = SilkNlsfCbStruct {
     n_vectors: 32,
     order: 10,

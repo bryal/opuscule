@@ -36,8 +36,7 @@ unsafe fn silk_CNG_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16
 }
 
 /// `silk_CNG_Reset` — reset CNG state.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_CNG_Reset(ps_dec: *mut SilkDecoderState) {
+pub unsafe fn silk_CNG_Reset(ps_dec: *mut SilkDecoderState) {
     unsafe {
         let nlsf_step_q15 = SILK_INT16_MAX / ((*ps_dec).lpc_order + 1);
         let mut nlsf_acc_q15 = 0i32;
@@ -53,8 +52,7 @@ pub unsafe extern "C" fn silk_CNG_Reset(ps_dec: *mut SilkDecoderState) {
 }
 
 /// `silk_CNG` — update CNG estimate, apply CNG when packet was lost.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_CNG(
+pub unsafe fn silk_CNG(
     ps_dec: *mut SilkDecoderState,
     ps_dec_ctrl: *mut SilkDecoderControl,
     frame: *mut i16,

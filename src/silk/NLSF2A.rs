@@ -52,8 +52,7 @@ unsafe fn silk_NLSF2A_find_poly(out: *mut i32, c_lsf: *const i32, dd: i32) {
 }
 
 /// `silk_NLSF2A` — compute LPC whitening filter coefficients from NLSFs.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) {
+pub unsafe fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) {
     unsafe {
         /* This ordering was found to maximize quality. It improves numerical
          * accuracy of silk_NLSF2A_find_poly() compared to "standard" ordering. */

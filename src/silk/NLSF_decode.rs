@@ -45,8 +45,7 @@ unsafe fn silk_NLSF_residual_dequant(
 }
 
 /// `silk_NLSF_decode` — NLSF vector decoder.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_NLSF_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: *const SilkNlsfCbStruct) {
+pub unsafe fn silk_NLSF_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: *const SilkNlsfCbStruct) {
     unsafe {
         let mut pred_q8 = [0u8; MAX_LPC_ORDER];
         let mut ec_ix = [0i16; MAX_LPC_ORDER];

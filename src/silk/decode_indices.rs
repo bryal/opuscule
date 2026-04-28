@@ -26,8 +26,7 @@ const TYPE_VOICED: i32 = 2;
 const NLSF_QUANT_MAX_AMPLITUDE: i32 = 4;
 
 /// `silk_decode_indices` — decode side-information parameters from payload.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_decode_indices(
+pub unsafe fn silk_decode_indices(
     ps_dec: *mut SilkDecoderState,
     ps_range_dec: *mut ec_dec,
     frame_index: i32,

@@ -9,8 +9,7 @@ use super::macros::{silk_lshift, silk_smlawb, silk_smulbb};
 /// `silk_LSHIFT(1, inLog_Q7 >> 7)` is allowed to overflow, and the macro
 /// is therefore expected to wrap (we use [`silk_lshift`]'s wrapping shift
 /// to mirror that behaviour).
-#[unsafe(no_mangle)]
-pub extern "C" fn silk_log2lin(in_log_q7: i32) -> i32 {
+pub fn silk_log2lin(in_log_q7: i32) -> i32 {
     if in_log_q7 < 0 {
         return 0;
     }

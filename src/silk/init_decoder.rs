@@ -9,8 +9,7 @@ use super::PLC::silk_PLC_Reset;
 use super::structs::SilkDecoderState;
 
 /// `silk_init_decoder` — initialise the decoder state struct.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_init_decoder(ps_dec: *mut SilkDecoderState) -> i32 {
+pub unsafe fn silk_init_decoder(ps_dec: *mut SilkDecoderState) -> i32 {
     unsafe {
         /* Clear the entire decoder state, except anything copied */
         core::ptr::write_bytes(ps_dec, 0, 1);

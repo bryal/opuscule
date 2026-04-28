@@ -13,8 +13,7 @@ use super::macros::silk_rshift_round;
 /// warns against using `silk_SMULWB` here because its rounding bias can
 /// make the filter unstable; `silk_RSHIFT_ROUND(silk_MUL(…), 16)` is used
 /// instead.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_bwexpander(ar: *mut i16, d: i32, mut chirp_q16: i32) {
+pub unsafe fn silk_bwexpander(ar: *mut i16, d: i32, mut chirp_q16: i32) {
     unsafe {
         let chirp_minus_one_q16 = chirp_q16 - 65536;
 

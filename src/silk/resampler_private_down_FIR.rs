@@ -159,8 +159,7 @@ unsafe fn silk_resampler_private_down_FIR_INTERPOL(
 }
 
 /// `silk_resampler_private_down_FIR` — downsampler (rational ratios).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn silk_resampler_private_down_FIR(
+pub unsafe fn silk_resampler_private_down_FIR(
     ss: *mut c_void,
     mut out: *mut i16,
     mut in_: *const i16,
