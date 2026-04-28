@@ -210,11 +210,6 @@ pub unsafe fn _celt_autocorr(
 }
 
 /// SIG_SHIFT constant from arch.h — controls the Q format for signals.
-/// In float mode, shift operations are no-ops, but we still need the value
-/// for the extern "C" interface to match the C ABI.
-#[cfg(not(feature = "fixed-point"))]
-const SIG_SHIFT: i32 = 12;
-#[cfg(feature = "fixed-point")]
 const SIG_SHIFT: i32 = 12;
 
 #[cfg(test)]
