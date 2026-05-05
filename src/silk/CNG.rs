@@ -4,7 +4,7 @@
 //! most recent unvoiced frame and, during packet loss, synthesizes a
 //! noise signal that is mixed into the decoder output.
 
-use super::NLSF2A::silk_NLSF2A;
+use super::NLSF2A::silk_nlsf2a;
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww};
 use super::structs::{MAX_FRAME_LENGTH, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 
@@ -15,7 +15,7 @@ const TYPE_NO_VOICE_ACTIVITY: i32 = 0;
 const SILK_INT16_MAX: i32 = i16::MAX as i32;
 
 /// `silk_CNG_exc` — generate excitation for CNG LPC synthesis.
-unsafe fn silk_CNG_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16: i32, length: i32, rand_seed: *mut i32) {
+unsafe fn silk_cng_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16: i32, length: i32, rand_seed: *mut i32) {
     unsafe {
         let mut exc_mask = CNG_BUF_MASK_MAX;
         while exc_mask > length {
@@ -36,7 +36,7 @@ unsafe fn silk_CNG_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16
 }
 
 /// `silk_CNG_Reset` — reset CNG state.
-pub unsafe fn silk_CNG_Reset(ps_dec: *mut SilkDecoderState) {
+pub unsafe fn silk_cng_reset(ps_dec: *mut SilkDecoderState) {
     unsafe {
         let nlsf_step_q15 = SILK_INT16_MAX / ((*ps_dec).lpc_order + 1);
         let mut nlsf_acc_q15 = 0i32;
@@ -52,12 +52,7 @@ pub unsafe fn silk_CNG_Reset(ps_dec: *mut SilkDecoderState) {
 }
 
 /// `silk_CNG` — update CNG estimate, apply CNG when packet was lost.
-pub unsafe fn silk_CNG(
-    ps_dec: *mut SilkDecoderState,
-    ps_dec_ctrl: *mut SilkDecoderControl,
-    frame: *mut i16,
-    length: i32,
-) {
+pub unsafe fn silk_cng(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, frame: *mut i16, length: i32) {
     unsafe {
         let mut a_q12 = [0i16; MAX_LPC_ORDER];
         let mut cng_sig_q10 = [0i32; MAX_FRAME_LENGTH + MAX_LPC_ORDER];
@@ -65,7 +60,7 @@ pub unsafe fn silk_CNG(
 
         if (*ps_dec).fs_khz != (*ps_cng).fs_khz {
             /* Reset state */
-            silk_CNG_Reset(ps_dec);
+            silk_cng_reset(ps_dec);
             (*ps_cng).fs_khz = (*ps_dec).fs_khz;
         }
         if (*ps_dec).loss_cnt == 0 && (*ps_dec).prev_signal_type == TYPE_NO_VOICE_ACTIVITY {
@@ -118,7 +113,7 @@ pub unsafe fn silk_CNG(
         /* Add CNG when packet is lost or during DTX */
         if (*ps_dec).loss_cnt != 0 {
             /* Generate CNG excitation */
-            silk_CNG_exc(
+            silk_cng_exc(
                 cng_sig_q10.as_mut_ptr().add(MAX_LPC_ORDER),
                 (*ps_cng).cng_exc_buf_q14.as_ptr(),
                 (*ps_cng).cng_smth_gain_q16,
@@ -127,7 +122,7 @@ pub unsafe fn silk_CNG(
             );
 
             /* Convert CNG NLSF to filter representation */
-            silk_NLSF2A(a_q12.as_mut_ptr(), (*ps_cng).cng_smth_nlsf_q15.as_ptr(), (*ps_dec).lpc_order);
+            silk_nlsf2a(a_q12.as_mut_ptr(), (*ps_cng).cng_smth_nlsf_q15.as_ptr(), (*ps_dec).lpc_order);
 
             /* Generate CNG signal, by synthesis filtering */
             core::ptr::copy_nonoverlapping((*ps_cng).cng_synth_state.as_ptr(), cng_sig_q10.as_mut_ptr(), MAX_LPC_ORDER);

@@ -161,11 +161,10 @@ pub unsafe fn unquant_coarse_energy(
                 let q: OpusVal32 = shl32(extend32(qi as OpusVal16), DB_SHIFT);
 
                 *old_ebands.add(i + c * nb_ebands) = max16(-qconst16(9.0, DB_SHIFT), *old_ebands.add(i + c * nb_ebands));
+                #[allow(unused_mut)]
                 let mut tmp: OpusVal32 = pshr32(mult16_16(coef, *old_ebands.add(i + c * nb_ebands)), 8) + prev[c] + shl32(q, 7);
                 #[cfg(feature = "fixed-point")]
-                {
-                    tmp = max32(-qconst32(28.0, DB_SHIFT + 7), tmp);
-                }
+                let tmp = max32(-qconst32(28.0, DB_SHIFT + 7), tmp);
                 *old_ebands.add(i + c * nb_ebands) = pshr32(tmp, 7) as OpusVal16;
                 prev[c] = prev[c] + shl32(q, 7) - mult16_16(beta, pshr32(q, 8) as OpusVal16);
 
@@ -280,7 +279,7 @@ pub unsafe fn unquant_energy_finalise(
 ///
 /// Computes eBands[i] = 2^(oldEBands[i] + eMeans[i]) / 16 for active bands,
 /// zeroing bands outside [start, end).
-pub unsafe fn log2Amp(
+pub unsafe fn log2amp(
     m: *const CELTMode,
     start: c_int,
     end: c_int,
@@ -314,7 +313,7 @@ pub unsafe fn log2Amp(
 ///
 /// Computes bandLogE[i] = log2(bandE[i] * 4) - eMeans[i] for active bands,
 /// setting inactive bands to -14.0 (Q10).
-pub unsafe fn amp2Log2(
+pub unsafe fn amp2log2(
     m: *const CELTMode,
     eff_end: c_int,
     end: c_int,

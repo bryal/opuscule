@@ -84,7 +84,7 @@ fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i3
 ///
 /// Returns inverse prediction gain in energy domain, Q30.
 /// Returns 0 if the filter is unstable.
-pub fn silk_LPC_inverse_pred_gain(a_q12: *const i16, order: i32) -> i32 {
+pub fn silk_lpc_inverse_pred_gain(a_q12: *const i16, order: i32) -> i32 {
     let mut atmp_qa = [[0i32; SILK_MAX_ORDER_LPC]; 2];
     let anew_qa = &mut atmp_qa[(order & 1) as usize];
 
@@ -107,7 +107,7 @@ pub fn silk_LPC_inverse_pred_gain(a_q12: *const i16, order: i32) -> i32 {
 /// `silk_LPC_inverse_pred_gain_Q24` — for input coefficients in Q24 domain.
 ///
 /// Only used by the fixed-point build.
-pub fn silk_LPC_inverse_pred_gain_Q24(a_q24: *const i32, order: i32) -> i32 {
+pub fn silk_lpc_inverse_pred_gain_q24(a_q24: *const i32, order: i32) -> i32 {
     let mut atmp_qa = [[0i32; SILK_MAX_ORDER_LPC]; 2];
     let anew_qa = &mut atmp_qa[(order & 1) as usize];
 

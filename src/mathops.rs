@@ -6,8 +6,6 @@
 // celt_cos_norm, celt_rcp, frac_div32) will be translated once the
 // fixed-point arithmetic macros are available in Rust.
 
-use crate::entcode::ec_ilog;
-
 /// Multiplies two 16-bit fractional values. Bit-exactness is important.
 /// Translated from FRAC_MUL16 macro in c/celt/mathops.h.
 #[inline]

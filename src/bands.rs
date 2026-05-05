@@ -493,7 +493,6 @@ pub unsafe fn quant_band(
         let mut recombine = 0;
         let mut inv = 0;
         let mut mid: OpusVal16 = 0 as OpusVal16;
-        let mut side: OpusVal16 = 0 as OpusVal16;
         let mut cm: u32 = 0;
         let imid;
         let iside;
@@ -510,7 +509,6 @@ pub unsafe fn quant_band(
                 if *remaining_bits >= 1 << BITRES {
                     sign = ec_dec_bits(ec, 1);
                     *remaining_bits -= 1 << BITRES as c_int;
-                    b -= 1 << BITRES as c_int;
                 }
                 if resynth {
                     *x_ptr = if sign != 0 { -NORM_SCALING } else { NORM_SCALING };
@@ -669,6 +667,7 @@ pub unsafe fn quant_band(
                 delta = frac_mul16(((n - 1) << 7) as i16, bitexact_log2tan(iside, imid) as i16) as c_int;
             }
 
+            let side;
             #[cfg(feature = "fixed-point")]
             {
                 mid = imid as OpusVal16;
@@ -980,7 +979,6 @@ pub unsafe fn quant_all_bands(
     x_: *mut CeltNorm,
     y_: *mut CeltNorm,
     collapse_masks: *mut u8,
-    band_e: *const CeltEner,
     pulses: *mut c_int,
     short_blocks: c_int,
     spread: c_int,

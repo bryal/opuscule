@@ -18,7 +18,7 @@ static SIGM_LUT_POS_Q15: [i32; 6] = [16384, 23955, 28861, 31213, 32178, 32548];
 static SIGM_LUT_NEG_Q15: [i32; 6] = [16384, 8812, 3906, 1554, 589, 219];
 
 /// `silk_sigm_Q15` — approximate sigmoid, Q15 output for Q5 input.
-pub fn silk_sigm_Q15(in_q5: i32) -> i32 {
+pub fn silk_sigm_q15(in_q5: i32) -> i32 {
     if in_q5 < 0 {
         /* Negative input */
         let in_q5 = -in_q5;

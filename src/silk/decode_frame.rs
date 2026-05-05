@@ -6,8 +6,8 @@
 
 use crate::entcode::ec_dec;
 
-use super::CNG::silk_CNG;
-use super::PLC::{silk_PLC, silk_PLC_glue_frames};
+use super::CNG::silk_cng;
+use super::PLC::{silk_plc, silk_plc_glue_frames};
 use super::decode_core::silk_decode_core;
 use super::decode_indices::silk_decode_indices;
 use super::decode_parameters::silk_decode_parameters;
@@ -59,7 +59,7 @@ pub unsafe fn silk_decode_frame(
             silk_decode_core(ps_dec, &mut s_dec_ctrl, p_out, pulses.as_ptr());
 
             /* Update PLC state */
-            silk_PLC(ps_dec, &mut s_dec_ctrl, p_out, 0);
+            silk_plc(ps_dec, &mut s_dec_ctrl, p_out, 0);
 
             (*ps_dec).loss_cnt = 0;
             (*ps_dec).prev_signal_type = (*ps_dec).indices.signal_type as i32;
@@ -68,7 +68,7 @@ pub unsafe fn silk_decode_frame(
             (*ps_dec).first_frame_after_reset = 0;
         } else {
             /* Handle packet loss by extrapolation */
-            silk_PLC(ps_dec, &mut s_dec_ctrl, p_out, 1);
+            silk_plc(ps_dec, &mut s_dec_ctrl, p_out, 1);
         }
 
         /* Update output buffer. */
@@ -85,10 +85,10 @@ pub unsafe fn silk_decode_frame(
         );
 
         /* Ensure smooth connection of extrapolated and good frames */
-        silk_PLC_glue_frames(ps_dec, p_out, l);
+        silk_plc_glue_frames(ps_dec, p_out, l);
 
         /* Comfort noise generation / estimation */
-        silk_CNG(ps_dec, &mut s_dec_ctrl, p_out, l);
+        silk_cng(ps_dec, &mut s_dec_ctrl, p_out, l);
 
         /* Update some decoder state variables */
         (*ps_dec).lag_prev = s_dec_ctrl.pitch_l[((*ps_dec).nb_subfr - 1) as usize];

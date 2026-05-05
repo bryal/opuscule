@@ -10,8 +10,8 @@ use crate::entdec::ec_dec_icdf;
 use super::code_signs::silk_decode_signs;
 use super::macros::{silk_lshift, silk_smulbb};
 use super::shell_coder::silk_shell_decoder;
-use super::tables_other::silk_lsb_iCDF;
-use super::tables_pulses_per_block::{silk_pulses_per_block_iCDF, silk_rate_levels_iCDF};
+use super::tables_other::SILK_LSB_ICDF;
+use super::tables_pulses_per_block::{SILK_PULSES_PER_BLOCK_ICDF, SILK_RATE_LEVELS_ICDF};
 
 const SHELL_CODEC_FRAME_LENGTH: i32 = 16;
 const LOG2_SHELL_CODEC_FRAME_LENGTH: i32 = 4;
@@ -35,7 +35,7 @@ pub unsafe fn silk_decode_pulses(
         /*********************/
         /* Decode rate level */
         /*********************/
-        let rate_level_index = ec_dec_icdf(ps_range_dec, silk_rate_levels_iCDF[(signal_type >> 1) as usize].as_ptr(), 8);
+        let rate_level_index = ec_dec_icdf(ps_range_dec, SILK_RATE_LEVELS_ICDF[(signal_type >> 1) as usize].as_ptr(), 8);
 
         /* Calculate number of shell blocks */
         /* silk_assert(1 << LOG2_SHELL_CODEC_FRAME_LENGTH == SHELL_CODEC_FRAME_LENGTH); */
@@ -48,7 +48,7 @@ pub unsafe fn silk_decode_pulses(
         /***************************************************/
         /* Sum-Weighted-Pulses Decoding                    */
         /***************************************************/
-        let cdf_ptr = silk_pulses_per_block_iCDF[rate_level_index as usize].as_ptr();
+        let cdf_ptr = SILK_PULSES_PER_BLOCK_ICDF[rate_level_index as usize].as_ptr();
         let mut i = 0i32;
         while i < iter {
             n_lshifts[i as usize] = 0;
@@ -60,7 +60,7 @@ pub unsafe fn silk_decode_pulses(
                 /* When we've already got 10 LSBs, we shift the table to not allow (MAX_PULSES + 1) */
                 sum_pulses[i as usize] = ec_dec_icdf(
                     ps_range_dec,
-                    silk_pulses_per_block_iCDF[N_RATE_LEVELS - 1].as_ptr().offset((n_lshifts[i as usize] == 10) as isize),
+                    SILK_PULSES_PER_BLOCK_ICDF[N_RATE_LEVELS - 1].as_ptr().offset((n_lshifts[i as usize] == 10) as isize),
                     8,
                 );
             }
@@ -102,7 +102,7 @@ pub unsafe fn silk_decode_pulses(
                     let mut j = 0i32;
                     while j < n_ls {
                         abs_q = silk_lshift(abs_q, 1);
-                        abs_q += ec_dec_icdf(ps_range_dec, silk_lsb_iCDF.as_ptr(), 8);
+                        abs_q += ec_dec_icdf(ps_range_dec, SILK_LSB_ICDF.as_ptr(), 8);
                         j += 1;
                     }
                     *pulses_ptr.offset(k as isize) = abs_q;

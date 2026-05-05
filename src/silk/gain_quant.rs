@@ -23,13 +23,7 @@ const INV_SCALE_Q16: i32 = (65536 * (((MAX_QGAIN_DB - MIN_QGAIN_DB) * 128) / 6))
 
 /// `silk_gains_quant` — quantize gain values (encoder-side, but also used in
 /// the decoder for gain parameter handling).
-pub unsafe fn silk_gains_quant(
-    ind: *mut i8,
-    gain_q16: *mut i32,
-    prev_ind: *mut i8,
-    conditional: i32,
-    nb_subfr: i32,
-) {
+pub unsafe fn silk_gains_quant(ind: *mut i8, gain_q16: *mut i32, prev_ind: *mut i8, conditional: i32, nb_subfr: i32) {
     unsafe {
         let mut k = 0;
         while k < nb_subfr {
@@ -84,13 +78,7 @@ pub unsafe fn silk_gains_quant(
 }
 
 /// `silk_gains_dequant` — dequantize gain indices back to linear Q16 gains.
-pub unsafe fn silk_gains_dequant(
-    gain_q16: *mut i32,
-    ind: *const i8,
-    prev_ind: *mut i8,
-    conditional: i32,
-    nb_subfr: i32,
-) {
+pub unsafe fn silk_gains_dequant(gain_q16: *mut i32, ind: *const i8, prev_ind: *mut i8, conditional: i32, nb_subfr: i32) {
     unsafe {
         let mut k = 0;
         while k < nb_subfr {
@@ -119,7 +107,7 @@ pub unsafe fn silk_gains_dequant(
 }
 
 /// `silk_gains_ID` — compute a unique identifier for a gain index vector.
-pub unsafe fn silk_gains_ID(ind: *const i8, nb_subfr: i32) -> i32 {
+pub unsafe fn silk_gains_id(ind: *const i8, nb_subfr: i32) -> i32 {
     unsafe {
         let mut gains_id: i32 = 0;
         let mut k = 0;

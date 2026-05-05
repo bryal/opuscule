@@ -5,26 +5,22 @@
 //! decode stages consume: gains, LPC prediction coefs (with optional
 //! interpolated first half), pitch lags, LTP coefs, and LTP scale.
 
-use super::NLSF_decode::silk_NLSF_decode;
-use super::NLSF2A::silk_NLSF2A;
+use super::NLSF_decode::silk_nlsf_decode;
+use super::NLSF2A::silk_nlsf2a;
 use super::bwexpander::silk_bwexpander;
 use super::decode_pitch::silk_decode_pitch;
 use super::gain_quant::silk_gains_dequant;
 use super::macros::silk_lshift;
 use super::structs::{LTP_ORDER, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
-use super::tables_ltp::silk_LTP_vq_ptrs_Q7;
-use super::tables_other::silk_LTPScales_table_Q14;
+use super::tables_ltp::SILK_LTP_VQ_PTRS_Q7;
+use super::tables_other::SILK_LTP_SCALES_TABLE_Q14;
 
 const CODE_CONDITIONALLY: i32 = 2;
 const TYPE_VOICED: i32 = 2;
 const BWE_AFTER_LOSS_Q16: i32 = 63570;
 
 /// `silk_decode_parameters` — decode parameters from payload.
-pub unsafe fn silk_decode_parameters(
-    ps_dec: *mut SilkDecoderState,
-    ps_dec_ctrl: *mut SilkDecoderControl,
-    cond_coding: i32,
-) {
+pub unsafe fn silk_decode_parameters(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, cond_coding: i32) {
     unsafe {
         let mut p_nlsf_q15 = [0i16; MAX_LPC_ORDER];
         let mut p_nlsf0_q15 = [0i16; MAX_LPC_ORDER];
@@ -41,10 +37,10 @@ pub unsafe fn silk_decode_parameters(
         /****************/
         /* Decode NLSFs */
         /****************/
-        silk_NLSF_decode(p_nlsf_q15.as_mut_ptr(), (*ps_dec).indices.nlsf_indices.as_mut_ptr(), (*ps_dec).ps_nlsf_cb);
+        silk_nlsf_decode(p_nlsf_q15.as_mut_ptr(), (*ps_dec).indices.nlsf_indices.as_mut_ptr(), (*ps_dec).ps_nlsf_cb);
 
         /* Convert NLSF parameters to AR prediction filter coefficients */
-        silk_NLSF2A((*ps_dec_ctrl).pred_coef_q12[1].as_mut_ptr(), p_nlsf_q15.as_ptr(), (*ps_dec).lpc_order);
+        silk_nlsf2a((*ps_dec_ctrl).pred_coef_q12[1].as_mut_ptr(), p_nlsf_q15.as_ptr(), (*ps_dec).lpc_order);
 
         /* If just reset, e.g., because internal Fs changed, do not allow interpolation */
         /* improves the case of packet loss in the first frame after a switch           */
@@ -65,7 +61,7 @@ pub unsafe fn silk_decode_parameters(
             }
 
             /* Convert NLSF parameters to AR prediction filter coefficients */
-            silk_NLSF2A((*ps_dec_ctrl).pred_coef_q12[0].as_mut_ptr(), p_nlsf0_q15.as_ptr(), (*ps_dec).lpc_order);
+            silk_nlsf2a((*ps_dec_ctrl).pred_coef_q12[0].as_mut_ptr(), p_nlsf0_q15.as_ptr(), (*ps_dec).lpc_order);
         } else {
             /* Copy LPC coefficients for first half from second half */
             core::ptr::copy_nonoverlapping(
@@ -98,7 +94,7 @@ pub unsafe fn silk_decode_parameters(
             );
 
             /* Decode Codebook Index */
-            let cbk_ptr_q7 = silk_LTP_vq_ptrs_Q7[(*ps_dec).indices.per_index as usize] as *const i8;
+            let cbk_ptr_q7 = SILK_LTP_VQ_PTRS_Q7[(*ps_dec).indices.per_index as usize] as *const i8;
 
             let mut k = 0i32;
             while k < (*ps_dec).nb_subfr {
@@ -116,7 +112,7 @@ pub unsafe fn silk_decode_parameters(
             /* Decode LTP scaling */
             /**********************/
             let ix = (*ps_dec).indices.ltp_scale_index as usize;
-            (*ps_dec_ctrl).ltp_scale_q14 = silk_LTPScales_table_Q14[ix] as i32;
+            (*ps_dec_ctrl).ltp_scale_q14 = SILK_LTP_SCALES_TABLE_Q14[ix] as i32;
         } else {
             core::ptr::write_bytes((*ps_dec_ctrl).pitch_l.as_mut_ptr(), 0, (*ps_dec).nb_subfr as usize);
             core::ptr::write_bytes(

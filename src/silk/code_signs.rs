@@ -5,7 +5,7 @@
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_icdf;
 
-use super::tables_pulses_per_block::silk_sign_iCDF;
+use super::tables_pulses_per_block::SILK_SIGN_ICDF;
 
 const SHELL_CODEC_FRAME_LENGTH: i32 = 16;
 const LOG2_SHELL_CODEC_FRAME_LENGTH: i32 = 4;
@@ -24,7 +24,7 @@ pub unsafe fn silk_decode_signs(
         icdf[1] = 0;
         let mut q_ptr = pulses;
         let i = 7 * (quant_offset_type + (signal_type << 1));
-        let icdf_ptr = silk_sign_iCDF.as_ptr().offset(i as isize);
+        let icdf_ptr = SILK_SIGN_ICDF.as_ptr().offset(i as isize);
         let length = (length + SHELL_CODEC_FRAME_LENGTH / 2) >> LOG2_SHELL_CODEC_FRAME_LENGTH;
         let mut i = 0;
         while i < length {

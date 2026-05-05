@@ -4,8 +4,8 @@
 //! sub-state. Called from `silk_Decoder`'s per-channel setup and again
 //! from `silk_decoder_set_fs` when the internal sample rate changes.
 
-use super::CNG::silk_CNG_Reset;
-use super::PLC::silk_PLC_Reset;
+use super::CNG::silk_cng_reset;
+use super::PLC::silk_plc_reset;
 use super::structs::SilkDecoderState;
 
 /// `silk_init_decoder` — initialise the decoder state struct.
@@ -19,10 +19,10 @@ pub unsafe fn silk_init_decoder(ps_dec: *mut SilkDecoderState) -> i32 {
         (*ps_dec).prev_gain_q16 = 65536;
 
         /* Reset CNG state */
-        silk_CNG_Reset(ps_dec);
+        silk_cng_reset(ps_dec);
 
         /* Reset PLC state */
-        silk_PLC_Reset(ps_dec);
+        silk_plc_reset(ps_dec);
 
         0
     }

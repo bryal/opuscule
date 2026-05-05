@@ -3,7 +3,7 @@
 //! Reconstructs per-subframe pitch lags from the coded lag index and
 //! contour index using the pitch estimation codebook tables.
 
-use super::pitch_est_tables::{silk_CB_lags_stage2, silk_CB_lags_stage2_10_ms, silk_CB_lags_stage3, silk_CB_lags_stage3_10_ms};
+use super::pitch_est_tables::{SILK_CB_LAGS_STAGE2, SILK_CB_LAGS_STAGE2_10_MS, SILK_CB_LAGS_STAGE3, SILK_CB_LAGS_STAGE3_10_MS};
 
 // Constants from pitch_est_defines.h
 const PE_MAX_NB_SUBFR: i32 = 4;
@@ -15,25 +15,19 @@ const PE_MIN_LAG_MS: i32 = 2;
 const PE_MAX_LAG_MS: i32 = 18;
 
 /// `silk_decode_pitch` — decode pitch lags from lag index + contour index.
-pub unsafe fn silk_decode_pitch(
-    lag_index: i16,
-    contour_index: i8,
-    pitch_lags: *mut i32,
-    fs_khz: i32,
-    nb_subfr: i32,
-) {
+pub unsafe fn silk_decode_pitch(lag_index: i16, contour_index: i8, pitch_lags: *mut i32, fs_khz: i32, nb_subfr: i32) {
     unsafe {
         let (lag_cb_ptr, cbk_size): (*const i8, i32) = if fs_khz == 8 {
             if nb_subfr == PE_MAX_NB_SUBFR {
-                (silk_CB_lags_stage2.as_ptr() as *const i8, PE_NB_CBKS_STAGE2_EXT)
+                (SILK_CB_LAGS_STAGE2.as_ptr() as *const i8, PE_NB_CBKS_STAGE2_EXT)
             } else {
-                (silk_CB_lags_stage2_10_ms.as_ptr() as *const i8, PE_NB_CBKS_STAGE2_10MS)
+                (SILK_CB_LAGS_STAGE2_10_MS.as_ptr() as *const i8, PE_NB_CBKS_STAGE2_10MS)
             }
         } else {
             if nb_subfr == PE_MAX_NB_SUBFR {
-                (silk_CB_lags_stage3.as_ptr() as *const i8, PE_NB_CBKS_STAGE3_MAX)
+                (SILK_CB_LAGS_STAGE3.as_ptr() as *const i8, PE_NB_CBKS_STAGE3_MAX)
             } else {
-                (silk_CB_lags_stage3_10_ms.as_ptr() as *const i8, PE_NB_CBKS_STAGE3_10MS)
+                (SILK_CB_LAGS_STAGE3_10_MS.as_ptr() as *const i8, PE_NB_CBKS_STAGE3_10MS)
             }
         };
 

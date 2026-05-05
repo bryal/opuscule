@@ -13,7 +13,7 @@ use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf, ec_dec_init, ec_d
 use crate::mdct::{MdctLookup, clt_mdct_backward};
 use crate::modes::{CELTMode, opus_custom_mode_create};
 use crate::pitch::{pitch_downsample, pitch_search};
-use crate::quant_bands::{log2Amp, unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
+use crate::quant_bands::{log2amp, unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
 use crate::rate::compute_allocation;
 use crate::vq::renormalise_vector;
 
@@ -208,8 +208,6 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
         }
         let lpc = (*st).lpc.as_mut_ptr();
         let old_band_e = (*st).old_band_e.as_mut_ptr();
-        let old_log_e = (*st).old_log_e.as_mut_ptr();
-        let old_log_e2 = (*st).old_log_e2.as_mut_ptr();
         let background_log_e = (*st).background_log_e.as_mut_ptr();
 
         out_syn[0] = out_mem[0].add((MAX_PERIOD - n) as usize);
@@ -233,7 +231,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             let mut band_e = vec![0 as CeltEner; ((*(*st).mode).nb_ebands * cc) as usize];
 
             if (*st).loss_count >= 5 {
-                log2Amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), background_log_e, cc);
+                log2amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), background_log_e, cc);
             } else {
                 // Energy decay
                 let decay: OpusVal16 = if (*st).loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
@@ -247,7 +245,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                         break;
                     }
                 }
-                log2Amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), old_band_e, cc);
+                log2amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), old_band_e, cc);
             }
             seed = (*st).rng;
             for c in 0..cc {
@@ -330,7 +328,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             loop {
                 let mut exc = [0 as OpusVal16; MAX_PERIOD as usize];
                 let mut ac = [0 as OpusVal32; (LPC_ORDER + 1) as usize];
-                let mut decay: OpusVal16 = 1 as OpusVal16;
+                let mut decay: OpusVal16;
                 let mut s1: OpusVal32 = 0 as OpusVal32;
                 let mut mem = [0 as OpusVal16; LPC_ORDER as usize];
 
@@ -556,7 +554,6 @@ pub unsafe fn celt_decode_with_ec(
 ) -> c_int {
     unsafe {
         let mut c: c_int;
-        let mut i: c_int;
         let cc = (*st).channels;
         let mut out_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
         let mut decode_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
@@ -576,7 +573,6 @@ pub unsafe fn celt_decode_with_ec(
                 break;
             }
         }
-        let lpc = (*st).lpc.as_mut_ptr();
         let old_band_e = (*st).old_band_e.as_mut_ptr();
         let old_log_e = (*st).old_log_e.as_mut_ptr();
         let old_log_e2 = (*st).old_log_e2.as_mut_ptr();
@@ -785,7 +781,6 @@ pub unsafe fn celt_decode_with_ec(
             x.as_mut_ptr(),
             if c_channels == 2 { x.as_mut_ptr().add(n as usize) } else { std::ptr::null_mut() },
             collapse_masks.as_mut_ptr(),
-            std::ptr::null_mut(),
             pulses.as_mut_ptr(),
             short_blocks,
             spread_decision,
@@ -835,7 +830,7 @@ pub unsafe fn celt_decode_with_ec(
             );
         }
 
-        log2Amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), old_band_e, c_channels);
+        log2amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), old_band_e, c_channels);
 
         if silence != 0 {
             for ii in 0..(c_channels * (*(*st).mode).nb_ebands) as usize {
@@ -1072,14 +1067,7 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-pub unsafe fn tf_decode(
-    start: c_int,
-    end: c_int,
-    is_transient: c_int,
-    tf_res: *mut c_int,
-    lm: c_int,
-    dec: *mut ec_ctx,
-) {
+pub unsafe fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: *mut c_int, lm: c_int, dec: *mut ec_ctx) {
     unsafe {
         let budget = (*dec).storage as u32 * 8;
         let mut tell = ec_tell(&*dec) as u32;
@@ -1318,8 +1306,6 @@ const CELT_GET_AND_CLEAR_ERROR_REQUEST: c_int = 10007;
 const CELT_SET_CHANNELS_REQUEST: c_int = 10008;
 const CELT_GET_MODE_REQUEST: c_int = 10015;
 const CELT_SET_SIGNALLING_REQUEST: c_int = 10016;
-
-const OPUS_UNIMPLEMENTED: c_int = -5;
 
 /// FFI-safe tagged enum for CELT decoder CTL requests.
 ///

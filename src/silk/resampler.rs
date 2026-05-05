@@ -8,13 +8,13 @@
 use core::ffi::c_void;
 
 use super::macros::{silk_lshift, silk_smulww};
-use super::resampler_private_IIR_FIR::silk_resampler_private_IIR_FIR;
-use super::resampler_private_down_FIR::silk_resampler_private_down_FIR;
-use super::resampler_private_up2_HQ::silk_resampler_private_up2_HQ_wrapper;
+use super::resampler_private_IIR_FIR::silk_resampler_private_iir_fir;
+use super::resampler_private_down_FIR::silk_resampler_private_down_fir;
+use super::resampler_private_up2_HQ::silk_resampler_private_up2_hq_wrapper;
 use super::resampler_rom::{
-    RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2, silk_Resampler_1_2_COEFS,
-    silk_Resampler_1_3_COEFS, silk_Resampler_1_4_COEFS, silk_Resampler_1_6_COEFS, silk_Resampler_2_3_COEFS,
-    silk_Resampler_3_4_COEFS,
+    RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2, SILK_RESAMPLER_1_2_COEFS,
+    SILK_RESAMPLER_1_3_COEFS, SILK_RESAMPLER_1_4_COEFS, SILK_RESAMPLER_1_6_COEFS, SILK_RESAMPLER_2_3_COEFS,
+    SILK_RESAMPLER_3_4_COEFS,
 };
 use super::structs::SilkResamplerStateStruct;
 
@@ -50,12 +50,7 @@ const USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR: i32 = 3;
 
 /// `silk_resampler_init` — initialise/reset resampler state for a given
 /// pair of input/output sampling rates.
-pub unsafe fn silk_resampler_init(
-    s: *mut SilkResamplerStateStruct,
-    fs_hz_in: i32,
-    fs_hz_out: i32,
-    for_enc: i32,
-) -> i32 {
+pub unsafe fn silk_resampler_init(s: *mut SilkResamplerStateStruct, fs_hz_in: i32, fs_hz_out: i32, for_enc: i32) -> i32 {
     unsafe {
         /* Clear state */
         core::ptr::write_bytes(s, 0, 1);
@@ -101,27 +96,27 @@ pub unsafe fn silk_resampler_init(
             if fs_hz_out * 4 == fs_hz_in * 3 {
                 (*s).fir_fracs = 3;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
-                (*s).coefs = silk_Resampler_3_4_COEFS.as_ptr();
+                (*s).coefs = SILK_RESAMPLER_3_4_COEFS.as_ptr();
             } else if fs_hz_out * 3 == fs_hz_in * 2 {
                 (*s).fir_fracs = 2;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
-                (*s).coefs = silk_Resampler_2_3_COEFS.as_ptr();
+                (*s).coefs = SILK_RESAMPLER_2_3_COEFS.as_ptr();
             } else if fs_hz_out * 2 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR1 as i32;
-                (*s).coefs = silk_Resampler_1_2_COEFS.as_ptr();
+                (*s).coefs = SILK_RESAMPLER_1_2_COEFS.as_ptr();
             } else if fs_hz_out * 3 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = silk_Resampler_1_3_COEFS.as_ptr();
+                (*s).coefs = SILK_RESAMPLER_1_3_COEFS.as_ptr();
             } else if fs_hz_out * 4 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = silk_Resampler_1_4_COEFS.as_ptr();
+                (*s).coefs = SILK_RESAMPLER_1_4_COEFS.as_ptr();
             } else if fs_hz_out * 6 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = silk_Resampler_1_6_COEFS.as_ptr();
+                (*s).coefs = SILK_RESAMPLER_1_6_COEFS.as_ptr();
             } else {
                 /* None available */
                 return -1;
@@ -159,16 +154,16 @@ pub unsafe fn silk_resampler(s: *mut SilkResamplerStateStruct, out: *mut i16, in
 
         match (*s).resampler_function {
             x if x == USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER => {
-                silk_resampler_private_up2_HQ_wrapper(ss, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_up2_HQ_wrapper(ss, out_tail, in_tail, tail_len);
+                silk_resampler_private_up2_hq_wrapper(ss, out, delay_buf_ptr, (*s).fs_in_khz);
+                silk_resampler_private_up2_hq_wrapper(ss, out_tail, in_tail, tail_len);
             }
             x if x == USE_SILK_RESAMPLER_PRIVATE_IIR_FIR => {
-                silk_resampler_private_IIR_FIR(ss, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_IIR_FIR(ss, out_tail, in_tail, tail_len);
+                silk_resampler_private_iir_fir(ss, out, delay_buf_ptr, (*s).fs_in_khz);
+                silk_resampler_private_iir_fir(ss, out_tail, in_tail, tail_len);
             }
             x if x == USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR => {
-                silk_resampler_private_down_FIR(ss, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_down_FIR(ss, out_tail, in_tail, tail_len);
+                silk_resampler_private_down_fir(ss, out, delay_buf_ptr, (*s).fs_in_khz);
+                silk_resampler_private_down_fir(ss, out_tail, in_tail, tail_len);
             }
             _ => {
                 core::ptr::copy_nonoverlapping(delay_buf_ptr, out, (*s).fs_in_khz as usize);

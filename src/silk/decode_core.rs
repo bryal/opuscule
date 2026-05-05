@@ -5,14 +5,14 @@
 //! subframes, runs LPC synthesis with per-subframe gain matching, and
 //! writes the reconstructed speech into `xq`.
 
-use super::lpc_analysis_filter::silk_LPC_analysis_filter;
+use super::lpc_analysis_filter::silk_lpc_analysis_filter;
 use super::macros::{
     silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,
 };
 use super::structs::{
     LTP_ORDER, MAX_FRAME_LENGTH, MAX_LPC_ORDER, MAX_NB_SUBFR, MAX_SUB_FRAME_LENGTH, SilkDecoderControl, SilkDecoderState,
 };
-use super::tables_other::silk_Quantization_Offsets_Q10;
+use super::tables_other::SILK_QUANTIZATION_OFFSETS_Q10;
 
 const QUANT_LEVEL_ADJUST_Q10: i32 = 80;
 const TYPE_VOICED: i32 = 2;
@@ -31,7 +31,7 @@ pub unsafe fn silk_decode_core(
         let mut res_q14 = [0i32; MAX_SUB_FRAME_LENGTH];
         let mut s_lpc_q14 = [0i32; MAX_SUB_FRAME_LENGTH + MAX_LPC_ORDER];
 
-        let offset_q10 = silk_Quantization_Offsets_Q10[((*ps_dec).indices.signal_type as usize) >> 1]
+        let offset_q10 = SILK_QUANTIZATION_OFFSETS_Q10[((*ps_dec).indices.signal_type as usize) >> 1]
             [(*ps_dec).indices.quant_offset_type as usize] as i32;
 
         let nlsf_interpolation_flag: i32 = if ((*ps_dec).indices.nlsf_interp_coef_q2 as i32) < (1 << 2) { 1 } else { 0 };
@@ -122,7 +122,7 @@ pub unsafe fn silk_decode_core(
                         );
                     }
 
-                    silk_LPC_analysis_filter(
+                    silk_lpc_analysis_filter(
                         s_ltp.as_mut_ptr().offset(start_idx as isize),
                         (*ps_dec).out_buf.as_ptr().offset((start_idx + k * (*ps_dec).subfr_length) as isize),
                         a_q12,

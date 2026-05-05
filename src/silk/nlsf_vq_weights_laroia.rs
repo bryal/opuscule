@@ -7,7 +7,7 @@ const NLSF_W_Q: i32 = 2;
 /// `silk_NLSF_VQ_weights_laroia` — compute per-coefficient VQ weights for
 /// an NLSF vector. The weights are inversely proportional to the inter-
 /// coefficient spacing, so narrow gaps get higher weight.
-pub unsafe fn silk_NLSF_VQ_weights_laroia(p_nlsfw_q_out: *mut i16, p_nlsf_q15: *const i16, d: i32) {
+pub unsafe fn silk_nlsf_vq_weights_laroia(p_nlsfw_q_out: *mut i16, p_nlsf_q15: *const i16, d: i32) {
     unsafe {
         /* First value */
         let mut tmp1_int = (*p_nlsf_q15.offset(0) as i32).max(1);

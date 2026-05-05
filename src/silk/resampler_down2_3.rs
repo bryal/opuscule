@@ -3,8 +3,8 @@
 //! Low-quality 2/3 fractional downsampler used by some narrow-band paths.
 
 use super::macros::{silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
-use super::resampler_private_AR2::silk_resampler_private_AR2;
-use super::resampler_rom::silk_Resampler_2_3_COEFS_LQ;
+use super::resampler_private_AR2::silk_resampler_private_ar2;
+use super::resampler_rom::SILK_RESAMPLER_2_3_COEFS_LQ;
 
 const ORDER_FIR: usize = 4;
 
@@ -23,18 +23,18 @@ pub unsafe fn silk_resampler_down2_3(s: *mut i32, out: *mut i16, in_: *const i16
         let mut in_ = in_;
         let mut out = out;
         let mut in_len = in_len;
-        let mut n_samples_in = 0i32;
+        let mut n_samples_in;
 
         /* Iterate over blocks of frameSizeIn input samples */
         loop {
             n_samples_in = in_len.min(RESAMPLER_MAX_BATCH_SIZE_IN as i32);
 
             /* Second-order AR filter (output in Q8) */
-            silk_resampler_private_AR2(
+            silk_resampler_private_ar2(
                 s.offset(ORDER_FIR as isize),
                 buf.as_mut_ptr().offset(ORDER_FIR as isize),
                 in_,
-                silk_Resampler_2_3_COEFS_LQ.as_ptr(),
+                SILK_RESAMPLER_2_3_COEFS_LQ.as_ptr(),
                 n_samples_in,
             );
 
@@ -43,19 +43,19 @@ pub unsafe fn silk_resampler_down2_3(s: *mut i32, out: *mut i16, in_: *const i16
             let mut counter = n_samples_in;
             while counter > 2 {
                 /* Inner product */
-                let mut res_q6 = silk_smulwb(*buf_ptr.offset(0), silk_Resampler_2_3_COEFS_LQ[2] as i32);
-                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(1), silk_Resampler_2_3_COEFS_LQ[3] as i32);
-                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2), silk_Resampler_2_3_COEFS_LQ[5] as i32);
-                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3), silk_Resampler_2_3_COEFS_LQ[4] as i32);
+                let mut res_q6 = silk_smulwb(*buf_ptr.offset(0), SILK_RESAMPLER_2_3_COEFS_LQ[2] as i32);
+                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(1), SILK_RESAMPLER_2_3_COEFS_LQ[3] as i32);
+                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2), SILK_RESAMPLER_2_3_COEFS_LQ[5] as i32);
+                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3), SILK_RESAMPLER_2_3_COEFS_LQ[4] as i32);
 
                 /* Scale down, saturate and store in output array */
                 *out = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
                 out = out.offset(1);
 
-                let mut res_q6 = silk_smulwb(*buf_ptr.offset(1), silk_Resampler_2_3_COEFS_LQ[4] as i32);
-                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2), silk_Resampler_2_3_COEFS_LQ[5] as i32);
-                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3), silk_Resampler_2_3_COEFS_LQ[3] as i32);
-                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(4), silk_Resampler_2_3_COEFS_LQ[2] as i32);
+                let mut res_q6 = silk_smulwb(*buf_ptr.offset(1), SILK_RESAMPLER_2_3_COEFS_LQ[4] as i32);
+                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2), SILK_RESAMPLER_2_3_COEFS_LQ[5] as i32);
+                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3), SILK_RESAMPLER_2_3_COEFS_LQ[3] as i32);
+                res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(4), SILK_RESAMPLER_2_3_COEFS_LQ[2] as i32);
 
                 /* Scale down, saturate and store in output array */
                 *out = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;

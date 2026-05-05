@@ -8,8 +8,8 @@
 //! into the first good frame after loss.
 
 use super::bwexpander::silk_bwexpander;
-use super::lpc_analysis_filter::silk_LPC_analysis_filter;
-use super::lpc_inv_pred_gain::silk_LPC_inverse_pred_gain;
+use super::lpc_analysis_filter::silk_lpc_analysis_filter;
+use super::lpc_inv_pred_gain::silk_lpc_inverse_pred_gain;
 use super::macros::{
     silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulbb, silk_smulwb,
     silk_smulww,
@@ -37,7 +37,7 @@ const LOG2_INV_LPC_GAIN_LOW_THRES: i32 = 8;
 const PITCH_DRIFT_FAC_Q16: i32 = 655;
 
 /// `silk_PLC_Reset` — initialize PLC state after an fs_kHz change.
-pub unsafe fn silk_PLC_Reset(ps_dec: *mut SilkDecoderState) {
+pub unsafe fn silk_plc_reset(ps_dec: *mut SilkDecoderState) {
     unsafe {
         (*ps_dec).s_plc.pitch_l_q8 = silk_lshift((*ps_dec).frame_length, 8 - 1);
         (*ps_dec).s_plc.prev_gain_q16[0] = 1 << 16;
@@ -48,29 +48,24 @@ pub unsafe fn silk_PLC_Reset(ps_dec: *mut SilkDecoderState) {
 }
 
 /// `silk_PLC` — PLC control function.
-pub unsafe fn silk_PLC(
-    ps_dec: *mut SilkDecoderState,
-    ps_dec_ctrl: *mut SilkDecoderControl,
-    frame: *mut i16,
-    lost: i32,
-) {
+pub unsafe fn silk_plc(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, frame: *mut i16, lost: i32) {
     unsafe {
         if (*ps_dec).fs_khz != (*ps_dec).s_plc.fs_khz {
-            silk_PLC_Reset(ps_dec);
+            silk_plc_reset(ps_dec);
             (*ps_dec).s_plc.fs_khz = (*ps_dec).fs_khz;
         }
 
         if lost != 0 {
-            silk_PLC_conceal(ps_dec, ps_dec_ctrl, frame);
+            silk_plc_conceal(ps_dec, ps_dec_ctrl, frame);
             (*ps_dec).loss_cnt += 1;
         } else {
-            silk_PLC_update(ps_dec, ps_dec_ctrl);
+            silk_plc_update(ps_dec, ps_dec_ctrl);
         }
     }
 }
 
 /// Update state of PLC.
-unsafe fn silk_PLC_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl) {
+unsafe fn silk_plc_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl) {
     unsafe {
         let ps_plc = &raw mut (*ps_dec).s_plc;
 
@@ -116,8 +111,7 @@ unsafe fn silk_PLC_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkD
                 let scale_q10 = tmp / ltp_gain_q14.max(1);
                 let mut i = 0;
                 while i < LTP_ORDER {
-                    (*ps_plc).ltp_coef_q14[i] =
-                        (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q10) >> 10) as i16;
+                    (*ps_plc).ltp_coef_q14[i] = (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q10) >> 10) as i16;
                     i += 1;
                 }
             } else if ltp_gain_q14 > V_PITCH_GAIN_START_MAX_Q14 {
@@ -125,8 +119,7 @@ unsafe fn silk_PLC_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkD
                 let scale_q14 = tmp / ltp_gain_q14.max(1);
                 let mut i = 0;
                 while i < LTP_ORDER {
-                    (*ps_plc).ltp_coef_q14[i] =
-                        (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q14) >> 14) as i16;
+                    (*ps_plc).ltp_coef_q14[i] = (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q14) >> 14) as i16;
                     i += 1;
                 }
             }
@@ -155,7 +148,7 @@ unsafe fn silk_PLC_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkD
     }
 }
 
-unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, frame: *mut i16) {
+unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, frame: *mut i16) {
     unsafe {
         let mut exc_buf = [0i16; 2 * MAX_SUB_FRAME_LENGTH];
         let mut a_q12 = [0i16; MAX_LPC_ORDER];
@@ -238,7 +231,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
                 rand_scale_q14 = (silk_smulbb(rand_scale_q14 as i32, (*ps_plc).prev_ltp_scale_q14 as i32) >> 14) as i16;
             } else {
                 /* Reduce random noise for unvoiced frames with high LPC gain */
-                let inv_gain_q30 = silk_LPC_inverse_pred_gain((*ps_plc).prev_lpc_q12.as_ptr(), (*ps_dec).lpc_order);
+                let inv_gain_q30 = silk_lpc_inverse_pred_gain((*ps_plc).prev_lpc_q12.as_ptr(), (*ps_dec).lpc_order);
 
                 let mut down_scale_q30 = ((1 << 30) >> LOG2_INV_LPC_GAIN_HIGH_THRES).min(inv_gain_q30);
                 down_scale_q30 = ((1 << 30) >> LOG2_INV_LPC_GAIN_LOW_THRES).max(down_scale_q30);
@@ -254,7 +247,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
 
         /* Rewhiten LTP state */
         let idx = (*ps_dec).ltp_mem_length - lag - (*ps_dec).lpc_order - LTP_ORDER as i32 / 2;
-        silk_LPC_analysis_filter(
+        silk_lpc_analysis_filter(
             s_ltp.as_mut_ptr().offset(idx as isize),
             (*ps_dec).out_buf.as_ptr().offset(idx as isize),
             a_q12.as_ptr(),
@@ -374,7 +367,7 @@ unsafe fn silk_PLC_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
 }
 
 /// `silk_PLC_glue_frames` — glue concealed frames with the next good frame.
-pub unsafe fn silk_PLC_glue_frames(ps_dec: *mut SilkDecoderState, frame: *mut i16, length: i32) {
+pub unsafe fn silk_plc_glue_frames(ps_dec: *mut SilkDecoderState, frame: *mut i16, length: i32) {
     unsafe {
         let ps_plc = &raw mut (*ps_dec).s_plc;
 

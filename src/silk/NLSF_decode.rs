@@ -7,9 +7,9 @@
 //! constraints.
 
 use super::macros::{silk_limit_int, silk_lshift, silk_smlawb, silk_smulbb};
-use super::nlsf_stabilize::silk_NLSF_stabilize;
-use super::nlsf_unpack::silk_NLSF_unpack;
-use super::nlsf_vq_weights_laroia::silk_NLSF_VQ_weights_laroia;
+use super::nlsf_stabilize::silk_nlsf_stabilize;
+use super::nlsf_unpack::silk_nlsf_unpack;
+use super::nlsf_vq_weights_laroia::silk_nlsf_vq_weights_laroia;
 use super::sqrt_approx::silk_sqrt_approx;
 use super::structs::SilkNlsfCbStruct;
 
@@ -19,7 +19,7 @@ const NLSF_W_Q: i32 = 2;
 const NLSF_QUANT_LEVEL_ADJ_Q10: i32 = (0.1 * (1u32 << 10) as f64 + 0.5) as i32;
 
 /// Predictive dequantizer for NLSF residuals.
-unsafe fn silk_NLSF_residual_dequant(
+unsafe fn silk_nlsf_residual_dequant(
     x_q10: *mut i16,
     indices: *const i8,
     pred_coef_q8: *const u8,
@@ -45,7 +45,7 @@ unsafe fn silk_NLSF_residual_dequant(
 }
 
 /// `silk_NLSF_decode` — NLSF vector decoder.
-pub unsafe fn silk_NLSF_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: *const SilkNlsfCbStruct) {
+pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: *const SilkNlsfCbStruct) {
     unsafe {
         let mut pred_q8 = [0u8; MAX_LPC_ORDER];
         let mut ec_ix = [0i16; MAX_LPC_ORDER];
@@ -63,10 +63,10 @@ pub unsafe fn silk_NLSF_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
         }
 
         /* Unpack entropy table indices and predictor for current CB1 index */
-        silk_NLSF_unpack(ec_ix.as_mut_ptr(), pred_q8.as_mut_ptr(), ps_nlsf_cb, *nlsf_indices.offset(0) as i32);
+        silk_nlsf_unpack(ec_ix.as_mut_ptr(), pred_q8.as_mut_ptr(), ps_nlsf_cb, *nlsf_indices.offset(0) as i32);
 
         /* Predictive residual dequantizer */
-        silk_NLSF_residual_dequant(
+        silk_nlsf_residual_dequant(
             res_q10.as_mut_ptr(),
             nlsf_indices.offset(1),
             pred_q8.as_ptr(),
@@ -75,19 +75,18 @@ pub unsafe fn silk_NLSF_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
         );
 
         /* Weights from codebook vector */
-        silk_NLSF_VQ_weights_laroia(w_tmp_qw.as_mut_ptr(), p_nlsf_q15, order);
+        silk_nlsf_vq_weights_laroia(w_tmp_qw.as_mut_ptr(), p_nlsf_q15, order);
 
         /* Apply inverse square-rooted weights and add to output */
         let mut i = 0i32;
         while i < order {
             let w_tmp_q9 = silk_sqrt_approx(silk_lshift(w_tmp_qw[i as usize] as i32, 18 - NLSF_W_Q));
-            let nlsf_q15_tmp =
-                *p_nlsf_q15.offset(i as isize) as i32 + silk_lshift(res_q10[i as usize] as i32, 14) / w_tmp_q9;
+            let nlsf_q15_tmp = *p_nlsf_q15.offset(i as isize) as i32 + silk_lshift(res_q10[i as usize] as i32, 14) / w_tmp_q9;
             *p_nlsf_q15.offset(i as isize) = silk_limit_int(nlsf_q15_tmp, 0, 32767) as i16;
             i += 1;
         }
 
         /* NLSF stabilization */
-        silk_NLSF_stabilize(p_nlsf_q15, (*ps_nlsf_cb).delta_min_q15, order);
+        silk_nlsf_stabilize(p_nlsf_q15, (*ps_nlsf_cb).delta_min_q15, order);
     }
 }

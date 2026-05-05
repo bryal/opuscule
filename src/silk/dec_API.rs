@@ -15,13 +15,12 @@ use super::decode_frame::silk_decode_frame;
 use super::decode_indices::silk_decode_indices;
 use super::decode_pulses::silk_decode_pulses;
 use super::decoder_set_fs::silk_decoder_set_fs;
-use super::init_decoder::silk_init_decoder;
 use super::macros::{silk_lshift, silk_smulbb};
 use super::resampler::silk_resampler;
 use super::stereo_decode_pred::{silk_stereo_decode_mid_only, silk_stereo_decode_pred};
-use super::stereo_ms_to_lr::silk_stereo_MS_to_LR;
+use super::stereo_ms_to_lr::silk_stereo_ms_to_lr;
 use super::structs::{MAX_FRAMES_PER_PACKET, SilkDecoderState, SilkResamplerStateStruct, StereoDecState};
-use super::tables_other::silk_LBRR_flags_iCDF_ptr;
+use super::tables_other::SILK_LBRR_FLAGS_ICDF_PTR;
 
 const DECODER_NUM_CHANNELS: usize = 2;
 const MAX_API_FS_KHZ: i32 = 48;
@@ -82,7 +81,7 @@ pub struct SilkDecoder {
 }
 
 /// `silk_Get_Decoder_Size` — report sizeof(silk_decoder).
-pub unsafe fn silk_Get_Decoder_Size(dec_size_bytes: *mut c_int) -> c_int {
+pub unsafe fn silk_get_decoder_size(dec_size_bytes: *mut c_int) -> c_int {
     unsafe {
         *dec_size_bytes = core::mem::size_of::<SilkDecoder>() as c_int;
     }
@@ -90,20 +89,20 @@ pub unsafe fn silk_Get_Decoder_Size(dec_size_bytes: *mut c_int) -> c_int {
 }
 
 /// `silk_InitDecoder` — reset the per-channel states.
-pub unsafe fn silk_InitDecoder(dec_state: *mut u8) -> c_int {
+pub unsafe fn silk_init_decoder(dec_state: *mut u8) -> c_int {
     unsafe {
         let ps_dec = dec_state as *mut SilkDecoder;
         let channel_state = (*ps_dec).channel_state.as_mut_ptr();
         let mut ret = SILK_NO_ERROR;
         for n in 0..DECODER_NUM_CHANNELS {
-            ret = silk_init_decoder(channel_state.add(n));
+            ret = super::init_decoder::silk_init_decoder(channel_state.add(n));
         }
         ret
     }
 }
 
 /// `silk_Decode` — decode a SILK frame (mono or stereo, normal/LBRR/PLC).
-pub unsafe fn silk_Decode(
+pub unsafe fn silk_decode(
     dec_state: *mut u8,
     dec_control: *mut SilkDecControlStruct,
     lost_flag: i32,
@@ -134,7 +133,7 @@ pub unsafe fn silk_Decode(
 
         /* If Mono -> Stereo transition in bitstream: init state of second channel */
         if (*dec_control).n_channels_internal > (*ps_dec).n_channels_internal {
-            ret += silk_init_decoder(channel_state.add(1));
+            ret += super::init_decoder::silk_init_decoder(channel_state.add(1));
         }
 
         let stereo_to_mono = ((*dec_control).n_channels_internal == 1
@@ -212,7 +211,7 @@ pub unsafe fn silk_Decode(
                     } else {
                         let lbrr_symbol = ec_dec_icdf(
                             ps_range_dec,
-                            silk_LBRR_flags_iCDF_ptr[((*cs).n_frames_per_packet - 2) as usize] as *const u8,
+                            SILK_LBRR_FLAGS_ICDF_PTR[((*cs).n_frames_per_packet - 2) as usize] as *const u8,
                             8,
                         ) + 1;
                         for i in 0..(*cs).n_frames_per_packet as usize {
@@ -329,7 +328,7 @@ pub unsafe fn silk_Decode(
 
         if (*dec_control).n_channels_api == 2 && (*dec_control).n_channels_internal == 2 {
             /* Convert Mid/Side to Left/Right */
-            silk_stereo_MS_to_LR(
+            silk_stereo_ms_to_lr(
                 &raw mut (*ps_dec).s_stereo,
                 samples_out1_tmp[0].as_mut_ptr(),
                 samples_out1_tmp[1].as_mut_ptr(),
@@ -348,8 +347,7 @@ pub unsafe fn silk_Decode(
         }
 
         /* Number of output samples */
-        *n_samples_out =
-            n_samples_out_dec * (*dec_control).api_sample_rate / silk_smulbb((*channel_state).fs_khz, 1000);
+        *n_samples_out = n_samples_out_dec * (*dec_control).api_sample_rate / silk_smulbb((*channel_state).fs_khz, 1000);
 
         /* Set up pointers to temp buffers */
         let resample_out_ptr = if (*dec_control).n_channels_api == 2 { samples_out2_tmp.as_mut_ptr() } else { samples_out };
@@ -416,7 +414,7 @@ pub unsafe fn silk_Decode(
 }
 
 /// `silk_get_TOC` — extract per-packet VAD / inband-FEC flags.
-pub unsafe fn silk_get_TOC(
+pub unsafe fn silk_get_toc(
     payload: *const u8,
     n_bytes_in: i32,
     n_frames_per_payload: i32,

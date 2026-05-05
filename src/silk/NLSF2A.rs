@@ -12,9 +12,9 @@
 //! that was found to maximize numerical accuracy.
 
 use super::bwexpander_32::silk_bwexpander_32;
-use super::lpc_inv_pred_gain::silk_LPC_inverse_pred_gain;
+use super::lpc_inv_pred_gain::silk_lpc_inverse_pred_gain;
 use super::macros::{silk_lshift, silk_rshift_round, silk_rshift_round64, silk_sat16, silk_smull};
-use super::table_lsf_cos::silk_LSFCosTab_FIX_Q12;
+use super::table_lsf_cos::SILK_LSF_COS_TAB_FIX_Q12;
 
 const QA: i32 = 16;
 
@@ -30,7 +30,7 @@ const SC_BASE_Q16: i32 = (0.999 * (1u32 << 16) as f64 + 0.5) as i32;
 
 /// `silk_NLSF2A_find_poly` — build a polynomial by recursive convolution.
 #[inline]
-unsafe fn silk_NLSF2A_find_poly(out: *mut i32, c_lsf: *const i32, dd: i32) {
+unsafe fn silk_nlsf2a_find_poly(out: *mut i32, c_lsf: *const i32, dd: i32) {
     unsafe {
         *out.offset(0) = silk_lshift(1, QA);
         *out.offset(1) = -*c_lsf.offset(0);
@@ -52,7 +52,7 @@ unsafe fn silk_NLSF2A_find_poly(out: *mut i32, c_lsf: *const i32, dd: i32) {
 }
 
 /// `silk_NLSF2A` — compute LPC whitening filter coefficients from NLSFs.
-pub unsafe fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) {
+pub unsafe fn silk_nlsf2a(a_q12: *mut i16, nlsf: *const i16, d: i32) {
     unsafe {
         /* This ordering was found to maximize quality. It improves numerical
          * accuracy of silk_NLSF2A_find_poly() compared to "standard" ordering. */
@@ -84,20 +84,19 @@ pub unsafe fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) {
             let _ = LSF_COS_TAB_SZ_FIX;
 
             /* Read start and end value from table */
-            let cos_val = silk_LSFCosTab_FIX_Q12[f_int as usize] as i32; /* Q12 */
-            let delta = silk_LSFCosTab_FIX_Q12[(f_int + 1) as usize] as i32 - cos_val; /* Q12, range 0..200 */
+            let cos_val = SILK_LSF_COS_TAB_FIX_Q12[f_int as usize] as i32; /* Q12 */
+            let delta = SILK_LSF_COS_TAB_FIX_Q12[(f_int + 1) as usize] as i32 - cos_val; /* Q12, range 0..200 */
 
             /* Linear interpolation */
-            cos_lsf_qa[ordering[k as usize] as usize] =
-                silk_rshift_round(silk_lshift(cos_val, 8) + delta * f_frac, 20 - QA); /* QA */
+            cos_lsf_qa[ordering[k as usize] as usize] = silk_rshift_round(silk_lshift(cos_val, 8) + delta * f_frac, 20 - QA); /* QA */
             k += 1;
         }
 
         let dd = d >> 1;
 
         /* generate even and odd polynomials using convolution */
-        silk_NLSF2A_find_poly(p_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(0), dd);
-        silk_NLSF2A_find_poly(q_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(1), dd);
+        silk_nlsf2a_find_poly(p_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(0), dd);
+        silk_nlsf2a_find_poly(q_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(1), dd);
 
         /* convert even and odd polynomials to opus_int32 Q12 filter coefs */
         let mut k = 0i32;
@@ -157,7 +156,7 @@ pub unsafe fn silk_NLSF2A(a_q12: *mut i16, nlsf: *const i16, d: i32) {
 
         let mut i = 0i32;
         while i < MAX_LPC_STABILIZE_ITERATIONS {
-            if silk_LPC_inverse_pred_gain(a_q12, d) < ONE_OVER_MAX_PREDICTION_POWER_GAIN_Q30 {
+            if silk_lpc_inverse_pred_gain(a_q12, d) < ONE_OVER_MAX_PREDICTION_POWER_GAIN_Q30 {
                 /* Prediction coefficients are (too close to) unstable; apply bandwidth expansion on
                  * the unscaled coefficients, convert to Q12 and measure again */
                 silk_bwexpander_32(a32_qa1.as_mut_ptr(), d, 65536 - silk_lshift(2, i));

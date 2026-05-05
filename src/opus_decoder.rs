@@ -9,10 +9,7 @@
 use std::os::raw::c_int;
 
 use crate::arch::*;
-use crate::celt::{
-    CELTDecoder, CeltDecCtl, DECODE_BUFFER_SIZE, OpusCustomDecoder, celt_decode_with_ec, celt_decoder_ctl,
-    celt_decoder_get_size, celt_decoder_init,
-};
+use crate::celt::{CELTDecoder, CeltDecCtl, celt_decode_with_ec, celt_decoder_ctl, celt_decoder_get_size, celt_decoder_init};
 use crate::entcode::ec_ctx;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::modes::CELTMode;
@@ -20,7 +17,7 @@ use crate::packet::{
     opus_packet_get_bandwidth, opus_packet_get_mode, opus_packet_get_nb_channels, opus_packet_get_nb_frames,
     opus_packet_get_samples_per_frame, opus_packet_parse_impl,
 };
-use crate::silk::dec_API::{SilkDecControlStruct, silk_Decode, silk_Get_Decoder_Size, silk_InitDecoder};
+use crate::silk::dec_API::{SilkDecControlStruct, silk_decode, silk_get_decoder_size, silk_init_decoder};
 
 // -- Constants --
 
@@ -29,7 +26,6 @@ const OPUS_BAD_ARG: c_int = -1;
 const OPUS_BUFFER_TOO_SMALL: c_int = -2;
 const OPUS_INTERNAL_ERROR: c_int = -3;
 const OPUS_INVALID_PACKET: c_int = -4;
-const OPUS_UNIMPLEMENTED: c_int = -5;
 const OPUS_ALLOC_FAIL: c_int = -7;
 
 const MODE_SILK_ONLY: c_int = 1000;
@@ -108,7 +104,7 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
         return 0;
     }
     let mut silk_dec_size_bytes: c_int = 0;
-    let ret = unsafe { silk_Get_Decoder_Size(&mut silk_dec_size_bytes) };
+    let ret = unsafe { silk_get_decoder_size(&mut silk_dec_size_bytes) };
     if ret != 0 {
         return 0;
     }
@@ -128,7 +124,7 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
         std::ptr::write_bytes(st as *mut u8, 0, total_size);
 
         let mut silk_dec_size_bytes: c_int = 0;
-        let ret = silk_Get_Decoder_Size(&mut silk_dec_size_bytes);
+        let ret = silk_get_decoder_size(&mut silk_dec_size_bytes);
         if ret != 0 {
             return OPUS_INTERNAL_ERROR;
         }
@@ -145,7 +141,7 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
         (*st).dec_control.api_sample_rate = fs;
         (*st).dec_control.n_channels_api = channels;
 
-        let ret = silk_InitDecoder(silk_dec);
+        let ret = silk_init_decoder(silk_dec);
         if ret != 0 {
             return OPUS_INTERNAL_ERROR;
         }
@@ -275,12 +271,12 @@ unsafe fn opus_decode_frame(
         let silk_dec = silk_dec_ptr(st);
         let celt_dec = celt_dec_ptr(st);
         let mut i: c_int;
-        let mut silk_ret: c_int = 0;
+        let mut silk_ret: c_int;
         let mut celt_ret: c_int = 0;
         let mut dec: ec_ctx = std::mem::zeroed();
         let mut silk_frame_size: i32 = 0;
 
-        let mut audiosize: c_int;
+        let audiosize: c_int;
         let mode: c_int;
         let mut transition: c_int = 0;
         let start_band: c_int;
@@ -385,7 +381,7 @@ unsafe fn opus_decode_frame(
             let mut pcm_ptr = pcm_silk;
 
             if (*st).prev_mode == MODE_CELT_ONLY {
-                silk_InitDecoder(silk_dec);
+                silk_init_decoder(silk_dec);
             }
 
             // The SILK PLC cannot produce frames of less than 10 ms
@@ -414,7 +410,7 @@ unsafe fn opus_decode_frame(
             loop {
                 // Call SILK decoder
                 let first_frame = if decoded_samples == 0 { 1 } else { 0 };
-                silk_ret = silk_Decode(
+                silk_ret = silk_decode(
                     silk_dec,
                     &mut (*st).dec_control,
                     lost_flag,
@@ -830,7 +826,7 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
                 let total = opus_decoder_get_size((*st).channels) as usize;
                 std::ptr::write_bytes((st as *mut u8).add(reset_start), 0, total - reset_start);
                 celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
-                silk_InitDecoder(silk_dec);
+                silk_init_decoder(silk_dec);
                 (*st).stream_channels = (*st).channels;
                 (*st).frame_size = (*st).fs / 400;
             }

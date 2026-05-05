@@ -8,7 +8,7 @@ use super::structs::StereoDecState;
 const STEREO_INTERP_LEN_MS: i32 = 8;
 
 /// `silk_stereo_MS_to_LR` — convert mid/side to left/right stereo.
-pub unsafe fn silk_stereo_MS_to_LR(
+pub unsafe fn silk_stereo_ms_to_lr(
     state: *mut StereoDecState,
     x1: *mut i16,
     x2: *mut i16,

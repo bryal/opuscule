@@ -14,14 +14,12 @@ use std::os::raw::c_int;
 
 use crate::entcode::{BITRES, ec_ctx};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_uint};
-use crate::modes::{CELTMode, PulseCache};
+use crate::modes::CELTMode;
 
 // -- Constants from rate.h --
 
 const MAX_FINE_BITS: i32 = 8;
 const FINE_OFFSET: i32 = 21;
-const QTHETA_OFFSET: i32 = 4;
-const QTHETA_OFFSET_TWOPHASE: i32 = 16;
 const ALLOC_STEPS: i32 = 6;
 const LOG_MAX_PSEUDO: i32 = 6;
 
