@@ -567,7 +567,7 @@ unsafe fn opus_decode_frame(
         {
             let mut celt_mode: *const CELTMode = std::ptr::null();
             celt_decoder_ctl(celt_dec, CeltDecCtl::GetMode(&mut celt_mode));
-            window = (*celt_mode).window;
+            window = (*celt_mode).window.as_ptr();
         }
 
         // 5 ms redundant frame for SILK->CELT

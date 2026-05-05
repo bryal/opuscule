@@ -20,34 +20,29 @@ use crate::static_modes_float::*;
 
 /// Pulse cache (precomputed bit allocation data).
 /// Matches C's PulseCache in modes.h.
-#[repr(C)]
 pub struct PulseCache {
     pub size: c_int,
-    pub index: *const i16,
-    pub bits: *const u8,
-    pub caps: *const u8,
+    pub index: &'static [i16],
+    pub bits: &'static [u8],
+    pub caps: &'static [u8],
 }
-
-// Safety: PulseCache contains only pointers to static data.
-unsafe impl Sync for PulseCache {}
 
 /// The mode definition struct.
 /// C name: `struct OpusCustomMode`; `CELTMode` is a typedef alias.
-#[repr(C)]
 pub struct OpusCustomMode {
     pub fs: i32,
     pub overlap: c_int,
     pub nb_ebands: c_int,
     pub eff_ebands: c_int,
     pub preemph: [OpusVal16; 4],
-    pub ebands: *const i16,
+    pub ebands: &'static [i16],
     pub max_lm: c_int,
     pub nb_short_mdcts: c_int,
     pub short_mdct_size: c_int,
     pub nb_alloc_vectors: c_int,
-    pub alloc_vectors: *const u8,
-    pub log_n: *const i16,
-    pub window: *const OpusVal16,
+    pub alloc_vectors: &'static [u8],
+    pub log_n: &'static [i16],
+    pub window: &'static [OpusVal16],
     pub mdct: MdctLookup,
     pub cache: PulseCache,
 }
@@ -55,7 +50,7 @@ pub struct OpusCustomMode {
 /// Matches `typedef struct OpusCustomMode CELTMode` in modes.h.
 pub type CELTMode = OpusCustomMode;
 
-// Safety: OpusCustomMode contains only pointers to static data.
+// Safety: OpusCustomMode contains raw pointers in MdctLookup which point to static data.
 unsafe impl Sync for OpusCustomMode {}
 
 // ---------------------------------------------------------------------------
@@ -183,14 +178,14 @@ static MODE_48000_960_120: CELTMode = CELTMode {
     nb_ebands: 21,
     eff_ebands: 21,
     preemph: PREEMPH,
-    ebands: EBAND_5MS.as_ptr(),
+    ebands: &EBAND_5MS,
     max_lm: 3,
     nb_short_mdcts: 8,
     short_mdct_size: 120,
     nb_alloc_vectors: 11,
-    alloc_vectors: BAND_ALLOCATION.as_ptr(),
-    log_n: LOG_N400.as_ptr(),
-    window: WINDOW120.as_ptr(),
+    alloc_vectors: &BAND_ALLOCATION,
+    log_n: &LOG_N400,
+    window: &WINDOW120,
     mdct: MdctLookup {
         n: 1920,
         maxshift: 3,
@@ -202,7 +197,7 @@ static MODE_48000_960_120: CELTMode = CELTMode {
         ],
         trig: MDCT_TWIDDLES960.as_ptr(),
     },
-    cache: PulseCache { size: 392, index: CACHE_INDEX50.as_ptr(), bits: CACHE_BITS50.as_ptr(), caps: CACHE_CAPS50.as_ptr() },
+    cache: PulseCache { size: 392, index: &CACHE_INDEX50, bits: &CACHE_BITS50, caps: &CACHE_CAPS50 },
 };
 
 // ---------------------------------------------------------------------------

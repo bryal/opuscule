@@ -249,12 +249,12 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             }
             seed = (*st).rng;
             for c in 0..cc {
-                for i in 0..(*(*(*st).mode).ebands.add((*st).start as usize) as c_int) << lm {
+                for i in 0..((*(*st).mode).ebands[(*st).start as usize] as c_int) << lm {
                     x[(c * n + i) as usize] = 0 as CeltNorm;
                 }
                 for i in (*st).start..(*(*st).mode).eff_ebands {
-                    let boffs = (n * c + ((*(*(*st).mode).ebands.add(i as usize)) << lm) as c_int) as usize;
-                    let blen = (((*(*(*st).mode).ebands.add(i as usize + 1)) - (*(*(*st).mode).ebands.add(i as usize))) << lm)
+                    let boffs = (n * c + ((*(*st).mode).ebands[i as usize] << lm) as c_int) as usize;
+                    let blen = (((*(*st).mode).ebands[i as usize + 1] - (*(*st).mode).ebands[i as usize]) << lm)
                         as c_int;
                     for j in 0..blen as usize {
                         seed = celt_lcg_rand(seed);
@@ -262,7 +262,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     }
                     renormalise_vector(x.as_mut_ptr().add(boffs), blen, Q15ONE);
                 }
-                for i in ((*(*(*st).mode).ebands.add((*st).end as usize)) << lm) as c_int..n {
+                for i in ((*(*st).mode).ebands[(*st).end as usize] << lm) as c_int..n {
                     x[(c * n + i) as usize] = 0 as CeltNorm;
                 }
             }
@@ -280,7 +280,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
 
             c = 0;
             loop {
-                for i in 0..((*(*(*st).mode).ebands.add((*st).start as usize)) << lm) as c_int {
+                for i in 0..((*(*st).mode).ebands[(*st).start as usize] << lm) as c_int {
                     freq[(c * n + i) as usize] = 0 as CeltSig;
                 }
                 c += 1;
@@ -290,7 +290,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             }
             c = 0;
             loop {
-                let mut bound = ((*(*(*st).mode).ebands.add(eff_end as usize)) << lm) as c_int;
+                let mut bound = ((*(*st).mode).ebands[eff_end as usize] << lm) as c_int;
                 if (*st).downsample != 1 {
                     bound = bound.min(n / (*st).downsample);
                 }
@@ -343,7 +343,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     _celt_autocorr(
                         exc.as_ptr(),
                         ac.as_mut_ptr(),
-                        (*(*st).mode).window,
+                        (*(*st).mode).window.as_ptr(),
                         (*(*st).mode).overlap,
                         LPC_ORDER,
                         MAX_PERIOD,
@@ -482,12 +482,12 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                 // previous and next frames
                 for i in 0..overlap / 2 {
                     let tmp: OpusVal32 =
-                        mult16_32_q15(*(*(*st).mode).window.add(i as usize), e[(n + overlap - 1 - i) as usize])
-                            + mult16_32_q15(*(*(*st).mode).window.add((overlap - i - 1) as usize), e[(n + i) as usize]);
+                        mult16_32_q15((*(*st).mode).window[i as usize], e[(n + overlap - 1 - i) as usize])
+                            + mult16_32_q15((*(*st).mode).window[(overlap - i - 1) as usize], e[(n + i) as usize]);
                     *out_mem[c as usize].add((MAX_PERIOD + i) as usize) =
-                        mult16_32_q15(*(*(*st).mode).window.add((overlap - i - 1) as usize), tmp);
+                        mult16_32_q15((*(*st).mode).window[(overlap - i - 1) as usize], tmp);
                     *out_mem[c as usize].add((MAX_PERIOD + overlap - i - 1) as usize) =
-                        mult16_32_q15(*(*(*st).mode).window.add(i as usize), tmp);
+                        mult16_32_q15((*(*st).mode).window[i as usize], tmp);
                 }
                 for i in 0..n {
                     *out_mem[c as usize].add((MAX_PERIOD - n + i) as usize) = e[i as usize];
@@ -610,7 +610,7 @@ pub unsafe fn celt_decode_with_ec(
 
         c = 0;
         loop {
-            for ii in 0..m * *(*(*st).mode).ebands.add((*st).start as usize) as c_int {
+            for ii in 0..m * (*(*st).mode).ebands[(*st).start as usize] as c_int {
                 x[(c * n + ii) as usize] = 0 as CeltNorm;
             }
             c += 1;
@@ -620,7 +620,7 @@ pub unsafe fn celt_decode_with_ec(
         }
         c = 0;
         loop {
-            for ii in m * *(*(*st).mode).ebands.add(eff_end as usize) as c_int..n {
+            for ii in m * (*(*st).mode).ebands[eff_end as usize] as c_int..n {
                 x[(c * n + ii) as usize] = 0 as CeltNorm;
             }
             c += 1;
@@ -717,7 +717,7 @@ pub unsafe fn celt_decode_with_ec(
         tell = ec_tell_frac(dec) as i32;
         for ii in (*st).start..(*st).end {
             let width = (c_channels
-                * (*(*(*st).mode).ebands.add(ii as usize + 1) - *(*(*st).mode).ebands.add(ii as usize)) as c_int)
+                * ((*(*st).mode).ebands[ii as usize + 1] - (*(*st).mode).ebands[ii as usize]) as c_int)
                 << lm;
             let quanta = (width << BITRES).min((6i32 << BITRES).max(width));
             let mut dynalloc_loop_logp = dynalloc_logp;
@@ -849,7 +849,7 @@ pub unsafe fn celt_decode_with_ec(
 
         c = 0;
         loop {
-            for ii in 0..m * *(*(*st).mode).ebands.add((*st).start as usize) as c_int {
+            for ii in 0..m * (*(*st).mode).ebands[(*st).start as usize] as c_int {
                 freq[(c * n + ii) as usize] = 0 as CeltSig;
             }
             c += 1;
@@ -859,7 +859,7 @@ pub unsafe fn celt_decode_with_ec(
         }
         c = 0;
         loop {
-            let mut bound = m * *(*(*st).mode).ebands.add(eff_end as usize) as c_int;
+            let mut bound = m * (*(*st).mode).ebands[eff_end as usize] as c_int;
             if (*st).downsample != 1 {
                 bound = bound.min(n / (*st).downsample);
             }
@@ -905,7 +905,7 @@ pub unsafe fn celt_decode_with_ec(
                 (*st).postfilter_gain,
                 (*st).postfilter_tapset_old,
                 (*st).postfilter_tapset,
-                (*(*st).mode).window,
+                (*(*st).mode).window.as_ptr(),
                 (*st).overlap,
             );
             if lm != 0 {
@@ -919,7 +919,7 @@ pub unsafe fn celt_decode_with_ec(
                     postfilter_gain,
                     (*st).postfilter_tapset,
                     postfilter_tapset,
-                    (*(*st).mode).window,
+                    (*(*st).mode).window.as_ptr(),
                     (*(*st).mode).overlap,
                 );
             }
@@ -1106,9 +1106,9 @@ pub unsafe fn init_caps(m: *const CELTMode, cap: *mut c_int, lm: c_int, c: c_int
     unsafe {
         let mode = &*m;
         for i in 0..mode.nb_ebands as usize {
-            let n = ((*mode.ebands.add(i + 1) - *mode.ebands.add(i)) as c_int) << lm;
+            let n = ((mode.ebands[i + 1] - mode.ebands[i]) as c_int) << lm;
             *cap.add(i) =
-                (*mode.cache.caps.add(mode.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i) as c_int + 64) * c * n
+                (mode.cache.caps[mode.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n
                     >> 2;
         }
     }
@@ -1156,7 +1156,7 @@ pub unsafe fn compute_inv_mdcts(
                     &mode.mdct as *const MdctLookup,
                     x.add((b + c * n2 * b_count) as usize),
                     x_buf.add((n2 * b) as usize),
-                    mode.window,
+                    mode.window.as_ptr(),
                     overlap,
                     if short_blocks != 0 { mode.max_lm } else { mode.max_lm - lm },
                     b_count,

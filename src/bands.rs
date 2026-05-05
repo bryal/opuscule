@@ -55,15 +55,15 @@ pub unsafe fn denormalise_bands(
             let x_base = x.add((c * n) as usize);
             for i in 0..end as usize {
                 let g = shr32(*band_e.add(i + (c as usize) * mode.nb_ebands as usize), 1);
-                let j_start = (m_factor * (*ebands.add(i) as c_int)) as usize;
-                let band_end = (m_factor * (*ebands.add(i + 1) as c_int)) as usize;
+                let j_start = (m_factor * (ebands[i] as c_int)) as usize;
+                let band_end = (m_factor * (ebands[i + 1] as c_int)) as usize;
                 for j in j_start..band_end {
                     *f_base.add(j) = shl32(mult16_32_q15(*x_base.add(j), g), 2);
                 }
             }
 
             // Zero above the coded bandwidth
-            let zero_start = (m_factor * (*ebands.add(end as usize) as c_int)) as usize;
+            let zero_start = (m_factor * (ebands[end as usize] as c_int)) as usize;
             for i in zero_start..n as usize {
                 *f_base.add(i) = 0 as CeltSig;
             }
@@ -342,9 +342,9 @@ pub unsafe fn anti_collapse(
 
         for i in start..end {
             let i = i as usize;
-            let n0 = (*mode.ebands.add(i + 1) - *mode.ebands.add(i)) as c_int;
+            let n0 = (mode.ebands[i + 1] - mode.ebands[i]) as c_int;
             // depth in 1/8 bits
-            let depth = (1 + *pulses.add(i)) / (((*mode.ebands.add(i + 1) - *mode.ebands.add(i)) as c_int) << lm);
+            let depth = (1 + *pulses.add(i)) / (((mode.ebands[i + 1] - mode.ebands[i]) as c_int) << lm);
 
             #[cfg(feature = "fixed-point")]
             let (thresh, sqrt_1, shift): (OpusVal16, OpusVal16, i32);
@@ -410,7 +410,7 @@ pub unsafe fn anti_collapse(
                     r = rv * sqrt_1;
                 }
 
-                let x_ptr = x_.add(c as usize * size as usize + ((*mode.ebands.add(i) as c_int) << lm) as usize);
+                let x_ptr = x_.add(c as usize * size as usize + ((mode.ebands[i] as c_int) << lm) as usize);
                 let mut renormalize = 0;
                 for k in 0..1 << lm {
                     // Detect collapse
@@ -571,7 +571,7 @@ pub unsafe fn quant_band(
         n_b0 = n_b;
 
         // If we need 1.5 more bit than we can produce, split the band in two.
-        let cache = mode.cache.bits.add((*mode.cache.index.add(((lm + 1) * mode.nb_ebands + i) as usize)) as usize);
+        let cache = mode.cache.bits.as_ptr().add(mode.cache.index[((lm + 1) * mode.nb_ebands + i) as usize] as usize);
         if stereo == 0 && lm != -1 && b > (*cache.add(*cache as usize)) as c_int + 12 && n > 2 {
             n >>= 1;
             y = x.add(n as usize);
@@ -594,7 +594,7 @@ pub unsafe fn quant_band(
             let orig_fill;
 
             // Decide on the resolution to give to the split parameter theta
-            pulse_cap = (*mode.log_n.add(i as usize)) as c_int + lm * (1 << BITRES as c_int);
+            pulse_cap = mode.log_n[i as usize] as c_int + lm * (1 << BITRES as c_int);
             offset = (pulse_cap >> 1) - if stereo != 0 && n == 2 { QTHETA_OFFSET_TWOPHASE } else { QTHETA_OFFSET };
             let qn = compute_qn(n, b, offset, pulse_cap, stereo);
             let qn_val = if stereo != 0 && i >= intensity { 1 } else { qn };
@@ -1002,14 +1002,14 @@ pub unsafe fn quant_all_bands(
         let b_blocks = if short_blocks != 0 { big_m } else { 1 };
         let c = if !y_.is_null() { 2 } else { 1 };
 
-        let norm_size = (c * big_m * (*ebands.add(mode.nb_ebands as usize)) as c_int) as usize;
+        let norm_size = (c * big_m * ebands[mode.nb_ebands as usize] as c_int) as usize;
         let scratch_size = (big_m
-            * ((*ebands.add(mode.nb_ebands as usize)) as c_int - (*ebands.add((mode.nb_ebands - 1) as usize)) as c_int))
+            * (ebands[mode.nb_ebands as usize] as c_int - ebands[(mode.nb_ebands - 1) as usize] as c_int))
             as usize;
         let mut norm_buf = vec![0 as CeltNorm; norm_size];
         let mut scratch_buf = vec![0 as CeltNorm; scratch_size];
         let norm = norm_buf.as_mut_ptr();
-        let norm2 = norm.add((big_m * (*ebands.add(mode.nb_ebands as usize)) as c_int) as usize);
+        let norm2 = norm.add((big_m * ebands[mode.nb_ebands as usize] as c_int) as usize);
         let lowband_scratch = scratch_buf.as_mut_ptr();
 
         let mut remaining_bits: i32;
@@ -1020,10 +1020,10 @@ pub unsafe fn quant_all_bands(
 
         for i in start..end {
             let i_u = i as usize;
-            let x = x_.add((big_m * (*ebands.add(i_u)) as c_int) as usize);
+            let x = x_.add((big_m * ebands[i_u] as c_int) as usize);
             let y_ptr =
-                if !y_.is_null() { y_.add((big_m * (*ebands.add(i_u)) as c_int) as usize) } else { std::ptr::null_mut() };
-            let n = big_m * (*ebands.add(i_u + 1)) as c_int - big_m * (*ebands.add(i_u)) as c_int;
+                if !y_.is_null() { y_.add((big_m * ebands[i_u] as c_int) as usize) } else { std::ptr::null_mut() };
+            let n = big_m * ebands[i_u + 1] as c_int - big_m * ebands[i_u] as c_int;
             let tell = ec_tell_frac(ec) as i32;
 
             if i != start {
@@ -1039,7 +1039,7 @@ pub unsafe fn quant_all_bands(
             }
 
             if resynth
-                && big_m * (*ebands.add(i_u)) as c_int - n >= big_m * (*ebands.add(start as usize)) as c_int
+                && big_m * ebands[i_u] as c_int - n >= big_m * ebands[start as usize] as c_int
                 && (update_lowband != 0 || lowband_offset == 0)
             {
                 lowband_offset = i;
@@ -1053,19 +1053,19 @@ pub unsafe fn quant_all_bands(
             let mut x_cm: u32;
             let mut y_cm: u32;
             if lowband_offset != 0 && (spread != SPREAD_AGGRESSIVE || b_blocks > 1 || tf_change < 0) {
-                let effective_lowband = (big_m * (*ebands.add(start as usize)) as c_int)
-                    .max(big_m * (*ebands.add(lowband_offset as usize)) as c_int - n);
+                let effective_lowband = (big_m * ebands[start as usize] as c_int)
+                    .max(big_m * ebands[lowband_offset as usize] as c_int - n);
                 let mut fold_start = lowband_offset;
                 loop {
                     fold_start -= 1;
-                    if big_m * (*ebands.add(fold_start as usize)) as c_int <= effective_lowband {
+                    if big_m * ebands[fold_start as usize] as c_int <= effective_lowband {
                         break;
                     }
                 }
                 let mut fold_end = lowband_offset - 1;
                 loop {
                     fold_end += 1;
-                    if big_m * (*ebands.add(fold_end as usize)) as c_int >= effective_lowband + n {
+                    if big_m * ebands[fold_end as usize] as c_int >= effective_lowband + n {
                         break;
                     }
                 }
@@ -1084,8 +1084,8 @@ pub unsafe fn quant_all_bands(
                 // Now actually do the folding
                 if dual_stereo != 0 && i == intensity {
                     dual_stereo = 0;
-                    for j in (big_m * (*ebands.add(start as usize)) as c_int) as usize
-                        ..(big_m * (*ebands.add(i_u)) as c_int) as usize
+                    for j in (big_m * ebands[start as usize] as c_int) as usize
+                        ..(big_m * ebands[i_u] as c_int) as usize
                     {
                         *norm.add(j) = half32(*norm.add(j) as OpusVal32 + *norm2.add(j) as OpusVal32) as CeltNorm;
                     }
@@ -1108,7 +1108,7 @@ pub unsafe fn quant_all_bands(
                         ec,
                         &mut remaining_bits,
                         lm,
-                        norm.add((big_m * (*ebands.add(i_u)) as c_int) as usize),
+                        norm.add((big_m * ebands[i_u] as c_int) as usize),
                         0,
                         seed,
                         Q15ONE,
@@ -1131,7 +1131,7 @@ pub unsafe fn quant_all_bands(
                         ec,
                         &mut remaining_bits,
                         lm,
-                        norm2.add((big_m * (*ebands.add(i_u)) as c_int) as usize),
+                        norm2.add((big_m * ebands[i_u] as c_int) as usize),
                         0,
                         seed,
                         Q15ONE,
@@ -1155,7 +1155,7 @@ pub unsafe fn quant_all_bands(
                         ec,
                         &mut remaining_bits,
                         lm,
-                        norm.add((big_m * (*ebands.add(i_u)) as c_int) as usize),
+                        norm.add((big_m * ebands[i_u] as c_int) as usize),
                         0,
                         seed,
                         Q15ONE,
@@ -1170,8 +1170,8 @@ pub unsafe fn quant_all_bands(
 
                 if dual_stereo != 0 && i == intensity {
                     dual_stereo = 0;
-                    for j in (big_m * (*ebands.add(start as usize)) as c_int) as usize
-                        ..(big_m * (*ebands.add(i_u)) as c_int) as usize
+                    for j in (big_m * ebands[start as usize] as c_int) as usize
+                        ..(big_m * ebands[i_u] as c_int) as usize
                     {
                         *norm.add(j) = half32(*norm.add(j) as OpusVal32 + *norm2.add(j) as OpusVal32) as CeltNorm;
                     }
@@ -1194,7 +1194,7 @@ pub unsafe fn quant_all_bands(
                         ec,
                         &mut remaining_bits,
                         lm,
-                        norm.add((big_m * (*ebands.add(i_u)) as c_int) as usize),
+                        norm.add((big_m * ebands[i_u] as c_int) as usize),
                         0,
                         seed,
                         Q15ONE,
@@ -1217,7 +1217,7 @@ pub unsafe fn quant_all_bands(
                         ec,
                         &mut remaining_bits,
                         lm,
-                        norm2.add((big_m * (*ebands.add(i_u)) as c_int) as usize),
+                        norm2.add((big_m * ebands[i_u] as c_int) as usize),
                         0,
                         seed,
                         Q15ONE,
@@ -1241,7 +1241,7 @@ pub unsafe fn quant_all_bands(
                         ec,
                         &mut remaining_bits,
                         lm,
-                        norm.add((big_m * (*ebands.add(i_u)) as c_int) as usize),
+                        norm.add((big_m * ebands[i_u] as c_int) as usize),
                         0,
                         seed,
                         Q15ONE,
