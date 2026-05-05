@@ -12,12 +12,11 @@ use crate::kiss_fft::{KissFftCpx, KissFftState, opus_ifft, s_mul};
 use std::os::raw::c_int;
 
 /// mdct_lookup: the MDCT state struct. Matches C's mdct_lookup in mdct.h.
-#[repr(C)]
 pub struct MdctLookup {
     pub n: c_int,
     pub maxshift: c_int,
-    pub kfft: [*const KissFftState; 4],
-    pub trig: *const OpusVal16,
+    pub kfft: [&'static KissFftState; 4],
+    pub trig: &'static [OpusVal16],
 }
 
 /// Inverse MDCT (decoder path).
@@ -74,8 +73,8 @@ pub unsafe fn clt_mdct_backward(
             for i in 0..n4 as usize {
                 let x1 = *xp1;
                 let x2 = *xp2;
-                let t_i = *trig.add(i << shift as usize);
-                let t_ni = *trig.add((n4 as usize - i) << shift as usize);
+                let t_i = trig[i << shift as usize];
+                let t_ni = trig[(n4 as usize - i) << shift as usize];
 
                 let yr = -s_mul(x2, t_i) + s_mul(x1, t_ni);
                 let yi = -s_mul(x2, t_ni) - s_mul(x1, t_i);
@@ -100,8 +99,8 @@ pub unsafe fn clt_mdct_backward(
             for i in 0..n4 as usize {
                 let re = f[2 * i];
                 let im = f[2 * i + 1];
-                let t_i = *trig.add(i << shift as usize);
-                let t_ni = *trig.add((n4 as usize - i) << shift as usize);
+                let t_i = trig[i << shift as usize];
+                let t_ni = trig[(n4 as usize - i) << shift as usize];
 
                 // We'd scale up by 2 here, but instead it's done when mixing the windows
                 let yr = s_mul(re, t_i) - s_mul(im, t_ni);

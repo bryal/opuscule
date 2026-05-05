@@ -50,7 +50,6 @@ pub struct OpusCustomMode {
 /// Matches `typedef struct OpusCustomMode CELTMode` in modes.h.
 pub type CELTMode = OpusCustomMode;
 
-// Safety: OpusCustomMode contains raw pointers in MdctLookup which point to static data.
 unsafe impl Sync for OpusCustomMode {}
 
 // ---------------------------------------------------------------------------
@@ -87,8 +86,8 @@ static FFT_STATE_0: KissFftState = KissFftState {
     scale: 0.002083333,
     shift: -1,
     factors: [4, 120, 4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV480.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV480,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(not(feature = "fixed-point"))]
@@ -97,8 +96,8 @@ static FFT_STATE_1: KissFftState = KissFftState {
     scale: 0.004166667,
     shift: 1,
     factors: [4, 60, 4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV240.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV240,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(not(feature = "fixed-point"))]
@@ -107,8 +106,8 @@ static FFT_STATE_2: KissFftState = KissFftState {
     scale: 0.008333333,
     shift: 2,
     factors: [4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV120.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV120,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(not(feature = "fixed-point"))]
@@ -117,8 +116,8 @@ static FFT_STATE_3: KissFftState = KissFftState {
     scale: 0.016666667,
     shift: 3,
     factors: [4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV60.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV60,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(feature = "fixed-point")]
@@ -126,8 +125,8 @@ static FFT_STATE_0: KissFftState = KissFftState {
     nfft: 480,
     shift: -1,
     factors: [4, 120, 4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV480.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV480,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(feature = "fixed-point")]
@@ -135,8 +134,8 @@ static FFT_STATE_1: KissFftState = KissFftState {
     nfft: 240,
     shift: 1,
     factors: [4, 60, 4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV240.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV240,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(feature = "fixed-point")]
@@ -144,8 +143,8 @@ static FFT_STATE_2: KissFftState = KissFftState {
     nfft: 120,
     shift: 2,
     factors: [4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV120.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV120,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 #[cfg(feature = "fixed-point")]
@@ -153,16 +152,14 @@ static FFT_STATE_3: KissFftState = KissFftState {
     nfft: 60,
     shift: 3,
     factors: [4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    bitrev: FFT_BITREV60.as_ptr(),
-    twiddles: FFT_TWIDDLES48000_960.as_ptr(),
+    bitrev: &FFT_BITREV60,
+    twiddles: &FFT_TWIDDLES48000_960,
 };
 
 // ---------------------------------------------------------------------------
 // The single standard Opus CELTMode
 // ---------------------------------------------------------------------------
 
-// Safety: CELTMode and MdctLookup contain raw pointers to static arrays.
-unsafe impl Sync for MdctLookup {}
 
 /// Float-mode preemphasis coefficients: {0.85000610, 0.0, 1.0, 1.0}
 #[cfg(not(feature = "fixed-point"))]
@@ -189,13 +186,8 @@ static MODE_48000_960_120: CELTMode = CELTMode {
     mdct: MdctLookup {
         n: 1920,
         maxshift: 3,
-        kfft: [
-            &FFT_STATE_0 as *const KissFftState,
-            &FFT_STATE_1 as *const KissFftState,
-            &FFT_STATE_2 as *const KissFftState,
-            &FFT_STATE_3 as *const KissFftState,
-        ],
-        trig: MDCT_TWIDDLES960.as_ptr(),
+        kfft: [&FFT_STATE_0, &FFT_STATE_1, &FFT_STATE_2, &FFT_STATE_3],
+        trig: &MDCT_TWIDDLES960,
     },
     cache: PulseCache { size: 392, index: &CACHE_INDEX50, bits: &CACHE_BITS50, caps: &CACHE_CAPS50 },
 };
