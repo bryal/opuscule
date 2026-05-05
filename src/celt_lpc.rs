@@ -216,6 +216,9 @@ const SIG_SHIFT: i32 = 12;
 mod tests {
     use super::*;
 
+    // --- Float-mode tests ---
+
+    #[cfg(not(feature = "fixed-point"))]
     #[test]
     fn test_celt_fir_identity() {
         // Single-tap FIR with coefficient 1.0 should pass input through
@@ -235,6 +238,7 @@ mod tests {
         assert_eq!(y, [1.0, 3.0, 5.0, 7.0]);
     }
 
+    #[cfg(not(feature = "fixed-point"))]
     #[test]
     fn test_celt_iir_dc() {
         // DC input with zero denominator → output equals input
@@ -249,6 +253,7 @@ mod tests {
         assert_eq!(y, [1.0, 1.0, 1.0, 1.0]);
     }
 
+    #[cfg(not(feature = "fixed-point"))]
     #[test]
     fn test_autocorr_impulse() {
         // Autocorrelation of an impulse: ac[0] should dominate, ac[1..] ≈ 0
@@ -266,6 +271,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "fixed-point"))]
     #[test]
     fn test_autocorr_constant() {
         // Autocorrelation of a constant signal: all lags should be equal
@@ -283,12 +289,12 @@ mod tests {
         assert!((ac[2] - 14.0).abs() < 1e-6);
     }
 
+    #[cfg(not(feature = "fixed-point"))]
     #[test]
     fn test_celt_lpc_from_constant_autocorr() {
         // For a white noise signal, ac = [1, 0, 0, ...] → all LPC coeffs ≈ 0
         let mut ac = [0.0 as OpusVal32; 5];
         ac[0] = 1.0;
-        // ac[1..4] = 0 → no correlation
         let mut lpc = [0.0 as OpusVal16; 4];
 
         unsafe {
@@ -296,6 +302,89 @@ mod tests {
         }
         for i in 0..4 {
             assert!((lpc[i]).abs() < 1e-6, "lpc[{}] = {} should be ~0 for white noise", i, lpc[i]);
+        }
+    }
+
+    // --- Fixed-point tests ---
+    // In fixed-point mode: OpusVal16 = i16, OpusVal32 = i32.
+    // celt_fir: sum = (x[i] as i32) << SIG_SHIFT + num[j]*mem[j]; y[i] = (sum+2048)>>12 as i16
+    // celt_iir: sum = x[i] - den[j]*mem[j]; mem = round16(sum, 12); y[i] = sum
+    // _celt_autocorr: normalizes, then computes dot products, adds +10 bias
+
+    #[cfg(feature = "fixed-point")]
+    #[test]
+    fn test_celt_fir_zero_coeff() {
+        // FIR with zero coefficient: y[i] = round16(x[i] << 12, 12) = x[i]
+        let x: [OpusVal16; 4] = [10, 20, 30, 40];
+        let num: [OpusVal16; 1] = [0];
+        let mut y: [OpusVal16; 4] = [0; 4];
+        let mut mem: [OpusVal16; 1] = [0];
+
+        unsafe {
+            celt_fir(x.as_ptr(), num.as_ptr(), y.as_mut_ptr(), 4, 1, mem.as_mut_ptr());
+        }
+        assert_eq!(y, [10, 20, 30, 40]);
+    }
+
+    #[cfg(feature = "fixed-point")]
+    #[test]
+    fn test_celt_iir_zero_denom() {
+        // IIR with zero denominator: sum = x[i], y[i] = x[i]
+        let x: [OpusVal32; 4] = [1000, 2000, 3000, 4000];
+        let den: [OpusVal16; 1] = [0];
+        let mut y: [OpusVal32; 4] = [0; 4];
+        let mut mem: [OpusVal16; 1] = [0];
+
+        unsafe {
+            celt_iir(x.as_ptr(), den.as_ptr(), y.as_mut_ptr(), 4, 1, mem.as_mut_ptr());
+        }
+        assert_eq!(y, [1000, 2000, 3000, 4000]);
+    }
+
+    #[cfg(feature = "fixed-point")]
+    #[test]
+    fn test_autocorr_zero_input() {
+        // Autocorrelation of all-zero input: only the +10 bias survives
+        let x = [0i16; 64];
+        let mut ac = [0i32; 5];
+
+        unsafe {
+            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 4, 64);
+        }
+        assert_eq!(ac[0], 10);
+        for i in 1..5 {
+            assert_eq!(ac[i], 0, "ac[{}] = {} should be 0", i, ac[i]);
+        }
+    }
+
+    #[cfg(feature = "fixed-point")]
+    #[test]
+    fn test_autocorr_ordering() {
+        // For a constant input, ac[0] >= ac[1] >= ac[2] (decreasing with lag)
+        let x = [100i16; 16];
+        let mut ac = [0i32; 3];
+
+        unsafe {
+            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 2, 16);
+        }
+        assert!(ac[0] > ac[1], "ac[0]={} should exceed ac[1]={}", ac[0], ac[1]);
+        assert!(ac[1] > ac[2], "ac[1]={} should exceed ac[2]={}", ac[1], ac[2]);
+        assert!(ac[2] > 0, "ac[2]={} should be positive", ac[2]);
+    }
+
+    #[cfg(feature = "fixed-point")]
+    #[test]
+    fn test_celt_lpc_white_noise() {
+        // White noise: ac = [large, 0, 0, 0] → all LPC coefficients should be 0
+        let mut ac = [0i32; 5];
+        ac[0] = 32767;
+        let mut lpc = [0i16; 4];
+
+        unsafe {
+            _celt_lpc(lpc.as_mut_ptr(), ac.as_ptr(), 4);
+        }
+        for i in 0..4 {
+            assert_eq!(lpc[i], 0, "lpc[{}] = {} should be 0 for white noise", i, lpc[i]);
         }
     }
 }
