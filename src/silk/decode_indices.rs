@@ -77,14 +77,14 @@ pub unsafe fn silk_decode_indices(
         let nlsf_cb = (*ps_dec).ps_nlsf_cb;
         (*ps_dec).indices.nlsf_indices[0] = ec_dec_icdf(
             ps_range_dec,
-            (*nlsf_cb).cb1_icdf.offset(((((*ps_dec).indices.signal_type as i32) >> 1) * (*nlsf_cb).n_vectors as i32) as isize),
+            (*nlsf_cb).cb1_icdf.as_ptr().add(((((*ps_dec).indices.signal_type as i32) >> 1) * (*nlsf_cb).n_vectors as i32) as usize),
             8,
         ) as i8;
         silk_nlsf_unpack(ec_ix.as_mut_ptr(), pred_q8.as_mut_ptr(), nlsf_cb, (*ps_dec).indices.nlsf_indices[0] as i32);
         /* silk_assert(psDec->psNLSF_CB->order == psDec->LPC_order); */
         let mut i = 0i32;
         while i < (*nlsf_cb).order as i32 {
-            let mut ix = ec_dec_icdf(ps_range_dec, (*nlsf_cb).ec_icdf.offset(ec_ix[i as usize] as isize), 8);
+            let mut ix = ec_dec_icdf(ps_range_dec, (*nlsf_cb).ec_icdf.as_ptr().add(ec_ix[i as usize] as usize), 8);
             if ix == 0 {
                 ix -= ec_dec_icdf(ps_range_dec, SILK_NLSF_EXT_ICDF.as_ptr(), 8);
             } else if ix == 2 * NLSF_QUANT_MAX_AMPLITUDE {
