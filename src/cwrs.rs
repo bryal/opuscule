@@ -14,7 +14,6 @@ use std::os::raw::c_int;
 
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_uint;
-use crate::mathops::isqrt32;
 
 const MASK32: u32 = 0xFFFFFFFF;
 
@@ -210,7 +209,7 @@ fn cwrsi3(k: i32, i: u32, y: &mut [c_int]) {
     i -= p & (s as u32);
     let mut yj = k;
     // Find max k such that ucwrs3(k) <= i.
-    let k = if i > 0 { ((isqrt32(2u32.wrapping_mul(i).wrapping_sub(1)) + 1) >> 1) as i32 } else { 0 };
+    let k = if i > 0 { (((2u32.wrapping_mul(i).wrapping_sub(1)).isqrt() + 1) >> 1) as i32 } else { 0 };
     let p = if k != 0 { ucwrs3(k as u32) } else { 0 };
     i -= p;
     yj -= k;

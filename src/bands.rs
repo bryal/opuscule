@@ -18,7 +18,7 @@ use crate::arch::{celt_exp2, celt_ilog2, celt_zlog2, shl16};
 use crate::arch::{celt_exp2, celt_rsqrt};
 use crate::entcode::{BITRES, ec_ctx, ec_ilog, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_uint, ec_dec_update, ec_decode};
-use crate::mathops::{frac_mul16, isqrt32};
+use crate::mathops::frac_mul16;
 use crate::modes::CELTMode;
 use crate::rate::{bits2pulses, get_pulses, pulses2bits};
 use crate::vq::{alg_unquant, renormalise_vector};
@@ -629,12 +629,12 @@ pub unsafe fn quant_band(
                     let fm = ec_decode(ec, ft);
 
                     if (fm as i32) < ((qn_val >> 1) * ((qn_val >> 1) + 1) >> 1) {
-                        itheta = ((isqrt32(8 * fm + 1) as i32 - 1) >> 1) as c_int;
+                        itheta = (((8 * fm + 1).isqrt() as i32 - 1) >> 1) as c_int;
                         let fs = itheta + 1;
                         let fl = itheta * (itheta + 1) >> 1;
                         ec_dec_update(ec, fl as u32, (fl + fs) as u32, ft);
                     } else {
-                        itheta = ((2 * (qn_val + 1) - isqrt32(8 * (ft - fm - 1) + 1) as i32) >> 1) as c_int;
+                        itheta = ((2 * (qn_val + 1) - (8 * (ft - fm - 1) + 1).isqrt() as i32) >> 1) as c_int;
                         let fs = qn_val + 1 - itheta;
                         let fl = ft as i32 - ((qn_val + 1 - itheta) * (qn_val + 2 - itheta) >> 1);
                         ec_dec_update(ec, fl as u32, (fl + fs) as u32, ft);
