@@ -45,17 +45,17 @@ unsafe fn silk_nlsf_residual_dequant(
 }
 
 /// `silk_NLSF_decode` — NLSF vector decoder.
-pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: *const SilkNlsfCbStruct) {
+pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: &SilkNlsfCbStruct) {
     unsafe {
         let mut pred_q8 = [0u8; MAX_LPC_ORDER];
         let mut ec_ix = [0i16; MAX_LPC_ORDER];
         let mut res_q10 = [0i16; MAX_LPC_ORDER];
         let mut w_tmp_qw = [0i16; MAX_LPC_ORDER];
 
-        let order = (*ps_nlsf_cb).order as i32;
+        let order = ps_nlsf_cb.order as i32;
 
         /* Decode first stage */
-        let p_cb_element = (*ps_nlsf_cb).cb1_nlsf_q8.as_ptr().add((*nlsf_indices.offset(0) as i32 * order) as usize);
+        let p_cb_element = ps_nlsf_cb.cb1_nlsf_q8.as_ptr().add((*nlsf_indices.offset(0) as i32 * order) as usize);
         let mut i = 0i32;
         while i < order {
             *p_nlsf_q15.offset(i as isize) = silk_lshift(*p_cb_element.offset(i as isize) as i16 as i32, 7) as i16;
@@ -70,8 +70,8 @@ pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
             res_q10.as_mut_ptr(),
             nlsf_indices.offset(1),
             pred_q8.as_ptr(),
-            (*ps_nlsf_cb).quant_step_size_q16 as i32,
-            (*ps_nlsf_cb).order,
+            ps_nlsf_cb.quant_step_size_q16 as i32,
+            ps_nlsf_cb.order,
         );
 
         /* Weights from codebook vector */
@@ -87,6 +87,6 @@ pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
         }
 
         /* NLSF stabilization */
-        silk_nlsf_stabilize(p_nlsf_q15, (*ps_nlsf_cb).delta_min_q15.as_ptr(), order);
+        silk_nlsf_stabilize(p_nlsf_q15, ps_nlsf_cb.delta_min_q15.as_ptr(), order);
     }
 }

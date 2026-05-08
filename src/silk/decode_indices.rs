@@ -74,17 +74,17 @@ pub unsafe fn silk_decode_indices(
         /**********************/
         /* Decode LSF Indices */
         /**********************/
-        let nlsf_cb = (*ps_dec).ps_nlsf_cb;
+        let nlsf_cb = (*ps_dec).ps_nlsf_cb.unwrap();
         (*ps_dec).indices.nlsf_indices[0] = ec_dec_icdf(
             ps_range_dec,
-            (*nlsf_cb).cb1_icdf.as_ptr().add(((((*ps_dec).indices.signal_type as i32) >> 1) * (*nlsf_cb).n_vectors as i32) as usize),
+            nlsf_cb.cb1_icdf.as_ptr().add(((((*ps_dec).indices.signal_type as i32) >> 1) * nlsf_cb.n_vectors as i32) as usize),
             8,
         ) as i8;
         silk_nlsf_unpack(ec_ix.as_mut_ptr(), pred_q8.as_mut_ptr(), nlsf_cb, (*ps_dec).indices.nlsf_indices[0] as i32);
         /* silk_assert(psDec->psNLSF_CB->order == psDec->LPC_order); */
         let mut i = 0i32;
-        while i < (*nlsf_cb).order as i32 {
-            let mut ix = ec_dec_icdf(ps_range_dec, (*nlsf_cb).ec_icdf.as_ptr().add(ec_ix[i as usize] as usize), 8);
+        while i < nlsf_cb.order as i32 {
+            let mut ix = ec_dec_icdf(ps_range_dec, nlsf_cb.ec_icdf.as_ptr().add(ec_ix[i as usize] as usize), 8);
             if ix == 0 {
                 ix -= ec_dec_icdf(ps_range_dec, SILK_NLSF_EXT_ICDF.as_ptr(), 8);
             } else if ix == 2 * NLSF_QUANT_MAX_AMPLITUDE {
@@ -121,12 +121,12 @@ pub unsafe fn silk_decode_indices(
                 /* Absolute decoding */
                 (*ps_dec).indices.lag_index =
                     (ec_dec_icdf(ps_range_dec, SILK_PITCH_LAG_ICDF.as_ptr(), 8) as i16) * ((*ps_dec).fs_khz >> 1) as i16;
-                (*ps_dec).indices.lag_index += ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_lag_low_bits_icdf, 8) as i16;
+                (*ps_dec).indices.lag_index += ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_lag_low_bits_icdf.unwrap().as_ptr(), 8) as i16;
             }
             (*ps_dec).ec_prev_lag_index = (*ps_dec).indices.lag_index;
 
             /* Get countour index */
-            (*ps_dec).indices.contour_index = ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_contour_icdf, 8) as i8;
+            (*ps_dec).indices.contour_index = ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_contour_icdf.unwrap().as_ptr(), 8) as i8;
 
             /********************/
             /* Decode LTP gains */

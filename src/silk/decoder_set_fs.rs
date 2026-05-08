@@ -37,32 +37,32 @@ pub unsafe fn silk_decoder_set_fs(ps_dec: *mut SilkDecoderState, fs_khz: i32, fs
         if (*ps_dec).fs_khz != fs_khz || frame_length != (*ps_dec).frame_length {
             if fs_khz == 8 {
                 if (*ps_dec).nb_subfr == MAX_NB_SUBFR as i32 {
-                    (*ps_dec).pitch_contour_icdf = SILK_PITCH_CONTOUR_NB_ICDF.as_ptr();
+                    (*ps_dec).pitch_contour_icdf = Some(&SILK_PITCH_CONTOUR_NB_ICDF);
                 } else {
-                    (*ps_dec).pitch_contour_icdf = SILK_PITCH_CONTOUR_10_MS_NB_ICDF.as_ptr();
+                    (*ps_dec).pitch_contour_icdf = Some(&SILK_PITCH_CONTOUR_10_MS_NB_ICDF);
                 }
             } else {
                 if (*ps_dec).nb_subfr == MAX_NB_SUBFR as i32 {
-                    (*ps_dec).pitch_contour_icdf = SILK_PITCH_CONTOUR_ICDF.as_ptr();
+                    (*ps_dec).pitch_contour_icdf = Some(&SILK_PITCH_CONTOUR_ICDF);
                 } else {
-                    (*ps_dec).pitch_contour_icdf = SILK_PITCH_CONTOUR_10_MS_ICDF.as_ptr();
+                    (*ps_dec).pitch_contour_icdf = Some(&SILK_PITCH_CONTOUR_10_MS_ICDF);
                 }
             }
             if (*ps_dec).fs_khz != fs_khz {
                 (*ps_dec).ltp_mem_length = LTP_MEM_LENGTH_MS * fs_khz;
                 if fs_khz == 8 || fs_khz == 12 {
                     (*ps_dec).lpc_order = MIN_LPC_ORDER;
-                    (*ps_dec).ps_nlsf_cb = &SILK_NLSF_CB_NB_MB;
+                    (*ps_dec).ps_nlsf_cb = Some(&SILK_NLSF_CB_NB_MB);
                 } else {
                     (*ps_dec).lpc_order = MAX_LPC_ORDER as i32;
-                    (*ps_dec).ps_nlsf_cb = &SILK_NLSF_CB_WB;
+                    (*ps_dec).ps_nlsf_cb = Some(&SILK_NLSF_CB_WB);
                 }
                 if fs_khz == 16 {
-                    (*ps_dec).pitch_lag_low_bits_icdf = SILK_UNIFORM8_ICDF.as_ptr();
+                    (*ps_dec).pitch_lag_low_bits_icdf = Some(&SILK_UNIFORM8_ICDF);
                 } else if fs_khz == 12 {
-                    (*ps_dec).pitch_lag_low_bits_icdf = SILK_UNIFORM6_ICDF.as_ptr();
+                    (*ps_dec).pitch_lag_low_bits_icdf = Some(&SILK_UNIFORM6_ICDF);
                 } else if fs_khz == 8 {
-                    (*ps_dec).pitch_lag_low_bits_icdf = SILK_UNIFORM4_ICDF.as_ptr();
+                    (*ps_dec).pitch_lag_low_bits_icdf = Some(&SILK_UNIFORM4_ICDF);
                 } else {
                     /* unsupported sampling rate */
                 }

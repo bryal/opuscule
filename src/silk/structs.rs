@@ -124,7 +124,6 @@ pub struct SilkResamplerStateStruct {
 /// dec_API / decode_frame / ... code can share it with the translated
 /// Rust functions. Field names are snake_case Rust mirrors of the C
 /// names.
-#[repr(C)]
 pub struct SilkDecoderState {
     pub prev_gain_q16: i32,
     pub exc_q14: [i32; MAX_FRAME_LENGTH],
@@ -141,8 +140,8 @@ pub struct SilkDecoderState {
     pub lpc_order: core::ffi::c_int,
     pub prev_nlsf_q15: [i16; MAX_LPC_ORDER],
     pub first_frame_after_reset: core::ffi::c_int,
-    pub pitch_lag_low_bits_icdf: *const u8,
-    pub pitch_contour_icdf: *const u8,
+    pub pitch_lag_low_bits_icdf: Option<&'static [u8]>,
+    pub pitch_contour_icdf: Option<&'static [u8]>,
 
     pub n_frames_decoded: core::ffi::c_int,
     pub n_frames_per_packet: core::ffi::c_int,
@@ -156,7 +155,7 @@ pub struct SilkDecoderState {
 
     pub resampler_state: SilkResamplerStateStruct,
 
-    pub ps_nlsf_cb: *const SilkNlsfCbStruct,
+    pub ps_nlsf_cb: Option<&'static SilkNlsfCbStruct>,
 
     pub indices: SideInfoIndices,
 
@@ -194,11 +193,7 @@ const _: () = {
     assert!(core::mem::size_of::<SilkCngStruct>() == 1388);
     assert!(core::mem::size_of::<SilkPlcStruct>() == 92);
     assert!(core::mem::size_of::<SilkResamplerStateStruct>() == 304);
-    assert!(core::mem::size_of::<SilkDecoderState>() == 4288);
-    assert!(core::mem::offset_of!(SilkDecoderState, resampler_state) == 2448);
-    assert!(core::mem::offset_of!(SilkDecoderState, indices) == 2760);
-    assert!(core::mem::offset_of!(SilkDecoderState, s_plc) == 4192);
-    assert!(core::mem::size_of::<SilkDecoderControl>() == 140);
+assert!(core::mem::size_of::<SilkDecoderControl>() == 140);
     assert!(core::mem::offset_of!(SilkDecoderControl, pred_coef_q12) == 32);
     assert!(core::mem::offset_of!(SilkDecoderControl, ltp_coef_q14) == 96);
     assert!(core::mem::offset_of!(SilkDecoderControl, ltp_scale_q14) == 136);
