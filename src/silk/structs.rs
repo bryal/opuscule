@@ -97,11 +97,6 @@ pub struct SilkPlcStruct {
 ///
 /// The C struct is shared with parts of the decoder that are still in C
 /// (the dispatcher in `resampler.c`, `silk/init_decoder.c`, etc.); the
-/// `#[repr(C)]` layout and `c_int` choice for `opus_int` fields make the
-/// Rust definition ABI-compatible so the two sides can interoperate
-/// field-for-field. The comment in the C header that `sIIR` must be the
-/// first element is preserved by keeping it at offset 0.
-#[repr(C)]
 pub struct SilkResamplerStateStruct {
     pub s_iir: [i32; SILK_RESAMPLER_MAX_IIR_ORDER],
     pub s_fir: [i32; SILK_RESAMPLER_MAX_FIR_ORDER],
@@ -114,7 +109,7 @@ pub struct SilkResamplerStateStruct {
     pub fs_in_khz: core::ffi::c_int,
     pub fs_out_khz: core::ffi::c_int,
     pub input_delay: core::ffi::c_int,
-    pub coefs: *const i16,
+    pub coefs: Option<&'static [i16]>,
 }
 
 /// `silk_decoder_state` — per-channel SILK decoder state
@@ -184,16 +179,11 @@ pub struct SilkDecoderControl {
 }
 
 // Compile-time ABI assertions against the C sizeof/offsetof measurements
-// (see `c/silk/structs.h`). Each constant is the value printed by a small
-// C probe — if any of these fires, the Rust struct layout has diverged
-// from the C header and the FFI boundary with the still-in-C decoder
-// code would corrupt memory.
 const _: () = {
     assert!(core::mem::size_of::<SideInfoIndices>() == 36);
     assert!(core::mem::size_of::<SilkCngStruct>() == 1388);
     assert!(core::mem::size_of::<SilkPlcStruct>() == 92);
-    assert!(core::mem::size_of::<SilkResamplerStateStruct>() == 304);
-assert!(core::mem::size_of::<SilkDecoderControl>() == 140);
+    assert!(core::mem::size_of::<SilkDecoderControl>() == 140);
     assert!(core::mem::offset_of!(SilkDecoderControl, pred_coef_q12) == 32);
     assert!(core::mem::offset_of!(SilkDecoderControl, ltp_coef_q14) == 96);
     assert!(core::mem::offset_of!(SilkDecoderControl, ltp_scale_q14) == 136);

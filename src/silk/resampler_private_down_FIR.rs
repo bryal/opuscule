@@ -137,7 +137,7 @@ pub unsafe fn silk_resampler_private_down_fir(ss: *mut c_void, mut out: *mut i16
         /* Copy buffered samples to start of buffer */
         core::ptr::copy_nonoverlapping((*s).s_fir.as_ptr(), buf.as_mut_ptr(), (*s).fir_order as usize);
 
-        let fir_coefs = (*s).coefs.offset(2);
+        let fir_coefs = (*s).coefs.unwrap()[2..].as_ptr();
 
         /* Iterate over blocks of frameSizeIn input samples */
         let index_increment_q16 = (*s).inv_ratio_q16;
@@ -150,7 +150,7 @@ pub unsafe fn silk_resampler_private_down_fir(ss: *mut c_void, mut out: *mut i16
                 (*s).s_iir.as_mut_ptr(),
                 buf.as_mut_ptr().offset((*s).fir_order as isize),
                 in_,
-                (*s).coefs,
+                (*s).coefs.unwrap().as_ptr(),
                 n_samples_in,
             );
 

@@ -96,27 +96,27 @@ pub unsafe fn silk_resampler_init(s: *mut SilkResamplerStateStruct, fs_hz_in: i3
             if fs_hz_out * 4 == fs_hz_in * 3 {
                 (*s).fir_fracs = 3;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
-                (*s).coefs = SILK_RESAMPLER_3_4_COEFS.as_ptr();
+                (*s).coefs = Some(&SILK_RESAMPLER_3_4_COEFS);
             } else if fs_hz_out * 3 == fs_hz_in * 2 {
                 (*s).fir_fracs = 2;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
-                (*s).coefs = SILK_RESAMPLER_2_3_COEFS.as_ptr();
+                (*s).coefs = Some(&SILK_RESAMPLER_2_3_COEFS);
             } else if fs_hz_out * 2 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR1 as i32;
-                (*s).coefs = SILK_RESAMPLER_1_2_COEFS.as_ptr();
+                (*s).coefs = Some(&SILK_RESAMPLER_1_2_COEFS);
             } else if fs_hz_out * 3 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = SILK_RESAMPLER_1_3_COEFS.as_ptr();
+                (*s).coefs = Some(&SILK_RESAMPLER_1_3_COEFS);
             } else if fs_hz_out * 4 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = SILK_RESAMPLER_1_4_COEFS.as_ptr();
+                (*s).coefs = Some(&SILK_RESAMPLER_1_4_COEFS);
             } else if fs_hz_out * 6 == fs_hz_in {
                 (*s).fir_fracs = 1;
                 (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = SILK_RESAMPLER_1_6_COEFS.as_ptr();
+                (*s).coefs = Some(&SILK_RESAMPLER_1_6_COEFS);
             } else {
                 /* None available */
                 return -1;
