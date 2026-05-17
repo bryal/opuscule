@@ -87,7 +87,7 @@ pub unsafe fn silk_nlsf_stabilize(nlsf_q15: *mut i16, n_delta_min_q15: *const i1
         /* Safe and simple fall back method, which is less ideal than the above */
         if loops == MAX_LOOPS {
             /* Insertion sort (fast for already almost sorted arrays) */
-            silk_insertion_sort_increasing_all_values_int16(nlsf_q15, l);
+            silk_insertion_sort_increasing_all_values_int16(core::slice::from_raw_parts_mut(nlsf_q15, l as usize));
 
             /* First NLSF should be no less than NDeltaMin[0] */
             *nlsf_q15.offset(0) = (*nlsf_q15.offset(0) as i32).max(*n_delta_min_q15.offset(0) as i32) as i16;
