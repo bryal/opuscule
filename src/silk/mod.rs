@@ -24,8 +24,6 @@ pub mod decode_pulses;
 pub mod decoder_set_fs;
 pub mod gain_quant;
 pub mod init_decoder;
-pub mod inner_prod_aligned;
-pub mod interpolate;
 pub mod lin2log;
 pub mod log2lin;
 pub mod lpc_analysis_filter;

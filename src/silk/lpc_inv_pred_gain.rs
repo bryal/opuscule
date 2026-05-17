@@ -101,20 +101,3 @@ pub fn silk_lpc_inverse_pred_gain(a_q12: &[i16], order: i32) -> i32 {
     }
     lpc_inverse_pred_gain_qa(&mut atmp_qa, order)
 }
-
-/// `silk_LPC_inverse_pred_gain_Q24` — for input coefficients in Q24 domain.
-///
-/// Only used by the fixed-point build.
-pub fn silk_lpc_inverse_pred_gain_q24(a_q24: *const i32, order: i32) -> i32 {
-    let mut atmp_qa = [[0i32; SILK_MAX_ORDER_LPC]; 2];
-    let anew_qa = &mut atmp_qa[(order & 1) as usize];
-
-    /* Increase Q domain of the AR coefficients */
-    let mut k = 0;
-    while k < order {
-        anew_qa[k as usize] = unsafe { *a_q24.offset(k as isize) } >> (24 - QA);
-        k += 1;
-    }
-
-    lpc_inverse_pred_gain_qa(&mut atmp_qa, order)
-}
