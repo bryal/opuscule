@@ -90,9 +90,6 @@ pub struct SilkPlcStruct {
 }
 
 /// `silk_resampler_state_struct` — per-channel resampler state.
-///
-/// The C struct is shared with parts of the decoder that are still in C
-/// (the dispatcher in `resampler.c`, `silk/init_decoder.c`, etc.); the
 pub struct SilkResamplerStateStruct {
     pub s_iir: [i32; SILK_RESAMPLER_MAX_IIR_ORDER],
     pub s_fir: [i32; SILK_RESAMPLER_MAX_FIR_ORDER],
