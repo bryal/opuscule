@@ -291,8 +291,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                 }
                 for i in (*st).start..(*st).mode.eff_ebands {
                     let boffs = (n * c + ((*st).mode.ebands[i as usize] << lm) as c_int) as usize;
-                    let blen = (((*st).mode.ebands[i as usize + 1] - (*st).mode.ebands[i as usize]) << lm)
-                        as c_int;
+                    let blen = (((*st).mode.ebands[i as usize + 1] - (*st).mode.ebands[i as usize]) << lm) as c_int;
                     for j in 0..blen as usize {
                         seed = celt_lcg_rand(seed);
                         x[boffs + j] = (seed as i32 >> 20) as CeltNorm;
@@ -518,9 +517,8 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                 // Apply TDAC to the concealed audio so that it blends with the
                 // previous and next frames
                 for i in 0..overlap / 2 {
-                    let tmp: OpusVal32 =
-                        mult16_32_q15((*st).mode.window[i as usize], e[(n + overlap - 1 - i) as usize])
-                            + mult16_32_q15((*st).mode.window[(overlap - i - 1) as usize], e[(n + i) as usize]);
+                    let tmp: OpusVal32 = mult16_32_q15((*st).mode.window[i as usize], e[(n + overlap - 1 - i) as usize])
+                        + mult16_32_q15((*st).mode.window[(overlap - i - 1) as usize], e[(n + i) as usize]);
                     *out_mem[c as usize].add((MAX_PERIOD + i) as usize) =
                         mult16_32_q15((*st).mode.window[(overlap - i - 1) as usize], tmp);
                     *out_mem[c as usize].add((MAX_PERIOD + overlap - i - 1) as usize) =
@@ -753,9 +751,7 @@ pub unsafe fn celt_decode_with_ec(
         total_bits <<= BITRES;
         tell = ec_tell_frac(dec) as i32;
         for ii in (*st).start..(*st).end {
-            let width = (c_channels
-                * ((*st).mode.ebands[ii as usize + 1] - (*st).mode.ebands[ii as usize]) as c_int)
-                << lm;
+            let width = (c_channels * ((*st).mode.ebands[ii as usize + 1] - (*st).mode.ebands[ii as usize]) as c_int) << lm;
             let quanta = (width << BITRES).min((6i32 << BITRES).max(width));
             let mut dynalloc_loop_logp = dynalloc_logp;
             let mut boost: c_int = 0;
@@ -1145,8 +1141,7 @@ pub unsafe fn init_caps(m: &CELTMode, cap: *mut c_int, lm: c_int, c: c_int) {
         for i in 0..mode.nb_ebands as usize {
             let n = ((mode.ebands[i + 1] - mode.ebands[i]) as c_int) << lm;
             *cap.add(i) =
-                (mode.cache.caps[mode.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n
-                    >> 2;
+                (mode.cache.caps[mode.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n >> 2;
         }
     }
 }

@@ -998,9 +998,8 @@ pub unsafe fn quant_all_bands(
         let c = if !y_.is_null() { 2 } else { 1 };
 
         let norm_size = (c * big_m * ebands[m.nb_ebands as usize] as c_int) as usize;
-        let scratch_size = (big_m
-            * (ebands[m.nb_ebands as usize] as c_int - ebands[(m.nb_ebands - 1) as usize] as c_int))
-            as usize;
+        let scratch_size =
+            (big_m * (ebands[m.nb_ebands as usize] as c_int - ebands[(m.nb_ebands - 1) as usize] as c_int)) as usize;
         let mut norm_buf = vec![0 as CeltNorm; norm_size];
         let mut scratch_buf = vec![0 as CeltNorm; scratch_size];
         let norm = norm_buf.as_mut_ptr();
@@ -1016,8 +1015,7 @@ pub unsafe fn quant_all_bands(
         for i in start..end {
             let i_u = i as usize;
             let x = x_.add((big_m * ebands[i_u] as c_int) as usize);
-            let y_ptr =
-                if !y_.is_null() { y_.add((big_m * ebands[i_u] as c_int) as usize) } else { std::ptr::null_mut() };
+            let y_ptr = if !y_.is_null() { y_.add((big_m * ebands[i_u] as c_int) as usize) } else { std::ptr::null_mut() };
             let n = big_m * ebands[i_u + 1] as c_int - big_m * ebands[i_u] as c_int;
             let tell = ec_tell_frac(ec) as i32;
 
@@ -1048,8 +1046,8 @@ pub unsafe fn quant_all_bands(
             let mut x_cm: u32;
             let mut y_cm: u32;
             if lowband_offset != 0 && (spread != SPREAD_AGGRESSIVE || b_blocks > 1 || tf_change < 0) {
-                let effective_lowband = (big_m * ebands[start as usize] as c_int)
-                    .max(big_m * ebands[lowband_offset as usize] as c_int - n);
+                let effective_lowband =
+                    (big_m * ebands[start as usize] as c_int).max(big_m * ebands[lowband_offset as usize] as c_int - n);
                 let mut fold_start = lowband_offset;
                 loop {
                     fold_start -= 1;
@@ -1079,9 +1077,7 @@ pub unsafe fn quant_all_bands(
                 // Now actually do the folding
                 if dual_stereo != 0 && i == intensity {
                     dual_stereo = 0;
-                    for j in (big_m * ebands[start as usize] as c_int) as usize
-                        ..(big_m * ebands[i_u] as c_int) as usize
-                    {
+                    for j in (big_m * ebands[start as usize] as c_int) as usize..(big_m * ebands[i_u] as c_int) as usize {
                         *norm.add(j) = half32(*norm.add(j) as OpusVal32 + *norm2.add(j) as OpusVal32) as CeltNorm;
                     }
                 }
@@ -1165,9 +1161,7 @@ pub unsafe fn quant_all_bands(
 
                 if dual_stereo != 0 && i == intensity {
                     dual_stereo = 0;
-                    for j in (big_m * ebands[start as usize] as c_int) as usize
-                        ..(big_m * ebands[i_u] as c_int) as usize
-                    {
+                    for j in (big_m * ebands[start as usize] as c_int) as usize..(big_m * ebands[i_u] as c_int) as usize {
                         *norm.add(j) = half32(*norm.add(j) as OpusVal32 + *norm2.add(j) as OpusVal32) as CeltNorm;
                     }
                 }

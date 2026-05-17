@@ -160,7 +160,6 @@ static FFT_STATE_3: KissFftState = KissFftState {
 // The single standard Opus CELTMode
 // ---------------------------------------------------------------------------
 
-
 /// Float-mode preemphasis coefficients: {0.85000610, 0.0, 1.0, 1.0}
 #[cfg(not(feature = "fixed-point"))]
 const PREEMPH: [OpusVal16; 4] = [0.85000610, 0.0000000, 1.0000000, 1.0000000];

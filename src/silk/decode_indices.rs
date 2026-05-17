@@ -121,12 +121,14 @@ pub unsafe fn silk_decode_indices(
                 /* Absolute decoding */
                 (*ps_dec).indices.lag_index =
                     (ec_dec_icdf(ps_range_dec, SILK_PITCH_LAG_ICDF.as_ptr(), 8) as i16) * ((*ps_dec).fs_khz >> 1) as i16;
-                (*ps_dec).indices.lag_index += ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_lag_low_bits_icdf.unwrap().as_ptr(), 8) as i16;
+                (*ps_dec).indices.lag_index +=
+                    ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_lag_low_bits_icdf.unwrap().as_ptr(), 8) as i16;
             }
             (*ps_dec).ec_prev_lag_index = (*ps_dec).indices.lag_index;
 
             /* Get countour index */
-            (*ps_dec).indices.contour_index = ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_contour_icdf.unwrap().as_ptr(), 8) as i8;
+            (*ps_dec).indices.contour_index =
+                ec_dec_icdf(ps_range_dec, (*ps_dec).pitch_contour_icdf.unwrap().as_ptr(), 8) as i8;
 
             /********************/
             /* Decode LTP gains */
