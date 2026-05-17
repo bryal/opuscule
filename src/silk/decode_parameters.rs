@@ -90,7 +90,7 @@ pub unsafe fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl:
             silk_decode_pitch(
                 ps_dec.indices.lag_index,
                 ps_dec.indices.contour_index,
-                ps_dec_ctrl.pitch_l.as_mut_ptr(),
+                &mut ps_dec_ctrl.pitch_l,
                 ps_dec.fs_khz,
                 ps_dec.nb_subfr,
             );
