@@ -23,7 +23,6 @@ pub struct SilkNlsfCbStruct {
 }
 
 /// `stereo_dec_state` — stereo decoder state.
-#[repr(C)]
 pub struct StereoDecState {
     pub pred_prev_q13: [i16; 2],
     pub s_mid: [i16; 2],
@@ -49,7 +48,6 @@ pub const LTP_ORDER: usize = 5;
 
 /// `SideInfoIndices` — per-frame side-information indices carried from
 /// the range decoder to later decode stages (`c/silk/structs.h:119`).
-#[repr(C)]
 pub struct SideInfoIndices {
     pub gains_indices: [i8; MAX_NB_SUBFR],
     pub ltp_index: [i8; MAX_NB_SUBFR],
@@ -65,7 +63,6 @@ pub struct SideInfoIndices {
 }
 
 /// `silk_CNG_struct` — comfort-noise generator state (`c/silk/structs.h:249`).
-#[repr(C)]
 pub struct SilkCngStruct {
     pub cng_exc_buf_q14: [i32; MAX_FRAME_LENGTH],
     pub cng_smth_nlsf_q15: [i16; MAX_LPC_ORDER],
@@ -76,7 +73,6 @@ pub struct SilkCngStruct {
 }
 
 /// `silk_PLC_struct` — packet-loss-concealment state (`c/silk/structs.h:232`).
-#[repr(C)]
 pub struct SilkPlcStruct {
     pub pitch_l_q8: i32,
     pub ltp_coef_q14: [i16; LTP_ORDER],
@@ -113,12 +109,8 @@ pub struct SilkResamplerStateStruct {
 }
 
 /// `silk_decoder_state` — per-channel SILK decoder state
-/// (`c/silk/structs.h:261`).
-///
-/// Field-for-field ABI-compatible with the C struct so the still-in-C
-/// dec_API / decode_frame / ... code can share it with the translated
-/// Rust functions. Field names are snake_case Rust mirrors of the C
-/// names.
+/// (`c/silk/structs.h:261`). Field names are snake_case Rust mirrors of
+/// the C names.
 pub struct SilkDecoderState {
     pub prev_gain_q16: i32,
     pub exc_q14: [i32; MAX_FRAME_LENGTH],
@@ -166,7 +158,6 @@ pub struct SilkDecoderState {
 /// `silk_decode_parameters` (`c/silk/structs.h:313`). Holds dequantized
 /// gains, LPC prediction coefficients (with first/second-half interp),
 /// pitch lags, LTP coefficients, and the LTP scale.
-#[repr(C)]
 pub struct SilkDecoderControl {
     pub pitch_l: [core::ffi::c_int; MAX_NB_SUBFR],
     pub gains_q16: [i32; MAX_NB_SUBFR],
@@ -177,14 +168,3 @@ pub struct SilkDecoderControl {
     pub ltp_coef_q14: [i16; LTP_ORDER * MAX_NB_SUBFR],
     pub ltp_scale_q14: core::ffi::c_int,
 }
-
-// Compile-time ABI assertions against the C sizeof/offsetof measurements
-const _: () = {
-    assert!(core::mem::size_of::<SideInfoIndices>() == 36);
-    assert!(core::mem::size_of::<SilkCngStruct>() == 1388);
-    assert!(core::mem::size_of::<SilkPlcStruct>() == 92);
-    assert!(core::mem::size_of::<SilkDecoderControl>() == 140);
-    assert!(core::mem::offset_of!(SilkDecoderControl, pred_coef_q12) == 32);
-    assert!(core::mem::offset_of!(SilkDecoderControl, ltp_coef_q14) == 96);
-    assert!(core::mem::offset_of!(SilkDecoderControl, ltp_scale_q14) == 136);
-};

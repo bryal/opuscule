@@ -49,7 +49,6 @@ const SILK_MAX_FRAMES_PER_PACKET: usize = 3;
 
 /// `silk_DecControlStruct` — decoder control / status block
 /// (`c/silk/control.h:119`).
-#[repr(C)]
 pub struct SilkDecControlStruct {
     pub n_channels_api: i32,
     pub n_channels_internal: i32,
@@ -61,7 +60,6 @@ pub struct SilkDecControlStruct {
 
 /// `silk_TOC_struct` — table of contents for one Opus packet
 /// (`c/silk/API.h:49`).
-#[repr(C)]
 pub struct SilkTocStruct {
     pub vad_flag: c_int,
     pub vad_flags: [c_int; SILK_MAX_FRAMES_PER_PACKET],
@@ -71,7 +69,6 @@ pub struct SilkTocStruct {
 /// `silk_decoder` super-struct wrapping the N per-channel states plus
 /// shared stereo state and channel counts. The parent `opus_decoder`
 /// treats this as an opaque blob sized by [`silk_Get_Decoder_Size`].
-#[repr(C)]
 pub struct SilkDecoder {
     pub channel_state: [SilkDecoderState; DECODER_NUM_CHANNELS],
     pub s_stereo: StereoDecState,
@@ -451,11 +448,6 @@ pub unsafe fn silk_get_toc(
     }
 }
 
-// Compile-time ABI assertions against the C sizeof/offsetof measurements.
 const _: () = {
-    assert!(core::mem::size_of::<SilkDecControlStruct>() == 24);
-    // SilkDecoder must match C silk_decoder sizeof so opus_decoder's
-    // allocator reserves the right number of bytes.
-    assert!(core::mem::size_of::<SilkDecoder>() % core::mem::align_of::<SilkDecoder>() == 0);
     assert!(MAX_FRAMES_PER_PACKET == SILK_MAX_FRAMES_PER_PACKET);
 };
