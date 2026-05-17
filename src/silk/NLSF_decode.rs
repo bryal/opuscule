@@ -75,7 +75,7 @@ pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
         );
 
         /* Weights from codebook vector */
-        silk_nlsf_vq_weights_laroia(w_tmp_qw.as_mut_ptr(), p_nlsf_q15, order);
+        silk_nlsf_vq_weights_laroia(&mut w_tmp_qw[..order as usize], core::slice::from_raw_parts(p_nlsf_q15, order as usize));
 
         /* Apply inverse square-rooted weights and add to output */
         let mut i = 0i32;
