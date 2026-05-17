@@ -36,19 +36,17 @@ unsafe fn silk_cng_exc(residual_q10: *mut i32, exc_buf_q14: *const i32, gain_q16
 }
 
 /// `silk_CNG_Reset` — reset CNG state.
-pub unsafe fn silk_cng_reset(ps_dec: *mut SilkDecoderState) {
-    unsafe {
-        let nlsf_step_q15 = SILK_INT16_MAX / ((*ps_dec).lpc_order + 1);
-        let mut nlsf_acc_q15 = 0i32;
-        let mut i = 0i32;
-        while i < (*ps_dec).lpc_order {
-            nlsf_acc_q15 += nlsf_step_q15;
-            (*ps_dec).s_cng.cng_smth_nlsf_q15[i as usize] = nlsf_acc_q15 as i16;
-            i += 1;
-        }
-        (*ps_dec).s_cng.cng_smth_gain_q16 = 0;
-        (*ps_dec).s_cng.rand_seed = 3176576;
+pub fn silk_cng_reset(ps_dec: &mut SilkDecoderState) {
+    let nlsf_step_q15 = SILK_INT16_MAX / (ps_dec.lpc_order + 1);
+    let mut nlsf_acc_q15 = 0i32;
+    let mut i = 0i32;
+    while i < ps_dec.lpc_order {
+        nlsf_acc_q15 += nlsf_step_q15;
+        ps_dec.s_cng.cng_smth_nlsf_q15[i as usize] = nlsf_acc_q15 as i16;
+        i += 1;
     }
+    ps_dec.s_cng.cng_smth_gain_q16 = 0;
+    ps_dec.s_cng.rand_seed = 3176576;
 }
 
 /// `silk_CNG` — update CNG estimate, apply CNG when packet was lost.
@@ -60,7 +58,7 @@ pub unsafe fn silk_cng(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDeco
 
         if (*ps_dec).fs_khz != (*ps_cng).fs_khz {
             /* Reset state */
-            silk_cng_reset(ps_dec);
+            silk_cng_reset(&mut *ps_dec);
             (*ps_cng).fs_khz = (*ps_dec).fs_khz;
         }
         if (*ps_dec).loss_cnt == 0 && (*ps_dec).prev_signal_type == TYPE_NO_VOICE_ACTIVITY {

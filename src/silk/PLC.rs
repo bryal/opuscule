@@ -37,21 +37,19 @@ const LOG2_INV_LPC_GAIN_LOW_THRES: i32 = 8;
 const PITCH_DRIFT_FAC_Q16: i32 = 655;
 
 /// `silk_PLC_Reset` — initialize PLC state after an fs_kHz change.
-pub unsafe fn silk_plc_reset(ps_dec: *mut SilkDecoderState) {
-    unsafe {
-        (*ps_dec).s_plc.pitch_l_q8 = silk_lshift((*ps_dec).frame_length, 8 - 1);
-        (*ps_dec).s_plc.prev_gain_q16[0] = 1 << 16;
-        (*ps_dec).s_plc.prev_gain_q16[1] = 1 << 16;
-        (*ps_dec).s_plc.subfr_length = 20;
-        (*ps_dec).s_plc.nb_subfr = 2;
-    }
+pub fn silk_plc_reset(ps_dec: &mut SilkDecoderState) {
+    ps_dec.s_plc.pitch_l_q8 = silk_lshift(ps_dec.frame_length, 8 - 1);
+    ps_dec.s_plc.prev_gain_q16[0] = 1 << 16;
+    ps_dec.s_plc.prev_gain_q16[1] = 1 << 16;
+    ps_dec.s_plc.subfr_length = 20;
+    ps_dec.s_plc.nb_subfr = 2;
 }
 
 /// `silk_PLC` — PLC control function.
 pub unsafe fn silk_plc(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, frame: *mut i16, lost: i32) {
     unsafe {
         if (*ps_dec).fs_khz != (*ps_dec).s_plc.fs_khz {
-            silk_plc_reset(ps_dec);
+            silk_plc_reset(&mut *ps_dec);
             (*ps_dec).s_plc.fs_khz = (*ps_dec).fs_khz;
         }
 
