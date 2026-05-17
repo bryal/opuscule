@@ -92,7 +92,7 @@ pub unsafe fn silk_init_decoder(dec_state: *mut u8) -> c_int {
         let channel_state = (*ps_dec).channel_state.as_mut_ptr();
         let mut ret = SILK_NO_ERROR;
         for n in 0..DECODER_NUM_CHANNELS {
-            ret = super::init_decoder::silk_init_decoder(channel_state.add(n));
+            ret = super::init_decoder::silk_init_decoder(&mut *channel_state.add(n));
         }
         ret
     }
@@ -130,7 +130,7 @@ pub unsafe fn silk_decode(
 
         /* If Mono -> Stereo transition in bitstream: init state of second channel */
         if (*dec_control).n_channels_internal > (*ps_dec).n_channels_internal {
-            ret += super::init_decoder::silk_init_decoder(channel_state.add(1));
+            ret += super::init_decoder::silk_init_decoder(&mut *channel_state.add(1));
         }
 
         let stereo_to_mono = ((*dec_control).n_channels_internal == 1
