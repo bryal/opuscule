@@ -131,7 +131,7 @@ pub unsafe fn silk_nlsf2a(a_q12: *mut i16, nlsf: *const i16, d: i32) {
                 /* Reduce magnitude of prediction coefficients */
                 let maxabs = maxabs.min(163838); /* (silk_int32_MAX >> 14) + silk_int16_MAX = 163838 */
                 let sc_q16 = SC_BASE_Q16 - silk_lshift(maxabs - i16::MAX as i32, 14) / (maxabs * (idx + 1) >> 2);
-                silk_bwexpander_32(a32_qa1.as_mut_ptr(), d, sc_q16);
+                silk_bwexpander_32(&mut a32_qa1[..d as usize], sc_q16);
             } else {
                 break;
             }
@@ -159,7 +159,7 @@ pub unsafe fn silk_nlsf2a(a_q12: *mut i16, nlsf: *const i16, d: i32) {
             if silk_lpc_inverse_pred_gain(a_q12, d) < ONE_OVER_MAX_PREDICTION_POWER_GAIN_Q30 {
                 /* Prediction coefficients are (too close to) unstable; apply bandwidth expansion on
                  * the unscaled coefficients, convert to Q12 and measure again */
-                silk_bwexpander_32(a32_qa1.as_mut_ptr(), d, 65536 - silk_lshift(2, i));
+                silk_bwexpander_32(&mut a32_qa1[..d as usize], 65536 - silk_lshift(2, i));
                 let mut k = 0i32;
                 while k < d {
                     *a_q12.offset(k as isize) = silk_rshift_round(a32_qa1[k as usize], QA + 1 - 12) as i16; /* QA+1 -> Q12 */
