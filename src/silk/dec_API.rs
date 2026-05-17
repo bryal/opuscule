@@ -235,7 +235,7 @@ pub unsafe fn silk_decode(
                             silk_decode_indices(&mut *cs, ps_range_dec, i as i32, 1, cond_coding);
                             silk_decode_pulses(
                                 ps_range_dec,
-                                pulses.as_mut_ptr(),
+                                &mut pulses,
                                 (*cs).indices.signal_type as i32,
                                 (*cs).indices.quant_offset_type as i32,
                                 (*cs).frame_length,

@@ -44,7 +44,7 @@ pub unsafe fn silk_decode_frame(
             /* Decode quantization indices of excitation */
             silk_decode_pulses(
                 ps_range_dec,
-                pulses.as_mut_ptr(),
+                &mut pulses,
                 (*ps_dec).indices.signal_type as i32,
                 (*ps_dec).indices.quant_offset_type as i32,
                 (*ps_dec).frame_length,
