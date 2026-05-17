@@ -29,8 +29,8 @@ pub unsafe fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl:
 
         /* Dequant Gains */
         silk_gains_dequant(
-            ps_dec_ctrl.gains_q16.as_mut_ptr(),
-            ps_dec.indices.gains_indices.as_ptr(),
+            &mut ps_dec_ctrl.gains_q16,
+            &ps_dec.indices.gains_indices,
             &mut ps_dec.last_gain_index,
             (cond_coding == CODE_CONDITIONALLY) as i32,
             ps_dec.nb_subfr,
