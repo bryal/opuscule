@@ -77,8 +77,9 @@ pub unsafe fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl:
 
         /* After a packet loss do BWE of LPC coefs */
         if ps_dec.loss_cnt != 0 {
-            silk_bwexpander(ps_dec_ctrl.pred_coef_q12[0].as_mut_ptr(), ps_dec.lpc_order, BWE_AFTER_LOSS_Q16);
-            silk_bwexpander(ps_dec_ctrl.pred_coef_q12[1].as_mut_ptr(), ps_dec.lpc_order, BWE_AFTER_LOSS_Q16);
+            let lpc_order = ps_dec.lpc_order as usize;
+            silk_bwexpander(&mut ps_dec_ctrl.pred_coef_q12[0][..lpc_order], BWE_AFTER_LOSS_Q16);
+            silk_bwexpander(&mut ps_dec_ctrl.pred_coef_q12[1][..lpc_order], BWE_AFTER_LOSS_Q16);
         }
 
         if ps_dec.indices.signal_type as i32 == TYPE_VOICED {

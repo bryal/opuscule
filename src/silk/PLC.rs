@@ -209,7 +209,8 @@ unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
         };
 
         /* LPC concealment. Apply BWE to previous LPC */
-        silk_bwexpander((*ps_plc).prev_lpc_q12.as_mut_ptr(), (*ps_dec).lpc_order, BWE_COEF_Q16);
+        let lpc_order = (*ps_dec).lpc_order as usize;
+        silk_bwexpander(core::slice::from_raw_parts_mut(&raw mut (*ps_plc).prev_lpc_q12 as *mut i16, lpc_order), BWE_COEF_Q16);
 
         /* Preload LPC coeficients to array on stack. Gives small performance gain */
         core::ptr::copy_nonoverlapping((*ps_plc).prev_lpc_q12.as_ptr(), a_q12.as_mut_ptr(), (*ps_dec).lpc_order as usize);
