@@ -104,6 +104,17 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
     (align(std::mem::size_of::<OpusDecoder>()) + silk_dec_size_bytes + celt_dec_size_bytes) as c_int
 }
 
+/// Initialise a previously-allocated `OpusDecoder`.
+///
+/// The buffer pointed to by `st` must be the full
+/// [`opus_decoder_get_size`] bytes and must be pre-zeroed: this function
+/// initialises the OpusDecoder header and the embedded CELT/SILK
+/// sub-states explicitly, but the SilkDecoder super-header fields
+/// (`s_stereo`, `n_channels_api`, `n_channels_internal`,
+/// `prev_decode_only_middle`) need to start at zero — they're not reset
+/// on the runtime CELT→SILK re-init path either, so the only place
+/// they get their initial zero value is from the caller's zeroed buffer.
+/// [`opus_decoder_create`] uses `alloc_zeroed` and satisfies this.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channels: c_int) -> c_int {
     unsafe {
@@ -111,26 +122,39 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
             return OPUS_BAD_ARG;
         }
 
-        let total_size = opus_decoder_get_size(channels) as usize;
-        std::ptr::write_bytes(st as *mut u8, 0, total_size);
-
         let mut silk_dec_size_bytes: c_int = 0;
         let ret = silk_get_decoder_size(&mut silk_dec_size_bytes);
         if ret != 0 {
             return OPUS_INTERNAL_ERROR;
         }
-
         let silk_dec_size_bytes = align(silk_dec_size_bytes as usize);
-        (*st).silk_dec_offset = align(std::mem::size_of::<OpusDecoder>()) as c_int;
-        (*st).celt_dec_offset = (*st).silk_dec_offset + silk_dec_size_bytes as c_int;
+        let silk_dec_offset = align(std::mem::size_of::<OpusDecoder>()) as c_int;
+        let celt_dec_offset = silk_dec_offset + silk_dec_size_bytes as c_int;
+
+        *st = OpusDecoder {
+            celt_dec_offset,
+            silk_dec_offset,
+            channels,
+            fs,
+            dec_control: SilkDecControlStruct {
+                n_channels_api: channels,
+                n_channels_internal: 0,
+                api_sample_rate: fs,
+                internal_sample_rate: 0,
+                payload_size_ms: 0,
+                prev_pitch_lag: 0,
+            },
+            stream_channels: channels,
+            bandwidth: 0,
+            mode: 0,
+            prev_mode: 0,
+            frame_size: fs / 400,
+            prev_redundancy: 0,
+            range_final: 0,
+        };
+
         let silk_dec = silk_dec_ptr(st);
         let celt_dec = celt_dec_ptr(st);
-        (*st).channels = channels;
-        (*st).stream_channels = channels;
-
-        (*st).fs = fs;
-        (*st).dec_control.api_sample_rate = fs;
-        (*st).dec_control.n_channels_api = channels;
 
         let ret = silk_init_decoder(silk_dec);
         if ret != 0 {
@@ -144,8 +168,6 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
 
         celt_decoder_ctl(celt_dec, CeltDecCtl::SetSignalling(0));
 
-        (*st).prev_mode = 0;
-        (*st).frame_size = fs / 400;
         OPUS_OK
     }
 }
