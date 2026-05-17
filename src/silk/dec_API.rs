@@ -78,10 +78,8 @@ pub struct SilkDecoder {
 }
 
 /// `silk_Get_Decoder_Size` — report sizeof(silk_decoder).
-pub unsafe fn silk_get_decoder_size(dec_size_bytes: *mut c_int) -> c_int {
-    unsafe {
-        *dec_size_bytes = core::mem::size_of::<SilkDecoder>() as c_int;
-    }
+pub fn silk_get_decoder_size(dec_size_bytes: &mut c_int) -> c_int {
+    *dec_size_bytes = core::mem::size_of::<SilkDecoder>() as c_int;
     SILK_NO_ERROR
 }
 
