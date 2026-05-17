@@ -56,10 +56,10 @@ pub(crate) fn align(i: usize) -> usize {
 
 /// Top-level Opus decoder state.
 ///
-/// The C version embeds SILK and CELT decoder states at computed byte
-/// offsets within a single allocation. We preserve this layout since
-/// SILK is still C and expects to live at a raw byte offset.
-#[repr(C)]
+/// The C version embeds SILK and CELT decoder sub-states at computed byte
+/// offsets within a single allocation. The offsets are stored in
+/// `silk_dec_offset` / `celt_dec_offset`; this struct's own field order
+/// is not load-bearing.
 pub struct OpusDecoder {
     pub celt_dec_offset: c_int,
     pub silk_dec_offset: c_int,
@@ -67,7 +67,6 @@ pub struct OpusDecoder {
     pub fs: i32,
     pub dec_control: SilkDecControlStruct,
 
-    // Everything beyond this point gets cleared on a reset
     pub stream_channels: c_int,
     pub bandwidth: c_int,
     pub mode: c_int,
@@ -76,14 +75,6 @@ pub struct OpusDecoder {
     pub prev_redundancy: c_int,
 
     pub range_final: u32,
-}
-
-/// Byte offset of `stream_channels` within OpusDecoder (reset start point).
-fn opus_decoder_reset_offset() -> usize {
-    // stream_channels is the first field after dec_control.
-    // Use offset_of once stable; for now compute manually matching C.
-    let base = std::mem::offset_of!(OpusDecoder, stream_channels);
-    base
 }
 
 // -- Helper to get sub-decoder pointers --
@@ -822,13 +813,31 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
                 *value = (*st).range_final;
             }
             OpusDecCtl::ResetState => {
-                let reset_start = opus_decoder_reset_offset();
-                let total = opus_decoder_get_size((*st).channels) as usize;
-                std::ptr::write_bytes((st as *mut u8).add(reset_start), 0, total - reset_start);
+                let OpusDecoder {
+                    celt_dec_offset: _,
+                    silk_dec_offset: _,
+                    channels,
+                    fs,
+                    dec_control: _,
+                    stream_channels,
+                    bandwidth,
+                    mode,
+                    prev_mode,
+                    frame_size,
+                    prev_redundancy,
+                    range_final,
+                } = &mut *st;
+
+                *bandwidth = 0;
+                *mode = 0;
+                *prev_mode = 0;
+                *prev_redundancy = 0;
+                *range_final = 0;
+                *stream_channels = *channels;
+                *frame_size = *fs / 400;
+
                 celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
                 silk_init_decoder(silk_dec);
-                (*st).stream_channels = (*st).channels;
-                (*st).frame_size = (*st).fs / 400;
             }
             OpusDecCtl::GetPitch(value) => {
                 if value.is_null() {
