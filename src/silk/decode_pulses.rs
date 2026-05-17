@@ -100,7 +100,5 @@ pub unsafe fn silk_decode_pulses(
     /****************************************/
     /* Decode and add signs to pulse signal */
     /****************************************/
-    unsafe {
-        silk_decode_signs(ps_range_dec, pulses.as_mut_ptr(), frame_length, signal_type, quant_offset_type, sum_pulses.as_ptr())
-    };
+    unsafe { silk_decode_signs(ps_range_dec, pulses, frame_length, signal_type, quant_offset_type, &sum_pulses) };
 }
