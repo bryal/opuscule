@@ -39,8 +39,7 @@ pub fn get_pulses(i: i32) -> i32 {
 /// # Safety
 /// `m` must point to a valid CELTMode with initialized cache.
 #[inline]
-pub unsafe fn bits2pulses(m: *const CELTMode, band: i32, lm: i32, bits: i32) -> i32 {
-    let m = unsafe { &*m };
+pub unsafe fn bits2pulses(m: &CELTMode, band: i32, lm: i32, bits: i32) -> i32 {
     let lm1 = lm + 1;
     let cache_idx = m.cache.index[(lm1 * m.nb_ebands + band) as usize];
     let cache = m.cache.bits.as_ptr().add(cache_idx as usize);
@@ -64,8 +63,7 @@ pub unsafe fn bits2pulses(m: *const CELTMode, band: i32, lm: i32, bits: i32) -> 
 /// # Safety
 /// `m` must point to a valid CELTMode with initialized cache.
 #[inline]
-pub unsafe fn pulses2bits(m: *const CELTMode, band: i32, lm: i32, pulses: i32) -> i32 {
-    let m = unsafe { &*m };
+pub unsafe fn pulses2bits(m: &CELTMode, band: i32, lm: i32, pulses: i32) -> i32 {
     let lm1 = lm + 1;
     let cache_idx = m.cache.index[(lm1 * m.nb_ebands + band) as usize];
     let cache = m.cache.bits.as_ptr().add(cache_idx as usize);
@@ -87,7 +85,7 @@ fn eb(ebands: &[i16], i: i32) -> i32 {
 /// All pointer parameters must be valid. `m` must point to a valid CELTMode.
 #[allow(clippy::too_many_arguments)]
 unsafe fn interp_bits2pulses(
-    m: *const CELTMode,
+    m: &CELTMode,
     start: i32,
     end: i32,
     skip_start: i32,
@@ -111,7 +109,6 @@ unsafe fn interp_bits2pulses(
     encode: i32,
     prev: i32,
 ) -> i32 {
-    let m_ref = unsafe { &*m };
     let bitres = BITRES as i32;
     let alloc_floor = c << bitres;
     let stereo = (c > 1) as i32;
@@ -166,10 +163,10 @@ unsafe fn interp_bits2pulses(
             break;
         }
         let left = total - psum;
-        let percoeff = left / (eb(m_ref.ebands, coded_bands) - eb(m_ref.ebands, start));
-        let left_rem = left - (eb(m_ref.ebands, coded_bands) - eb(m_ref.ebands, start)) * percoeff;
-        let rem = (left_rem - (eb(m_ref.ebands, j) - eb(m_ref.ebands, start))).max(0);
-        let band_width = eb(m_ref.ebands, coded_bands) - eb(m_ref.ebands, j);
+        let percoeff = left / (eb(m.ebands, coded_bands) - eb(m.ebands, start));
+        let left_rem = left - (eb(m.ebands, coded_bands) - eb(m.ebands, start)) * percoeff;
+        let rem = (left_rem - (eb(m.ebands, j) - eb(m.ebands, start))).max(0);
+        let band_width = eb(m.ebands, coded_bands) - eb(m.ebands, j);
         let mut band_bits = unsafe { *bits.add(j as usize) } + percoeff * band_width + rem;
 
         if band_bits >= unsafe { *thresh.add(j as usize) }.max(alloc_floor + (1 << bitres)) {
@@ -241,15 +238,15 @@ unsafe fn interp_bits2pulses(
 
     // Allocate the remaining bits
     let left = total - psum;
-    let percoeff = left / (eb(m_ref.ebands, coded_bands) - eb(m_ref.ebands, start));
-    let mut left = left - (eb(m_ref.ebands, coded_bands) - eb(m_ref.ebands, start)) * percoeff;
+    let percoeff = left / (eb(m.ebands, coded_bands) - eb(m.ebands, start));
+    let mut left = left - (eb(m.ebands, coded_bands) - eb(m.ebands, start)) * percoeff;
 
     for j in start..coded_bands {
-        let bw = eb(m_ref.ebands, j + 1) - eb(m_ref.ebands, j);
+        let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
         unsafe { *bits.add(j as usize) += percoeff * bw };
     }
     for j in start..coded_bands {
-        let bw = eb(m_ref.ebands, j + 1) - eb(m_ref.ebands, j);
+        let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
         let tmp = left.min(bw);
         unsafe { *bits.add(j as usize) += tmp };
         left -= tmp;
@@ -259,7 +256,7 @@ unsafe fn interp_bits2pulses(
     let mut balance = 0i32;
     let mut j = start;
     while j < coded_bands {
-        let n0 = eb(m_ref.ebands, j + 1) - eb(m_ref.ebands, j);
+        let n0 = eb(m.ebands, j + 1) - eb(m.ebands, j);
         let n = n0 << lm;
         unsafe { *bits.add(j as usize) += balance };
 
@@ -270,7 +267,7 @@ unsafe fn interp_bits2pulses(
 
             let den = c * n + if c == 2 && n > 2 && unsafe { *dual_stereo } == 0 && j < unsafe { *intensity } { 1 } else { 0 };
 
-            let nc_log_n = den * (m_ref.log_n[j as usize] as i32 + log_m);
+            let nc_log_n = den * (m.log_n[j as usize] as i32 + log_m);
             let mut offset = (nc_log_n >> 1) - den * FINE_OFFSET;
             if n == 2 {
                 offset += den << bitres >> 2;
@@ -352,7 +349,7 @@ unsafe fn interp_bits2pulses(
 /// All pointer parameters must be valid. `m` must point to a valid CELTMode.
 #[allow(clippy::too_many_arguments)]
 pub unsafe fn compute_allocation(
-    m: *const CELTMode,
+    m: &CELTMode,
     start: c_int,
     end: c_int,
     offsets: *const c_int,
@@ -371,10 +368,9 @@ pub unsafe fn compute_allocation(
     encode: c_int,
     prev: c_int,
 ) -> c_int {
-    let m_ref = unsafe { &*m };
     let bitres = BITRES as i32;
     let mut total = total.max(0);
-    let len = m_ref.nb_ebands;
+    let len = m.nb_ebands;
     let mut skip_start = start;
 
     // Reserve a bit to signal the end of manually skipped bands
@@ -402,7 +398,7 @@ pub unsafe fn compute_allocation(
 
     for j in start..end {
         let ju = j as usize;
-        let bw = eb(m_ref.ebands, j + 1) - eb(m_ref.ebands, j);
+        let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
         // Below this threshold, we're sure not to allocate any PVQ bits
         thresh_v[ju] = (c << bitres).max((3 * bw << lm << bitres) >> 4);
         // Tilt of the allocation curve
@@ -415,15 +411,15 @@ pub unsafe fn compute_allocation(
 
     // Bisection to find the best allocation vector pair
     let mut lo = 1i32;
-    let mut hi = m_ref.nb_alloc_vectors - 1;
+    let mut hi = m.nb_alloc_vectors - 1;
     while lo <= hi {
         let mid = (lo + hi) >> 1;
         let mut done = false;
         let mut psum = 0i32;
         for j in (start..end).rev() {
             let ju = j as usize;
-            let n = eb(m_ref.ebands, j + 1) - eb(m_ref.ebands, j);
-            let mut bitsj = c * n * (m_ref.alloc_vectors[(mid * len + j) as usize] as i32) << lm >> 2;
+            let n = eb(m.ebands, j + 1) - eb(m.ebands, j);
+            let mut bitsj = c * n * (m.alloc_vectors[(mid * len + j) as usize] as i32) << lm >> 2;
             if bitsj > 0 {
                 bitsj = (bitsj + trim_offset_v[ju]).max(0);
             }
@@ -447,12 +443,12 @@ pub unsafe fn compute_allocation(
     // Compute bits1 and bits2 for interpolation
     for j in start..end {
         let ju = j as usize;
-        let n = eb(m_ref.ebands, j + 1) - eb(m_ref.ebands, j);
-        let mut bits1j = c * n * (m_ref.alloc_vectors[(lo * len + j) as usize] as i32) << lm >> 2;
-        let mut bits2j = if hi >= m_ref.nb_alloc_vectors {
+        let n = eb(m.ebands, j + 1) - eb(m.ebands, j);
+        let mut bits1j = c * n * (m.alloc_vectors[(lo * len + j) as usize] as i32) << lm >> 2;
+        let mut bits2j = if hi >= m.nb_alloc_vectors {
             unsafe { *cap.add(ju) }
         } else {
-            c * n * (m_ref.alloc_vectors[(hi * len + j) as usize] as i32) << lm >> 2
+            c * n * (m.alloc_vectors[(hi * len + j) as usize] as i32) << lm >> 2
         };
         if bits1j > 0 {
             bits1j = (bits1j + trim_offset_v[ju]).max(0);

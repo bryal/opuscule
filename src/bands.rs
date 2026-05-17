@@ -36,7 +36,7 @@ pub fn celt_lcg_rand(seed: u32) -> u32 {
 /// the frequency-domain signal that feeds into the inverse MDCT.
 /// Bands beyond `end` are zeroed (above the Nyquist for the coded bandwidth).
 pub unsafe fn denormalise_bands(
-    m: *const CELTMode,
+    m: &CELTMode,
     x: *const CeltNorm,
     freq: *mut CeltSig,
     band_e: *const CeltEner,
@@ -45,16 +45,15 @@ pub unsafe fn denormalise_bands(
     m_factor: c_int,
 ) {
     unsafe {
-        let mode = &*m;
-        let ebands = mode.ebands;
-        let n = m_factor * mode.short_mdct_size;
+        let ebands = m.ebands;
+        let n = m_factor * m.short_mdct_size;
 
         let mut c = 0;
         loop {
             let f_base = freq.add((c * n) as usize);
             let x_base = x.add((c * n) as usize);
             for i in 0..end as usize {
-                let g = shr32(*band_e.add(i + (c as usize) * mode.nb_ebands as usize), 1);
+                let g = shr32(*band_e.add(i + (c as usize) * m.nb_ebands as usize), 1);
                 let j_start = (m_factor * (ebands[i] as c_int)) as usize;
                 let band_end = (m_factor * (ebands[i + 1] as c_int)) as usize;
                 for j in j_start..band_end {
@@ -104,7 +103,7 @@ pub unsafe fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
 /// coefficients a1 and a2, and replaces X with the intensity-coded
 /// mono signal. Y is not updated (side is discarded at this point).
 pub unsafe fn intensity_stereo(
-    m: *const CELTMode,
+    m: &CELTMode,
     x: *mut CeltNorm,
     y: *const CeltNorm,
     band_e: *const CeltEner,
@@ -112,9 +111,8 @@ pub unsafe fn intensity_stereo(
     n: c_int,
 ) {
     unsafe {
-        let mode = &*m;
         let i = band_id as usize;
-        let nb = mode.nb_ebands as usize;
+        let nb = m.nb_ebands as usize;
 
         #[cfg(feature = "fixed-point")]
         let shift = (celt_zlog2((*band_e.add(i)).max(*band_e.add(i + nb))) - 13) as i32;
@@ -322,7 +320,7 @@ fn bitexact_log2tan(isin: c_int, icos: c_int) -> c_int {
 /// difference between the current and previous frames, then renormalises.
 /// This avoids audible "holes" in transient signals decoded at low bitrate.
 pub unsafe fn anti_collapse(
-    m: *const CELTMode,
+    m: &CELTMode,
     x_: *mut CeltNorm,
     collapse_masks: *const u8,
     lm: c_int,
@@ -337,14 +335,13 @@ pub unsafe fn anti_collapse(
     seed: u32,
 ) {
     unsafe {
-        let mode = &*m;
         let mut seed = seed;
 
         for i in start..end {
             let i = i as usize;
-            let n0 = (mode.ebands[i + 1] - mode.ebands[i]) as c_int;
+            let n0 = (m.ebands[i + 1] - m.ebands[i]) as c_int;
             // depth in 1/8 bits
-            let depth = (1 + *pulses.add(i)) / (((mode.ebands[i + 1] - mode.ebands[i]) as c_int) << lm);
+            let depth = (1 + *pulses.add(i)) / (((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm);
 
             #[cfg(feature = "fixed-point")]
             let (thresh, sqrt_1, shift): (OpusVal16, OpusVal16, i32);
@@ -371,7 +368,7 @@ pub unsafe fn anti_collapse(
 
             let mut c = 0;
             loop {
-                let nb_ebands = mode.nb_ebands as usize;
+                let nb_ebands = m.nb_ebands as usize;
                 let mut prev1 = *prev1log_e.add(c as usize * nb_ebands + i);
                 let mut prev2 = *prev2log_e.add(c as usize * nb_ebands + i);
                 if c_channels == 1 {
@@ -410,7 +407,7 @@ pub unsafe fn anti_collapse(
                     r = rv * sqrt_1;
                 }
 
-                let x_ptr = x_.add(c as usize * size as usize + ((mode.ebands[i] as c_int) << lm) as usize);
+                let x_ptr = x_.add(c as usize * size as usize + ((m.ebands[i] as c_int) << lm) as usize);
                 let mut renormalize = 0;
                 for k in 0..1 << lm {
                     // Detect collapse
@@ -450,7 +447,7 @@ pub unsafe fn anti_collapse(
 /// Returns the collapse mask (which sub-blocks are non-zero).
 pub unsafe fn quant_band(
     encode: c_int,
-    m: *const CELTMode,
+    m: &CELTMode,
     i: c_int,
     x: *mut CeltNorm,
     y_in: *mut CeltNorm,
@@ -472,7 +469,6 @@ pub unsafe fn quant_band(
     fill_in: c_int,
 ) -> u32 {
     unsafe {
-        let mode = &*m;
         let resynth = encode == 0;
 
         let mut n = n_in;
@@ -571,7 +567,7 @@ pub unsafe fn quant_band(
         n_b0 = n_b;
 
         // If we need 1.5 more bit than we can produce, split the band in two.
-        let cache = mode.cache.bits.as_ptr().add(mode.cache.index[((lm + 1) * mode.nb_ebands + i) as usize] as usize);
+        let cache = m.cache.bits.as_ptr().add(m.cache.index[((lm + 1) * m.nb_ebands + i) as usize] as usize);
         if stereo == 0 && lm != -1 && b > (*cache.add(*cache as usize)) as c_int + 12 && n > 2 {
             n >>= 1;
             y = x.add(n as usize);
@@ -594,7 +590,7 @@ pub unsafe fn quant_band(
             let orig_fill;
 
             // Decide on the resolution to give to the split parameter theta
-            pulse_cap = mode.log_n[i as usize] as c_int + lm * (1 << BITRES as c_int);
+            pulse_cap = m.log_n[i as usize] as c_int + lm * (1 << BITRES as c_int);
             offset = (pulse_cap >> 1) - if stereo != 0 && n == 2 { QTHETA_OFFSET_TWOPHASE } else { QTHETA_OFFSET };
             let qn = compute_qn(n, b, offset, pulse_cap, stereo);
             let qn_val = if stereo != 0 && i >= intensity { 1 } else { qn };
@@ -973,7 +969,7 @@ pub unsafe fn quant_band(
 /// collapse mask tracking.
 pub unsafe fn quant_all_bands(
     encode: c_int,
-    m: *const CELTMode,
+    m: &CELTMode,
     start: c_int,
     end: c_int,
     x_: *mut CeltNorm,
@@ -993,23 +989,22 @@ pub unsafe fn quant_all_bands(
     seed: *mut u32,
 ) {
     unsafe {
-        let mode = &*m;
         let resynth = encode == 0;
         let _ = resynth;
-        let ebands = mode.ebands;
+        let ebands = m.ebands;
 
         let big_m = 1 << lm;
         let b_blocks = if short_blocks != 0 { big_m } else { 1 };
         let c = if !y_.is_null() { 2 } else { 1 };
 
-        let norm_size = (c * big_m * ebands[mode.nb_ebands as usize] as c_int) as usize;
+        let norm_size = (c * big_m * ebands[m.nb_ebands as usize] as c_int) as usize;
         let scratch_size = (big_m
-            * (ebands[mode.nb_ebands as usize] as c_int - ebands[(mode.nb_ebands - 1) as usize] as c_int))
+            * (ebands[m.nb_ebands as usize] as c_int - ebands[(m.nb_ebands - 1) as usize] as c_int))
             as usize;
         let mut norm_buf = vec![0 as CeltNorm; norm_size];
         let mut scratch_buf = vec![0 as CeltNorm; scratch_size];
         let norm = norm_buf.as_mut_ptr();
-        let norm2 = norm.add((big_m * ebands[mode.nb_ebands as usize] as c_int) as usize);
+        let norm2 = norm.add((big_m * ebands[m.nb_ebands as usize] as c_int) as usize);
         let lowband_scratch = scratch_buf.as_mut_ptr();
 
         let mut remaining_bits: i32;
@@ -1047,7 +1042,7 @@ pub unsafe fn quant_all_bands(
 
             let tf_change = *tf_res.add(i_u);
             let (x_eff, y_eff) =
-                if i >= mode.eff_ebands { (norm, if !y_.is_null() { norm } else { std::ptr::null_mut() }) } else { (x, y_ptr) };
+                if i >= m.eff_ebands { (norm, if !y_.is_null() { norm } else { std::ptr::null_mut() }) } else { (x, y_ptr) };
 
             // Get a conservative estimate of the collapse_mask's for the bands we're going to fold from
             let mut x_cm: u32;

@@ -115,7 +115,7 @@ use crate::laplace::ec_laplace_decode;
 /// Uses inter-frame prediction (unless `intra`), applying the probability
 /// model selected by frame size (`LM`) and prediction mode.
 pub unsafe fn unquant_coarse_energy(
-    m: *const CELTMode,
+    m: &CELTMode,
     start: c_int,
     end: c_int,
     old_ebands: *mut OpusVal16,
@@ -126,7 +126,7 @@ pub unsafe fn unquant_coarse_energy(
 ) {
     unsafe {
         let prob_model = &E_PROB_MODEL[lm as usize][intra as usize];
-        let nb_ebands = (*m).nb_ebands as usize;
+        let nb_ebands = m.nb_ebands as usize;
         let mut prev: [OpusVal32; 2] = [0 as OpusVal32; 2];
 
         let coef: OpusVal16;
@@ -182,7 +182,7 @@ pub unsafe fn unquant_coarse_energy(
 ///
 /// Reads `fine_quant[i]` bits per band to refine the coarse energy estimate.
 pub unsafe fn unquant_fine_energy(
-    m: *const CELTMode,
+    m: &CELTMode,
     start: c_int,
     end: c_int,
     old_ebands: *mut OpusVal16,
@@ -191,7 +191,7 @@ pub unsafe fn unquant_fine_energy(
     c_channels: c_int,
 ) {
     unsafe {
-        let nb_ebands = (*m).nb_ebands as usize;
+        let nb_ebands = m.nb_ebands as usize;
 
         for i in (start as usize)..(end as usize) {
             if *fine_quant.add(i) <= 0 {
@@ -229,7 +229,7 @@ pub unsafe fn unquant_fine_energy(
 /// Iterates by priority (0 then 1), reading 1 bit per band to adjust
 /// the energy estimate by half a fine-quant step.
 pub unsafe fn unquant_energy_finalise(
-    m: *const CELTMode,
+    m: &CELTMode,
     start: c_int,
     end: c_int,
     old_ebands: *mut OpusVal16,
@@ -240,7 +240,7 @@ pub unsafe fn unquant_energy_finalise(
     c_channels: c_int,
 ) {
     unsafe {
-        let nb_ebands = (*m).nb_ebands as usize;
+        let nb_ebands = m.nb_ebands as usize;
 
         for prio in 0..2 {
             let mut i = start as usize;
@@ -280,7 +280,7 @@ pub unsafe fn unquant_energy_finalise(
 /// Computes eBands[i] = 2^(oldEBands[i] + eMeans[i]) / 16 for active bands,
 /// zeroing bands outside [start, end).
 pub unsafe fn log2amp(
-    m: *const CELTMode,
+    m: &CELTMode,
     start: c_int,
     end: c_int,
     e_bands: *mut OpusVal32,
@@ -288,7 +288,7 @@ pub unsafe fn log2amp(
     c_channels: c_int,
 ) {
     unsafe {
-        let nb_ebands = (*m).nb_ebands as usize;
+        let nb_ebands = m.nb_ebands as usize;
         let mut c: usize = 0;
         loop {
             for i in 0..(start as usize) {
@@ -314,7 +314,7 @@ pub unsafe fn log2amp(
 /// Computes bandLogE[i] = log2(bandE[i] * 4) - eMeans[i] for active bands,
 /// setting inactive bands to -14.0 (Q10).
 pub unsafe fn amp2log2(
-    m: *const CELTMode,
+    m: &CELTMode,
     eff_end: c_int,
     end: c_int,
     band_e: *const OpusVal32,
@@ -322,7 +322,7 @@ pub unsafe fn amp2log2(
     c_channels: c_int,
 ) {
     unsafe {
-        let nb_ebands = (*m).nb_ebands as usize;
+        let nb_ebands = m.nb_ebands as usize;
         let mut c: usize = 0;
         loop {
             for i in 0..(eff_end as usize) {
