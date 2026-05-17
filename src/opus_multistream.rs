@@ -35,7 +35,6 @@ const OPUS_MULTISTREAM_GET_DECODER_STATE_REQUEST: c_int = 5122;
 
 // -- ChannelLayout --
 
-#[repr(C)]
 pub struct ChannelLayout {
     pub nb_channels: c_int,
     pub nb_streams: c_int,
@@ -49,7 +48,6 @@ pub struct ChannelLayout {
 ///
 /// Sub-decoders (one OpusDecoder per stream) live at byte offsets after
 /// this header within the same allocation, just as in the C version.
-#[repr(C)]
 pub struct OpusMSDecoder {
     pub layout: ChannelLayout,
     // Decoder states go here
