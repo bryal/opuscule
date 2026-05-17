@@ -98,7 +98,7 @@ pub unsafe fn silk_decode_core(
                 && (*ps_dec).indices.signal_type as i32 != TYPE_VOICED
                 && k < MAX_NB_SUBFR as i32 / 2
             {
-                core::ptr::write_bytes(b_q14, 0, LTP_ORDER);
+                core::slice::from_raw_parts_mut(b_q14, LTP_ORDER).fill(0);
                 *b_q14.offset((LTP_ORDER / 2) as isize) = (0.25 * (1u32 << 14) as f64 + 0.5) as i16;
 
                 signal_type = TYPE_VOICED;

@@ -70,8 +70,8 @@ pub unsafe fn silk_decoder_set_fs(ps_dec: *mut SilkDecoderState, fs_khz: i32, fs
                 (*ps_dec).lag_prev = 100;
                 (*ps_dec).last_gain_index = 10;
                 (*ps_dec).prev_signal_type = TYPE_NO_VOICE_ACTIVITY;
-                core::ptr::write_bytes((*ps_dec).out_buf.as_mut_ptr(), 0, (*ps_dec).out_buf.len());
-                core::ptr::write_bytes((*ps_dec).s_lpc_q14_buf.as_mut_ptr(), 0, (*ps_dec).s_lpc_q14_buf.len());
+                (*ps_dec).out_buf.fill(0);
+                (*ps_dec).s_lpc_q14_buf.fill(0);
             }
 
             (*ps_dec).fs_khz = fs_khz;

@@ -5,6 +5,8 @@
 //! decode stages consume: gains, LPC prediction coefs (with optional
 //! interpolated first half), pitch lags, LTP coefs, and LTP scale.
 
+use core::ffi::c_int;
+
 use super::NLSF_decode::silk_nlsf_decode;
 use super::NLSF2A::silk_nlsf2a;
 use super::bwexpander::silk_bwexpander;
@@ -114,12 +116,12 @@ pub unsafe fn silk_decode_parameters(ps_dec: *mut SilkDecoderState, ps_dec_ctrl:
             let ix = (*ps_dec).indices.ltp_scale_index as usize;
             (*ps_dec_ctrl).ltp_scale_q14 = SILK_LTP_SCALES_TABLE_Q14[ix] as i32;
         } else {
-            core::ptr::write_bytes((*ps_dec_ctrl).pitch_l.as_mut_ptr(), 0, (*ps_dec).nb_subfr as usize);
-            core::ptr::write_bytes(
-                (*ps_dec_ctrl).ltp_coef_q14.as_mut_ptr(),
-                0,
+            core::slice::from_raw_parts_mut(&raw mut (*ps_dec_ctrl).pitch_l as *mut c_int, (*ps_dec).nb_subfr as usize).fill(0);
+            core::slice::from_raw_parts_mut(
+                &raw mut (*ps_dec_ctrl).ltp_coef_q14 as *mut i16,
                 (LTP_ORDER as i32 * (*ps_dec).nb_subfr) as usize,
-            );
+            )
+            .fill(0);
             (*ps_dec).indices.per_index = 0;
             (*ps_dec_ctrl).ltp_scale_q14 = 0;
         }

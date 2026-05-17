@@ -171,8 +171,8 @@ pub unsafe fn silk_decode(
             && (*dec_control).n_channels_internal == 2
             && ((*ps_dec).n_channels_api == 1 || (*ps_dec).n_channels_internal == 1)
         {
-            core::ptr::write_bytes((*ps_dec).s_stereo.pred_prev_q13.as_mut_ptr(), 0, 2);
-            core::ptr::write_bytes((*ps_dec).s_stereo.s_side.as_mut_ptr(), 0, 2);
+            (*ps_dec).s_stereo.pred_prev_q13.fill(0);
+            (*ps_dec).s_stereo.s_side.fill(0);
             core::ptr::copy_nonoverlapping::<SilkResamplerStateStruct>(
                 &raw const (*channel_state).resampler_state,
                 &raw mut (*channel_state.add(1)).resampler_state,
@@ -275,8 +275,8 @@ pub unsafe fn silk_decode(
         /* Reset side channel decoder prediction memory for first frame with side coding */
         if (*dec_control).n_channels_internal == 2 && decode_only_middle == 0 && (*ps_dec).prev_decode_only_middle == 1 {
             let cs1 = channel_state.add(1);
-            core::ptr::write_bytes((*cs1).out_buf.as_mut_ptr(), 0, (*cs1).out_buf.len());
-            core::ptr::write_bytes((*cs1).s_lpc_q14_buf.as_mut_ptr(), 0, (*cs1).s_lpc_q14_buf.len());
+            (*cs1).out_buf.fill(0);
+            (*cs1).s_lpc_q14_buf.fill(0);
             (*cs1).lag_prev = 100;
             (*cs1).last_gain_index = 10;
             (*cs1).prev_signal_type = TYPE_NO_VOICE_ACTIVITY;
@@ -318,7 +318,7 @@ pub unsafe fn silk_decode(
                     cond_coding,
                 );
             } else {
-                core::ptr::write_bytes(samples_out1_tmp[n].as_mut_ptr().add(2), 0, n_samples_out_dec as usize);
+                samples_out1_tmp[n][2..2 + n_samples_out_dec as usize].fill(0);
             }
             (*cs).n_frames_decoded += 1;
         }

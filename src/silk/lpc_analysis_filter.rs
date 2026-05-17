@@ -42,6 +42,6 @@ pub unsafe fn silk_lpc_analysis_filter(out: *mut i16, in_: *const i16, b: *const
         }
 
         /* Set first d output samples to zero */
-        std::ptr::write_bytes(out, 0, d as usize);
+        std::slice::from_raw_parts_mut(out, d as usize).fill(0);
     }
 }

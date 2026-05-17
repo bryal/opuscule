@@ -161,7 +161,8 @@ pub unsafe fn silk_cng(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDeco
                 MAX_LPC_ORDER,
             );
         } else {
-            core::ptr::write_bytes((*ps_cng).cng_synth_state.as_mut_ptr(), 0, (*ps_dec).lpc_order as usize);
+            core::slice::from_raw_parts_mut(&raw mut (*ps_cng).cng_synth_state as *mut i32, (*ps_dec).lpc_order as usize)
+                .fill(0);
         }
     }
 }

@@ -102,7 +102,7 @@ unsafe fn silk_plc_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkD
                 j += 1;
             }
 
-            core::ptr::write_bytes((*ps_plc).ltp_coef_q14.as_mut_ptr(), 0, LTP_ORDER);
+            (*ps_plc).ltp_coef_q14.fill(0);
             (*ps_plc).ltp_coef_q14[LTP_ORDER / 2] = ltp_gain_q14 as i16;
 
             /* Limit LT coefs */
@@ -125,7 +125,7 @@ unsafe fn silk_plc_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkD
             }
         } else {
             (*ps_plc).pitch_l_q8 = silk_lshift(silk_smulbb((*ps_dec).fs_khz, 18), 8);
-            core::ptr::write_bytes((*ps_plc).ltp_coef_q14.as_mut_ptr(), 0, LTP_ORDER);
+            (*ps_plc).ltp_coef_q14.fill(0);
         }
 
         /* Save LPC coeficients */
@@ -161,7 +161,7 @@ unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
         prev_gain_q10[1] = (*ps_plc).prev_gain_q16[1] >> 6;
 
         if (*ps_dec).first_frame_after_reset != 0 {
-            core::ptr::write_bytes((*ps_plc).prev_lpc_q12.as_mut_ptr(), 0, MAX_LPC_ORDER);
+            (*ps_plc).prev_lpc_q12.fill(0);
         }
 
         /* Find random noise component */

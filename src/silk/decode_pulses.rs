@@ -79,11 +79,11 @@ pub unsafe fn silk_decode_pulses(
                     sum_pulses[i as usize],
                 );
             } else {
-                core::ptr::write_bytes(
+                core::slice::from_raw_parts_mut(
                     pulses.offset(silk_smulbb(i, SHELL_CODEC_FRAME_LENGTH) as isize),
-                    0,
                     SHELL_CODEC_FRAME_LENGTH as usize,
-                );
+                )
+                .fill(0);
             }
             i += 1;
         }
