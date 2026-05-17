@@ -37,48 +37,46 @@ fn silk_nlsf_residual_dequant(x_q10: &mut [i16], indices: &[i8], pred_coef_q8: &
 }
 
 /// `silk_NLSF_decode` — NLSF vector decoder.
-pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_nlsf_cb: &SilkNlsfCbStruct) {
-    unsafe {
-        let mut pred_q8 = [0u8; MAX_LPC_ORDER];
-        let mut ec_ix = [0i16; MAX_LPC_ORDER];
-        let mut res_q10 = [0i16; MAX_LPC_ORDER];
-        let mut w_tmp_qw = [0i16; MAX_LPC_ORDER];
+///
+/// `p_nlsf_q15` must be at least `ps_nlsf_cb.order` long; `nlsf_indices`
+/// must be at least `ps_nlsf_cb.order + 1` long.
+pub fn silk_nlsf_decode(p_nlsf_q15: &mut [i16], nlsf_indices: &[i8], ps_nlsf_cb: &SilkNlsfCbStruct) {
+    let mut pred_q8 = [0u8; MAX_LPC_ORDER];
+    let mut ec_ix = [0i16; MAX_LPC_ORDER];
+    let mut res_q10 = [0i16; MAX_LPC_ORDER];
+    let mut w_tmp_qw = [0i16; MAX_LPC_ORDER];
 
-        let order = ps_nlsf_cb.order as i32;
+    let order = ps_nlsf_cb.order as i32;
 
-        /* Decode first stage */
-        let p_cb_element = ps_nlsf_cb.cb1_nlsf_q8.as_ptr().add((*nlsf_indices.offset(0) as i32 * order) as usize);
-        let mut i = 0i32;
-        while i < order {
-            *p_nlsf_q15.offset(i as isize) = silk_lshift(*p_cb_element.offset(i as isize) as i16 as i32, 7) as i16;
-            i += 1;
-        }
-
-        /* Unpack entropy table indices and predictor for current CB1 index */
-        silk_nlsf_unpack(&mut ec_ix, &mut pred_q8, ps_nlsf_cb, *nlsf_indices.offset(0) as i32);
-
-        /* Predictive residual dequantizer */
-        silk_nlsf_residual_dequant(
-            &mut res_q10,
-            core::slice::from_raw_parts(nlsf_indices.offset(1), order as usize),
-            &pred_q8,
-            ps_nlsf_cb.quant_step_size_q16 as i32,
-            ps_nlsf_cb.order,
-        );
-
-        /* Weights from codebook vector */
-        silk_nlsf_vq_weights_laroia(&mut w_tmp_qw[..order as usize], core::slice::from_raw_parts(p_nlsf_q15, order as usize));
-
-        /* Apply inverse square-rooted weights and add to output */
-        let mut i = 0i32;
-        while i < order {
-            let w_tmp_q9 = silk_sqrt_approx(silk_lshift(w_tmp_qw[i as usize] as i32, 18 - NLSF_W_Q));
-            let nlsf_q15_tmp = *p_nlsf_q15.offset(i as isize) as i32 + silk_lshift(res_q10[i as usize] as i32, 14) / w_tmp_q9;
-            *p_nlsf_q15.offset(i as isize) = silk_limit_int(nlsf_q15_tmp, 0, 32767) as i16;
-            i += 1;
-        }
-
-        /* NLSF stabilization */
-        silk_nlsf_stabilize(core::slice::from_raw_parts_mut(p_nlsf_q15, order as usize), ps_nlsf_cb.delta_min_q15, order);
+    /* Decode first stage */
+    let cb_off = (nlsf_indices[0] as i32 * order) as usize;
+    let p_cb_element = &ps_nlsf_cb.cb1_nlsf_q8[cb_off..cb_off + order as usize];
+    for i in 0..order as usize {
+        p_nlsf_q15[i] = silk_lshift(p_cb_element[i] as i16 as i32, 7) as i16;
     }
+
+    /* Unpack entropy table indices and predictor for current CB1 index */
+    silk_nlsf_unpack(&mut ec_ix, &mut pred_q8, ps_nlsf_cb, nlsf_indices[0] as i32);
+
+    /* Predictive residual dequantizer */
+    silk_nlsf_residual_dequant(
+        &mut res_q10,
+        &nlsf_indices[1..1 + order as usize],
+        &pred_q8,
+        ps_nlsf_cb.quant_step_size_q16 as i32,
+        ps_nlsf_cb.order,
+    );
+
+    /* Weights from codebook vector */
+    silk_nlsf_vq_weights_laroia(&mut w_tmp_qw[..order as usize], &p_nlsf_q15[..order as usize]);
+
+    /* Apply inverse square-rooted weights and add to output */
+    for i in 0..order as usize {
+        let w_tmp_q9 = silk_sqrt_approx(silk_lshift(w_tmp_qw[i] as i32, 18 - NLSF_W_Q));
+        let nlsf_q15_tmp = p_nlsf_q15[i] as i32 + silk_lshift(res_q10[i] as i32, 14) / w_tmp_q9;
+        p_nlsf_q15[i] = silk_limit_int(nlsf_q15_tmp, 0, 32767) as i16;
+    }
+
+    /* NLSF stabilization */
+    silk_nlsf_stabilize(&mut p_nlsf_q15[..order as usize], ps_nlsf_cb.delta_min_q15, order);
 }
