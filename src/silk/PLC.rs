@@ -230,7 +230,10 @@ unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
                 rand_scale_q14 = (silk_smulbb(rand_scale_q14 as i32, (*ps_plc).prev_ltp_scale_q14 as i32) >> 14) as i16;
             } else {
                 /* Reduce random noise for unvoiced frames with high LPC gain */
-                let inv_gain_q30 = silk_lpc_inverse_pred_gain((*ps_plc).prev_lpc_q12.as_ptr(), (*ps_dec).lpc_order);
+                let lpc_order = (*ps_dec).lpc_order;
+                let prev_lpc_q12_ptr = &raw const (*ps_plc).prev_lpc_q12 as *const i16;
+                let inv_gain_q30 =
+                    silk_lpc_inverse_pred_gain(core::slice::from_raw_parts(prev_lpc_q12_ptr, lpc_order as usize), lpc_order);
 
                 let mut down_scale_q30 = ((1 << 30) >> LOG2_INV_LPC_GAIN_HIGH_THRES).min(inv_gain_q30);
                 down_scale_q30 = ((1 << 30) >> LOG2_INV_LPC_GAIN_LOW_THRES).max(down_scale_q30);

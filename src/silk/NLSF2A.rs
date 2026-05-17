@@ -157,7 +157,7 @@ pub fn silk_nlsf2a(a_q12: &mut [i16], nlsf: &[i16], d: i32) {
 
     let mut i = 0i32;
     while i < MAX_LPC_STABILIZE_ITERATIONS {
-        if unsafe { silk_lpc_inverse_pred_gain(a_q12.as_ptr(), d) } < ONE_OVER_MAX_PREDICTION_POWER_GAIN_Q30 {
+        if silk_lpc_inverse_pred_gain(a_q12, d) < ONE_OVER_MAX_PREDICTION_POWER_GAIN_Q30 {
             /* Prediction coefficients are (too close to) unstable; apply bandwidth expansion on
              * the unscaled coefficients, convert to Q12 and measure again */
             silk_bwexpander_32(&mut a32_qa1[..d as usize], 65536 - silk_lshift(2, i));

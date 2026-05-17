@@ -84,18 +84,16 @@ fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i3
 ///
 /// Returns inverse prediction gain in energy domain, Q30.
 /// Returns 0 if the filter is unstable.
-pub fn silk_lpc_inverse_pred_gain(a_q12: *const i16, order: i32) -> i32 {
+pub fn silk_lpc_inverse_pred_gain(a_q12: &[i16], order: i32) -> i32 {
     let mut atmp_qa = [[0i32; SILK_MAX_ORDER_LPC]; 2];
     let anew_qa = &mut atmp_qa[(order & 1) as usize];
 
     let mut dc_resp: i32 = 0;
     /* Increase Q domain of the AR coefficients */
-    let mut k = 0;
-    while k < order {
-        let a = unsafe { *a_q12.offset(k as isize) } as i32;
+    for k in 0..order as usize {
+        let a = a_q12[k] as i32;
         dc_resp += a;
-        anew_qa[k as usize] = silk_lshift(a, QA - 12);
-        k += 1;
+        anew_qa[k] = silk_lshift(a, QA - 12);
     }
     /* If the DC is unstable, we don't even need to do the full calculations */
     if dc_resp >= 4096 {
