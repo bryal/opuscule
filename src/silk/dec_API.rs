@@ -232,7 +232,7 @@ pub unsafe fn silk_decode(
                             /* Use conditional coding if previous frame available */
                             let cond_coding =
                                 if i > 0 && (*cs).lbrr_flags[i - 1] != 0 { CODE_CONDITIONALLY } else { CODE_INDEPENDENTLY };
-                            silk_decode_indices(cs, ps_range_dec, i as i32, 1, cond_coding);
+                            silk_decode_indices(&mut *cs, ps_range_dec, i as i32, 1, cond_coding);
                             silk_decode_pulses(
                                 ps_range_dec,
                                 pulses.as_mut_ptr(),

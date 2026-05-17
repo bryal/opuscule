@@ -38,7 +38,8 @@ pub unsafe fn silk_decode_frame(
             || (lost_flag == FLAG_DECODE_LBRR && (*ps_dec).lbrr_flags[(*ps_dec).n_frames_decoded as usize] == 1)
         {
             /* Decode quantization indices of side info */
-            silk_decode_indices(ps_dec, ps_range_dec, (*ps_dec).n_frames_decoded, lost_flag, cond_coding);
+            let n_frames_decoded = (*ps_dec).n_frames_decoded;
+            silk_decode_indices(&mut *ps_dec, ps_range_dec, n_frames_decoded, lost_flag, cond_coding);
 
             /* Decode quantization indices of excitation */
             silk_decode_pulses(
