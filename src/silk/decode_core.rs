@@ -122,12 +122,17 @@ pub unsafe fn silk_decode_core(
                         );
                     }
 
+                    let len = (*ps_dec).ltp_mem_length - start_idx;
+                    let lpc_order = (*ps_dec).lpc_order;
+                    let src_off = (start_idx + k * (*ps_dec).subfr_length) as usize;
+                    let out_buf_ptr = &raw const (*ps_dec).out_buf as *const i16;
+                    let coef_row_ptr = &raw const (*ps_dec_ctrl).pred_coef_q12[(k >> 1) as usize] as *const i16;
                     silk_lpc_analysis_filter(
-                        s_ltp.as_mut_ptr().offset(start_idx as isize),
-                        (*ps_dec).out_buf.as_ptr().offset((start_idx + k * (*ps_dec).subfr_length) as isize),
-                        a_q12,
-                        (*ps_dec).ltp_mem_length - start_idx,
-                        (*ps_dec).lpc_order,
+                        &mut s_ltp[start_idx as usize..start_idx as usize + len as usize],
+                        core::slice::from_raw_parts(out_buf_ptr.add(src_off), len as usize),
+                        core::slice::from_raw_parts(coef_row_ptr, lpc_order as usize),
+                        len,
+                        lpc_order,
                     );
 
                     /* After rewhitening the LTP state is unscaled */

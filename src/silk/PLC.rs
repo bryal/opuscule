@@ -246,12 +246,15 @@ unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
 
         /* Rewhiten LTP state */
         let idx = (*ps_dec).ltp_mem_length - lag - (*ps_dec).lpc_order - LTP_ORDER as i32 / 2;
+        let len = (*ps_dec).ltp_mem_length - idx;
+        let lpc_order = (*ps_dec).lpc_order;
+        let out_buf_ptr = &raw const (*ps_dec).out_buf as *const i16;
         silk_lpc_analysis_filter(
-            s_ltp.as_mut_ptr().offset(idx as isize),
-            (*ps_dec).out_buf.as_ptr().offset(idx as isize),
-            a_q12.as_ptr(),
-            (*ps_dec).ltp_mem_length - idx,
-            (*ps_dec).lpc_order,
+            &mut s_ltp[idx as usize..idx as usize + len as usize],
+            core::slice::from_raw_parts(out_buf_ptr.add(idx as usize), len as usize),
+            &a_q12[..lpc_order as usize],
+            len,
+            lpc_order,
         );
         /* Scale LTP state */
         let mut inv_gain_q30 = silk_inverse32_varq((*ps_plc).prev_gain_q16[1], 46);
