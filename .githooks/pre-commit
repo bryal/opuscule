@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-commit checks: rustfmt + cargo check for both feature sets.
+# Enable via: git config core.hooksPath .githooks
+
+set -e
+
+echo "  fmt --check"
+cargo fmt --all -- --check
+
+echo "  cargo check (float)"
+cargo check --all-targets --quiet
+
+echo "  cargo check (fixed-point)"
+cargo check --all-targets --features fixed-point --quiet
