@@ -80,7 +80,7 @@ pub unsafe fn silk_decode_indices(
             nlsf_cb.cb1_icdf.as_ptr().add((((ps_dec.indices.signal_type as i32) >> 1) * nlsf_cb.n_vectors as i32) as usize),
             8,
         ) as i8;
-        silk_nlsf_unpack(ec_ix.as_mut_ptr(), pred_q8.as_mut_ptr(), nlsf_cb, ps_dec.indices.nlsf_indices[0] as i32);
+        silk_nlsf_unpack(&mut ec_ix, &mut pred_q8, nlsf_cb, ps_dec.indices.nlsf_indices[0] as i32);
         /* silk_assert(psDec->psNLSF_CB->order == psDec->LPC_order); */
         let mut i = 0i32;
         while i < nlsf_cb.order as i32 {

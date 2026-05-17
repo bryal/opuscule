@@ -63,7 +63,7 @@ pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
         }
 
         /* Unpack entropy table indices and predictor for current CB1 index */
-        silk_nlsf_unpack(ec_ix.as_mut_ptr(), pred_q8.as_mut_ptr(), ps_nlsf_cb, *nlsf_indices.offset(0) as i32);
+        silk_nlsf_unpack(&mut ec_ix, &mut pred_q8, ps_nlsf_cb, *nlsf_indices.offset(0) as i32);
 
         /* Predictive residual dequantizer */
         silk_nlsf_residual_dequant(
