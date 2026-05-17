@@ -58,7 +58,6 @@ const BAND_E_SIZE: usize = (2 * NB_EBANDS) as usize;
 /// trailing pointer-arithmetic arrays. This Rust version makes all
 /// arrays fixed-size, always allocated for 2 channels (the maximum).
 /// Mono decoders simply use the first portion of each array.
-#[repr(C)]
 pub struct OpusCustomDecoder {
     pub mode: &'static CELTMode,
     pub overlap: c_int,
@@ -161,19 +160,57 @@ pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *c
 /// Factored out so both `opus_custom_decoder_init` and the ctl handler can call it.
 pub unsafe fn celt_decoder_reset(st: *mut CELTDecoder) {
     unsafe {
-        // Clear from rng to end of struct
-        let reset_start = &mut (*st).rng as *mut u32 as *mut u8;
-        let struct_start = st as *mut u8;
-        let struct_size = std::mem::size_of::<OpusCustomDecoder>();
-        let offset = reset_start.offset_from(struct_start) as usize;
-        std::ptr::write_bytes(reset_start, 0, struct_size - offset);
+        // Fields up through `signalling` are configuration set at init time
+        // (mode, channel layout, band range); everything from `rng` onward is
+        // runtime state and gets cleared.
+        let OpusCustomDecoder {
+            mode: _,
+            overlap: _,
+            channels: _,
+            stream_channels: _,
+            downsample: _,
+            start: _,
+            end: _,
+            signalling: _,
+            rng,
+            error,
+            last_pitch_index,
+            loss_count,
+            postfilter_period,
+            postfilter_period_old,
+            postfilter_gain,
+            postfilter_gain_old,
+            postfilter_tapset,
+            postfilter_tapset_old,
+            preemph_mem_d,
+            decode_mem,
+            lpc,
+            old_band_e,
+            old_log_e,
+            old_log_e2,
+            background_log_e,
+        } = &mut *st;
+
+        *rng = 0;
+        *error = 0;
+        *last_pitch_index = 0;
+        *loss_count = 0;
+        *postfilter_period = 0;
+        *postfilter_period_old = 0;
+        *postfilter_gain = 0 as OpusVal16;
+        *postfilter_gain_old = 0 as OpusVal16;
+        *postfilter_tapset = 0;
+        *postfilter_tapset_old = 0;
+        preemph_mem_d.fill(0 as CeltSig);
+        decode_mem.fill(0 as CeltSig);
+        lpc.fill(0 as OpusVal16);
+        old_band_e.fill(0 as OpusVal16);
+        background_log_e.fill(0 as OpusVal16);
 
         // Initialise oldLogE and oldLogE2 to -28 dB
         let init_val = -qconst16(28.0, DB_SHIFT);
-        for i in 0..BAND_E_SIZE {
-            (*st).old_log_e[i] = init_val;
-            (*st).old_log_e2[i] = init_val;
-        }
+        old_log_e.fill(init_val);
+        old_log_e2.fill(init_val);
     }
 }
 
