@@ -185,8 +185,8 @@ unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
         let mut shift1 = 0i32;
         let mut energy2 = 0i32;
         let mut shift2 = 0i32;
-        silk_sum_sqr_shift(&mut energy1, &mut shift1, exc_buf.as_ptr(), subfr_length);
-        silk_sum_sqr_shift(&mut energy2, &mut shift2, exc_buf.as_ptr().add(subfr_length as usize), subfr_length);
+        silk_sum_sqr_shift(&mut energy1, &mut shift1, &exc_buf[..subfr_length as usize]);
+        silk_sum_sqr_shift(&mut energy2, &mut shift2, &exc_buf[subfr_length as usize..2 * subfr_length as usize]);
 
         let rand_ptr: *const i32 = if energy1 >> shift2 < energy2 >> shift1 {
             /* First sub-frame has lowest energy */
@@ -372,14 +372,18 @@ pub unsafe fn silk_plc_glue_frames(ps_dec: *mut SilkDecoderState, frame: *mut i1
 
         if (*ps_dec).loss_cnt != 0 {
             /* Calculate energy in concealed residual */
-            silk_sum_sqr_shift(&raw mut (*ps_plc).conc_energy, &raw mut (*ps_plc).conc_energy_shift, frame, length);
+            let mut energy = 0i32;
+            let mut energy_shift = 0i32;
+            silk_sum_sqr_shift(&mut energy, &mut energy_shift, core::slice::from_raw_parts(frame, length as usize));
+            (*ps_plc).conc_energy = energy;
+            (*ps_plc).conc_energy_shift = energy_shift;
             (*ps_plc).last_frame_lost = 1;
         } else {
             if (*ps_plc).last_frame_lost != 0 {
                 /* Calculate residual in decoded signal if last frame was lost */
                 let mut energy = 0i32;
                 let mut energy_shift = 0i32;
-                silk_sum_sqr_shift(&mut energy, &mut energy_shift, frame, length);
+                silk_sum_sqr_shift(&mut energy, &mut energy_shift, core::slice::from_raw_parts(frame, length as usize));
 
                 /* Normalize energies */
                 if energy_shift > (*ps_plc).conc_energy_shift {
