@@ -16,7 +16,7 @@ use super::resampler_rom::{
     SILK_RESAMPLER_1_3_COEFS, SILK_RESAMPLER_1_4_COEFS, SILK_RESAMPLER_1_6_COEFS, SILK_RESAMPLER_2_3_COEFS,
     SILK_RESAMPLER_3_4_COEFS,
 };
-use super::structs::SilkResamplerStateStruct;
+use super::structs::{SILK_RESAMPLER_MAX_FIR_ORDER, SILK_RESAMPLER_MAX_IIR_ORDER, SilkResamplerStateStruct};
 
 const RESAMPLER_MAX_BATCH_SIZE_MS: i32 = 10;
 
@@ -53,7 +53,20 @@ const USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR: i32 = 3;
 pub unsafe fn silk_resampler_init(s: *mut SilkResamplerStateStruct, fs_hz_in: i32, fs_hz_out: i32, for_enc: i32) -> i32 {
     unsafe {
         /* Clear state */
-        core::ptr::write_bytes(s, 0, 1);
+        *s = SilkResamplerStateStruct {
+            s_iir: [0; SILK_RESAMPLER_MAX_IIR_ORDER],
+            s_fir: [0; SILK_RESAMPLER_MAX_FIR_ORDER],
+            delay_buf: [0; 48],
+            resampler_function: 0,
+            batch_size: 0,
+            inv_ratio_q16: 0,
+            fir_order: 0,
+            fir_fracs: 0,
+            fs_in_khz: 0,
+            fs_out_khz: 0,
+            input_delay: 0,
+            coefs: None,
+        };
 
         /* Input checking */
         if for_enc != 0 {
