@@ -163,7 +163,7 @@ pub unsafe fn silk_decode(
                 if fs_khz_dec != 8 && fs_khz_dec != 12 && fs_khz_dec != 16 {
                     return SILK_DEC_INVALID_SAMPLING_FREQUENCY;
                 }
-                ret += silk_decoder_set_fs(cs, fs_khz_dec, (*dec_control).api_sample_rate);
+                ret += silk_decoder_set_fs(&mut *cs, fs_khz_dec, (*dec_control).api_sample_rate);
             }
         }
 
