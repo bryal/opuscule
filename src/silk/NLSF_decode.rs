@@ -79,6 +79,6 @@ pub unsafe fn silk_nlsf_decode(p_nlsf_q15: *mut i16, nlsf_indices: *mut i8, ps_n
         }
 
         /* NLSF stabilization */
-        silk_nlsf_stabilize(p_nlsf_q15, ps_nlsf_cb.delta_min_q15.as_ptr(), order);
+        silk_nlsf_stabilize(core::slice::from_raw_parts_mut(p_nlsf_q15, order as usize), ps_nlsf_cb.delta_min_q15, order);
     }
 }
