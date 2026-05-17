@@ -15,93 +15,47 @@ use super::tables_pulses_per_block::{
 };
 
 /// `decode_split` — split a parent pulse count `p` into two children
-/// using `shell_table` keyed on `silk_shell_code_table_offsets[p]`.
+/// (written into `children[..2]`) using `shell_table` keyed on
+/// `silk_shell_code_table_offsets[p]`.
 #[inline]
-unsafe fn decode_split(p_child1: *mut i32, p_child2: *mut i32, ps_range_dec: *mut ec_dec, p: i32, shell_table: *const u8) {
-    unsafe {
-        if p > 0 {
-            *p_child1 = ec_dec_icdf(ps_range_dec, shell_table.offset(SILK_SHELL_CODE_TABLE_OFFSETS[p as usize] as isize), 8);
-            *p_child2 = p - *p_child1;
-        } else {
-            *p_child1 = 0;
-            *p_child2 = 0;
-        }
+unsafe fn decode_split(children: &mut [i32], ps_range_dec: *mut ec_dec, p: i32, shell_table: &[u8]) {
+    if p > 0 {
+        let offset = SILK_SHELL_CODE_TABLE_OFFSETS[p as usize] as usize;
+        children[0] = unsafe { ec_dec_icdf(ps_range_dec, shell_table[offset..].as_ptr(), 8) };
+        children[1] = p - children[0];
+    } else {
+        children[0] = 0;
+        children[1] = 0;
     }
 }
 
 /// `silk_shell_decoder` — decode 16 nonnegative pulse amplitudes from a
 /// total pulse count `pulses4` (the root of the shell tree).
-pub unsafe fn silk_shell_decoder(pulses0: *mut i32, ps_range_dec: *mut ec_dec, pulses4: i32) {
+pub unsafe fn silk_shell_decoder(pulses0: &mut [i32], ps_range_dec: *mut ec_dec, pulses4: i32) {
+    let mut pulses3 = [0i32; 2];
+    let mut pulses2 = [0i32; 4];
+    let mut pulses1 = [0i32; 8];
+
+    /* this function operates on one shell code frame of 16 pulses */
+    /* silk_assert(SHELL_CODEC_FRAME_LENGTH == 16); */
+
     unsafe {
-        let mut pulses3 = [0i32; 2];
-        let mut pulses2 = [0i32; 4];
-        let mut pulses1 = [0i32; 8];
+        decode_split(&mut pulses3, ps_range_dec, pulses4, &SILK_SHELL_CODE_TABLE3);
 
-        /* this function operates on one shell code frame of 16 pulses */
-        /* silk_assert(SHELL_CODEC_FRAME_LENGTH == 16); */
+        decode_split(&mut pulses2[0..2], ps_range_dec, pulses3[0], &SILK_SHELL_CODE_TABLE2);
+        decode_split(&mut pulses1[0..2], ps_range_dec, pulses2[0], &SILK_SHELL_CODE_TABLE1);
+        decode_split(&mut pulses0[0..2], ps_range_dec, pulses1[0], &SILK_SHELL_CODE_TABLE0);
+        decode_split(&mut pulses0[2..4], ps_range_dec, pulses1[1], &SILK_SHELL_CODE_TABLE0);
+        decode_split(&mut pulses1[2..4], ps_range_dec, pulses2[1], &SILK_SHELL_CODE_TABLE1);
+        decode_split(&mut pulses0[4..6], ps_range_dec, pulses1[2], &SILK_SHELL_CODE_TABLE0);
+        decode_split(&mut pulses0[6..8], ps_range_dec, pulses1[3], &SILK_SHELL_CODE_TABLE0);
 
-        decode_split(
-            pulses3.as_mut_ptr().offset(0),
-            pulses3.as_mut_ptr().offset(1),
-            ps_range_dec,
-            pulses4,
-            SILK_SHELL_CODE_TABLE3.as_ptr(),
-        );
-
-        decode_split(
-            pulses2.as_mut_ptr().offset(0),
-            pulses2.as_mut_ptr().offset(1),
-            ps_range_dec,
-            pulses3[0],
-            SILK_SHELL_CODE_TABLE2.as_ptr(),
-        );
-
-        decode_split(
-            pulses1.as_mut_ptr().offset(0),
-            pulses1.as_mut_ptr().offset(1),
-            ps_range_dec,
-            pulses2[0],
-            SILK_SHELL_CODE_TABLE1.as_ptr(),
-        );
-        decode_split(pulses0.offset(0), pulses0.offset(1), ps_range_dec, pulses1[0], SILK_SHELL_CODE_TABLE0.as_ptr());
-        decode_split(pulses0.offset(2), pulses0.offset(3), ps_range_dec, pulses1[1], SILK_SHELL_CODE_TABLE0.as_ptr());
-
-        decode_split(
-            pulses1.as_mut_ptr().offset(2),
-            pulses1.as_mut_ptr().offset(3),
-            ps_range_dec,
-            pulses2[1],
-            SILK_SHELL_CODE_TABLE1.as_ptr(),
-        );
-        decode_split(pulses0.offset(4), pulses0.offset(5), ps_range_dec, pulses1[2], SILK_SHELL_CODE_TABLE0.as_ptr());
-        decode_split(pulses0.offset(6), pulses0.offset(7), ps_range_dec, pulses1[3], SILK_SHELL_CODE_TABLE0.as_ptr());
-
-        decode_split(
-            pulses2.as_mut_ptr().offset(2),
-            pulses2.as_mut_ptr().offset(3),
-            ps_range_dec,
-            pulses3[1],
-            SILK_SHELL_CODE_TABLE2.as_ptr(),
-        );
-
-        decode_split(
-            pulses1.as_mut_ptr().offset(4),
-            pulses1.as_mut_ptr().offset(5),
-            ps_range_dec,
-            pulses2[2],
-            SILK_SHELL_CODE_TABLE1.as_ptr(),
-        );
-        decode_split(pulses0.offset(8), pulses0.offset(9), ps_range_dec, pulses1[4], SILK_SHELL_CODE_TABLE0.as_ptr());
-        decode_split(pulses0.offset(10), pulses0.offset(11), ps_range_dec, pulses1[5], SILK_SHELL_CODE_TABLE0.as_ptr());
-
-        decode_split(
-            pulses1.as_mut_ptr().offset(6),
-            pulses1.as_mut_ptr().offset(7),
-            ps_range_dec,
-            pulses2[3],
-            SILK_SHELL_CODE_TABLE1.as_ptr(),
-        );
-        decode_split(pulses0.offset(12), pulses0.offset(13), ps_range_dec, pulses1[6], SILK_SHELL_CODE_TABLE0.as_ptr());
-        decode_split(pulses0.offset(14), pulses0.offset(15), ps_range_dec, pulses1[7], SILK_SHELL_CODE_TABLE0.as_ptr());
+        decode_split(&mut pulses2[2..4], ps_range_dec, pulses3[1], &SILK_SHELL_CODE_TABLE2);
+        decode_split(&mut pulses1[4..6], ps_range_dec, pulses2[2], &SILK_SHELL_CODE_TABLE1);
+        decode_split(&mut pulses0[8..10], ps_range_dec, pulses1[4], &SILK_SHELL_CODE_TABLE0);
+        decode_split(&mut pulses0[10..12], ps_range_dec, pulses1[5], &SILK_SHELL_CODE_TABLE0);
+        decode_split(&mut pulses1[6..8], ps_range_dec, pulses2[3], &SILK_SHELL_CODE_TABLE1);
+        decode_split(&mut pulses0[12..14], ps_range_dec, pulses1[6], &SILK_SHELL_CODE_TABLE0);
+        decode_split(&mut pulses0[14..16], ps_range_dec, pulses1[7], &SILK_SHELL_CODE_TABLE0);
     }
 }

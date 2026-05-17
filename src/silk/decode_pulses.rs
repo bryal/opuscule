@@ -74,7 +74,10 @@ pub unsafe fn silk_decode_pulses(
         while i < iter {
             if sum_pulses[i as usize] > 0 {
                 silk_shell_decoder(
-                    pulses.offset(silk_smulbb(i, SHELL_CODEC_FRAME_LENGTH) as isize),
+                    core::slice::from_raw_parts_mut(
+                        pulses.offset(silk_smulbb(i, SHELL_CODEC_FRAME_LENGTH) as isize),
+                        SHELL_CODEC_FRAME_LENGTH as usize,
+                    ),
                     ps_range_dec,
                     sum_pulses[i as usize],
                 );
