@@ -50,104 +50,102 @@ const USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR: i32 = 3;
 
 /// `silk_resampler_init` — initialise/reset resampler state for a given
 /// pair of input/output sampling rates.
-pub unsafe fn silk_resampler_init(s: *mut SilkResamplerStateStruct, fs_hz_in: i32, fs_hz_out: i32, for_enc: i32) -> i32 {
-    unsafe {
-        /* Clear state */
-        *s = SilkResamplerStateStruct {
-            s_iir: [0; SILK_RESAMPLER_MAX_IIR_ORDER],
-            s_fir: [0; SILK_RESAMPLER_MAX_FIR_ORDER],
-            delay_buf: [0; 48],
-            resampler_function: 0,
-            batch_size: 0,
-            inv_ratio_q16: 0,
-            fir_order: 0,
-            fir_fracs: 0,
-            fs_in_khz: 0,
-            fs_out_khz: 0,
-            input_delay: 0,
-            coefs: None,
-        };
+pub fn silk_resampler_init(s: &mut SilkResamplerStateStruct, fs_hz_in: i32, fs_hz_out: i32, for_enc: i32) -> i32 {
+    /* Clear state */
+    *s = SilkResamplerStateStruct {
+        s_iir: [0; SILK_RESAMPLER_MAX_IIR_ORDER],
+        s_fir: [0; SILK_RESAMPLER_MAX_FIR_ORDER],
+        delay_buf: [0; 48],
+        resampler_function: 0,
+        batch_size: 0,
+        inv_ratio_q16: 0,
+        fir_order: 0,
+        fir_fracs: 0,
+        fs_in_khz: 0,
+        fs_out_khz: 0,
+        input_delay: 0,
+        coefs: None,
+    };
 
-        /* Input checking */
-        if for_enc != 0 {
-            if (fs_hz_in != 8000 && fs_hz_in != 12000 && fs_hz_in != 16000 && fs_hz_in != 24000 && fs_hz_in != 48000)
-                || (fs_hz_out != 8000 && fs_hz_out != 12000 && fs_hz_out != 16000)
-            {
-                return -1;
-            }
-            (*s).input_delay = DELAY_MATRIX_ENC[rate_id(fs_hz_in) as usize][rate_id(fs_hz_out) as usize] as i32;
-        } else {
-            if (fs_hz_in != 8000 && fs_hz_in != 12000 && fs_hz_in != 16000)
-                || (fs_hz_out != 8000 && fs_hz_out != 12000 && fs_hz_out != 16000 && fs_hz_out != 24000 && fs_hz_out != 48000)
-            {
-                return -1;
-            }
-            (*s).input_delay = DELAY_MATRIX_DEC[rate_id(fs_hz_in) as usize][rate_id(fs_hz_out) as usize] as i32;
+    /* Input checking */
+    if for_enc != 0 {
+        if (fs_hz_in != 8000 && fs_hz_in != 12000 && fs_hz_in != 16000 && fs_hz_in != 24000 && fs_hz_in != 48000)
+            || (fs_hz_out != 8000 && fs_hz_out != 12000 && fs_hz_out != 16000)
+        {
+            return -1;
         }
-
-        (*s).fs_in_khz = fs_hz_in / 1000;
-        (*s).fs_out_khz = fs_hz_out / 1000;
-
-        /* Number of samples processed per batch */
-        (*s).batch_size = (*s).fs_in_khz * RESAMPLER_MAX_BATCH_SIZE_MS;
-
-        /* Find resampler with the right sampling ratio */
-        let mut up2x = 0i32;
-        if fs_hz_out > fs_hz_in {
-            /* Upsample */
-            if fs_hz_out == fs_hz_in * 2 {
-                /* Special case: directly use 2x upsampler */
-                (*s).resampler_function = USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER;
-            } else {
-                /* Default resampler */
-                (*s).resampler_function = USE_SILK_RESAMPLER_PRIVATE_IIR_FIR;
-                up2x = 1;
-            }
-        } else if fs_hz_out < fs_hz_in {
-            /* Downsample */
-            (*s).resampler_function = USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR;
-            if fs_hz_out * 4 == fs_hz_in * 3 {
-                (*s).fir_fracs = 3;
-                (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
-                (*s).coefs = Some(&SILK_RESAMPLER_3_4_COEFS);
-            } else if fs_hz_out * 3 == fs_hz_in * 2 {
-                (*s).fir_fracs = 2;
-                (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
-                (*s).coefs = Some(&SILK_RESAMPLER_2_3_COEFS);
-            } else if fs_hz_out * 2 == fs_hz_in {
-                (*s).fir_fracs = 1;
-                (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR1 as i32;
-                (*s).coefs = Some(&SILK_RESAMPLER_1_2_COEFS);
-            } else if fs_hz_out * 3 == fs_hz_in {
-                (*s).fir_fracs = 1;
-                (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = Some(&SILK_RESAMPLER_1_3_COEFS);
-            } else if fs_hz_out * 4 == fs_hz_in {
-                (*s).fir_fracs = 1;
-                (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = Some(&SILK_RESAMPLER_1_4_COEFS);
-            } else if fs_hz_out * 6 == fs_hz_in {
-                (*s).fir_fracs = 1;
-                (*s).fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
-                (*s).coefs = Some(&SILK_RESAMPLER_1_6_COEFS);
-            } else {
-                /* None available */
-                return -1;
-            }
-        } else {
-            /* Input and output sampling rates are equal: copy */
-            (*s).resampler_function = USE_SILK_RESAMPLER_COPY;
+        s.input_delay = DELAY_MATRIX_ENC[rate_id(fs_hz_in) as usize][rate_id(fs_hz_out) as usize] as i32;
+    } else {
+        if (fs_hz_in != 8000 && fs_hz_in != 12000 && fs_hz_in != 16000)
+            || (fs_hz_out != 8000 && fs_hz_out != 12000 && fs_hz_out != 16000 && fs_hz_out != 24000 && fs_hz_out != 48000)
+        {
+            return -1;
         }
-
-        /* Ratio of input/output samples */
-        (*s).inv_ratio_q16 = silk_lshift(silk_lshift(fs_hz_in, 14 + up2x) / fs_hz_out, 2);
-        /* Make sure the ratio is rounded up */
-        while silk_smulww((*s).inv_ratio_q16, fs_hz_out) < silk_lshift(fs_hz_in, up2x) {
-            (*s).inv_ratio_q16 += 1;
-        }
-
-        0
+        s.input_delay = DELAY_MATRIX_DEC[rate_id(fs_hz_in) as usize][rate_id(fs_hz_out) as usize] as i32;
     }
+
+    s.fs_in_khz = fs_hz_in / 1000;
+    s.fs_out_khz = fs_hz_out / 1000;
+
+    /* Number of samples processed per batch */
+    s.batch_size = s.fs_in_khz * RESAMPLER_MAX_BATCH_SIZE_MS;
+
+    /* Find resampler with the right sampling ratio */
+    let mut up2x = 0i32;
+    if fs_hz_out > fs_hz_in {
+        /* Upsample */
+        if fs_hz_out == fs_hz_in * 2 {
+            /* Special case: directly use 2x upsampler */
+            s.resampler_function = USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER;
+        } else {
+            /* Default resampler */
+            s.resampler_function = USE_SILK_RESAMPLER_PRIVATE_IIR_FIR;
+            up2x = 1;
+        }
+    } else if fs_hz_out < fs_hz_in {
+        /* Downsample */
+        s.resampler_function = USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR;
+        if fs_hz_out * 4 == fs_hz_in * 3 {
+            s.fir_fracs = 3;
+            s.fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
+            s.coefs = Some(&SILK_RESAMPLER_3_4_COEFS);
+        } else if fs_hz_out * 3 == fs_hz_in * 2 {
+            s.fir_fracs = 2;
+            s.fir_order = RESAMPLER_DOWN_ORDER_FIR0 as i32;
+            s.coefs = Some(&SILK_RESAMPLER_2_3_COEFS);
+        } else if fs_hz_out * 2 == fs_hz_in {
+            s.fir_fracs = 1;
+            s.fir_order = RESAMPLER_DOWN_ORDER_FIR1 as i32;
+            s.coefs = Some(&SILK_RESAMPLER_1_2_COEFS);
+        } else if fs_hz_out * 3 == fs_hz_in {
+            s.fir_fracs = 1;
+            s.fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
+            s.coefs = Some(&SILK_RESAMPLER_1_3_COEFS);
+        } else if fs_hz_out * 4 == fs_hz_in {
+            s.fir_fracs = 1;
+            s.fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
+            s.coefs = Some(&SILK_RESAMPLER_1_4_COEFS);
+        } else if fs_hz_out * 6 == fs_hz_in {
+            s.fir_fracs = 1;
+            s.fir_order = RESAMPLER_DOWN_ORDER_FIR2 as i32;
+            s.coefs = Some(&SILK_RESAMPLER_1_6_COEFS);
+        } else {
+            /* None available */
+            return -1;
+        }
+    } else {
+        /* Input and output sampling rates are equal: copy */
+        s.resampler_function = USE_SILK_RESAMPLER_COPY;
+    }
+
+    /* Ratio of input/output samples */
+    s.inv_ratio_q16 = silk_lshift(silk_lshift(fs_hz_in, 14 + up2x) / fs_hz_out, 2);
+    /* Make sure the ratio is rounded up */
+    while silk_smulww(s.inv_ratio_q16, fs_hz_out) < silk_lshift(fs_hz_in, up2x) {
+        s.inv_ratio_q16 += 1;
+    }
+
+    0
 }
 
 /// `silk_resampler` — convert from one sampling rate to another.

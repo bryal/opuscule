@@ -30,7 +30,7 @@ pub unsafe fn silk_decoder_set_fs(ps_dec: *mut SilkDecoderState, fs_khz: i32, fs
 
         /* Initialize resampler when switching internal or external sampling frequency */
         if (*ps_dec).fs_khz != fs_khz || (*ps_dec).fs_api_hz != fs_api_hz {
-            ret += silk_resampler_init(&raw mut (*ps_dec).resampler_state, fs_khz * 1000, fs_api_hz, 0);
+            ret += silk_resampler_init(&mut (*ps_dec).resampler_state, fs_khz * 1000, fs_api_hz, 0);
             (*ps_dec).fs_api_hz = fs_api_hz;
         }
 
