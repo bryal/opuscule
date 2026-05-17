@@ -133,22 +133,34 @@ pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *c
             return OPUS_ALLOC_FAIL;
         }
 
-        // Zero the entire struct
-        std::ptr::write_bytes(st as *mut u8, 0, std::mem::size_of::<OpusCustomDecoder>());
-
-        (*st).mode = &*mode;
-        (*st).overlap = (*mode).overlap;
-        (*st).channels = channels;
-        (*st).stream_channels = channels;
-
-        (*st).downsample = 1;
-        (*st).start = 0;
-        (*st).end = (*mode).eff_ebands;
-        (*st).signalling = 1;
-
-        (*st).loss_count = 0;
-
-        celt_decoder_reset(st);
+        let init_log_e = -qconst16(28.0, DB_SHIFT);
+        *st = OpusCustomDecoder {
+            mode: &*mode,
+            overlap: (*mode).overlap,
+            channels,
+            stream_channels: channels,
+            downsample: 1,
+            start: 0,
+            end: (*mode).eff_ebands,
+            signalling: 1,
+            rng: 0,
+            error: 0,
+            last_pitch_index: 0,
+            loss_count: 0,
+            postfilter_period: 0,
+            postfilter_period_old: 0,
+            postfilter_gain: 0 as OpusVal16,
+            postfilter_gain_old: 0 as OpusVal16,
+            postfilter_tapset: 0,
+            postfilter_tapset_old: 0,
+            preemph_mem_d: [0 as CeltSig; 2],
+            decode_mem: [0 as CeltSig; DECODE_MEM_SIZE],
+            lpc: [0 as OpusVal16; LPC_SIZE],
+            old_band_e: [0 as OpusVal16; BAND_E_SIZE],
+            old_log_e: [init_log_e; BAND_E_SIZE],
+            old_log_e2: [init_log_e; BAND_E_SIZE],
+            background_log_e: [0 as OpusVal16; BAND_E_SIZE],
+        };
 
         OPUS_OK
     }
