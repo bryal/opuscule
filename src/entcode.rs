@@ -30,9 +30,7 @@ pub const BITRES: u32 = 3;
 pub const EC_WINDOW_SIZE: u32 = 32;
 
 /// The entropy encoder/decoder context.
-/// We use the same structure for both, matching the C layout exactly.
-/// See c/celt/entcode.h struct ec_ctx.
-#[repr(C)]
+/// We use the same structure for both. See c/celt/entcode.h struct ec_ctx.
 pub struct ec_ctx {
     /// Buffered input/output.
     pub buf: *mut u8,
