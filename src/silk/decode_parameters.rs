@@ -42,7 +42,7 @@ pub unsafe fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl:
         silk_nlsf_decode(p_nlsf_q15.as_mut_ptr(), ps_dec.indices.nlsf_indices.as_mut_ptr(), ps_dec.ps_nlsf_cb.unwrap());
 
         /* Convert NLSF parameters to AR prediction filter coefficients */
-        silk_nlsf2a(ps_dec_ctrl.pred_coef_q12[1].as_mut_ptr(), p_nlsf_q15.as_ptr(), ps_dec.lpc_order);
+        silk_nlsf2a(&mut ps_dec_ctrl.pred_coef_q12[1], &p_nlsf_q15, ps_dec.lpc_order);
 
         /* If just reset, e.g., because internal Fs changed, do not allow interpolation */
         /* improves the case of packet loss in the first frame after a switch           */
@@ -63,7 +63,7 @@ pub unsafe fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl:
             }
 
             /* Convert NLSF parameters to AR prediction filter coefficients */
-            silk_nlsf2a(ps_dec_ctrl.pred_coef_q12[0].as_mut_ptr(), p_nlsf0_q15.as_ptr(), ps_dec.lpc_order);
+            silk_nlsf2a(&mut ps_dec_ctrl.pred_coef_q12[0], &p_nlsf0_q15, ps_dec.lpc_order);
         } else {
             /* Copy LPC coefficients for first half from second half */
             core::ptr::copy_nonoverlapping(

@@ -120,7 +120,7 @@ pub unsafe fn silk_cng(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDeco
             );
 
             /* Convert CNG NLSF to filter representation */
-            silk_nlsf2a(a_q12.as_mut_ptr(), (*ps_cng).cng_smth_nlsf_q15.as_ptr(), (*ps_dec).lpc_order);
+            silk_nlsf2a(&mut a_q12, &(*ps_cng).cng_smth_nlsf_q15, (*ps_dec).lpc_order);
 
             /* Generate CNG signal, by synthesis filtering */
             core::ptr::copy_nonoverlapping((*ps_cng).cng_synth_state.as_ptr(), cng_sig_q10.as_mut_ptr(), MAX_LPC_ORDER);
