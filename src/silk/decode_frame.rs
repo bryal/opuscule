@@ -50,7 +50,7 @@ pub unsafe fn silk_decode_frame(
             );
 
             /* Decode parameters and pulse signal */
-            silk_decode_parameters(ps_dec, &mut s_dec_ctrl, cond_coding);
+            silk_decode_parameters(&mut *ps_dec, &mut s_dec_ctrl, cond_coding);
 
             /* Update length. Sampling frequency may have changed */
             l = (*ps_dec).frame_length;
