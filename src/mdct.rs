@@ -90,7 +90,12 @@ pub unsafe fn clt_mdct_backward(
 
         // --- Inverse N/4 complex FFT ---
         // This should NOT downscale even in fixed-point.
-        opus_ifft(l.kfft[shift as usize], f2.as_ptr() as *const KissFftCpx, f.as_mut_ptr() as *mut KissFftCpx);
+        let nfft = (n2 / 2) as usize;
+        opus_ifft(
+            l.kfft[shift as usize],
+            core::slice::from_raw_parts(f2.as_ptr() as *const KissFftCpx, nfft),
+            core::slice::from_raw_parts_mut(f.as_mut_ptr() as *mut KissFftCpx, nfft),
+        );
 
         // --- Post-rotate ---
         // Apply twiddle factors to convert back from frequency to time domain.

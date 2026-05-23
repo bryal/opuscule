@@ -271,45 +271,41 @@ pub fn ki_bfly5(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: u
 /// pairs. For example, an N=120 FFT might factor as 4×30, then 30 = 2×15,
 /// 15 = 3×5, 5 = 5×1 — giving factors = [4,30, 2,15, 3,5, 5,1].
 /// The butterfly stages are applied in reverse: bfly5, bfly3, bfly2, bfly4.
-pub unsafe fn opus_ifft(st: &KissFftState, fin: *const KissFftCpx, fout: *mut KissFftCpx) {
-    unsafe {
-        let nfft = st.nfft as usize;
-        let shift = if st.shift > 0 { st.shift as usize } else { 0 };
+pub fn opus_ifft(st: &KissFftState, fin: &[KissFftCpx], fout: &mut [KissFftCpx]) {
+    let nfft = st.nfft as usize;
+    let shift = if st.shift > 0 { st.shift as usize } else { 0 };
 
-        // Bit-reverse the input into the output buffer
-        let fin_slice = std::slice::from_raw_parts(fin, nfft);
-        let fout_slice = std::slice::from_raw_parts_mut(fout, nfft);
-        for i in 0..nfft {
-            let rev = st.bitrev[i] as usize;
-            fout_slice[rev] = fin_slice[i];
-        }
+    // Bit-reverse the input into the output buffer
+    for i in 0..nfft {
+        let rev = st.bitrev[i] as usize;
+        fout[rev] = fin[i];
+    }
 
-        // Build fstride table and count stages
-        let mut fstride = [0usize; MAXFACTORS];
-        fstride[0] = 1;
-        let mut l = 0usize;
-        loop {
-            let _p = st.factors[2 * l] as usize;
-            let m = st.factors[2 * l + 1] as usize;
-            fstride[l + 1] = fstride[l] * _p;
-            l += 1;
-            if m == 1 {
-                break;
-            }
+    // Build fstride table and count stages
+    let mut fstride = [0usize; MAXFACTORS];
+    fstride[0] = 1;
+    let mut l = 0usize;
+    loop {
+        let _p = st.factors[2 * l] as usize;
+        let m = st.factors[2 * l + 1] as usize;
+        fstride[l + 1] = fstride[l] * _p;
+        l += 1;
+        if m == 1 {
+            break;
         }
+    }
 
-        // Apply butterfly stages in reverse order
-        let mut m = st.factors[2 * l - 1] as usize;
-        for i in (0..l).rev() {
-            let m2 = if i != 0 { st.factors[2 * i - 1] as usize } else { 1 };
-            match st.factors[2 * i] {
-                2 => ki_bfly2(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-                4 => ki_bfly4(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-                3 => ki_bfly3(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-                5 => ki_bfly5(fout_slice, fstride[i] << shift, st, m, fstride[i], m2),
-                _ => {}
-            }
-            m = m2;
+    // Apply butterfly stages in reverse order
+    let mut m = st.factors[2 * l - 1] as usize;
+    for i in (0..l).rev() {
+        let m2 = if i != 0 { st.factors[2 * i - 1] as usize } else { 1 };
+        match st.factors[2 * i] {
+            2 => ki_bfly2(fout, fstride[i] << shift, st, m, fstride[i], m2),
+            4 => ki_bfly4(fout, fstride[i] << shift, st, m, fstride[i], m2),
+            3 => ki_bfly3(fout, fstride[i] << shift, st, m, fstride[i], m2),
+            5 => ki_bfly5(fout, fstride[i] << shift, st, m, fstride[i], m2),
+            _ => {}
         }
-    } // unsafe
+        m = m2;
+    }
 }
