@@ -170,60 +170,58 @@ pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *c
 ///
 /// This is the logic from `opus_custom_decoder_ctl(..., OPUS_RESET_STATE)`.
 /// Factored out so both `opus_custom_decoder_init` and the ctl handler can call it.
-pub unsafe fn celt_decoder_reset(st: *mut CELTDecoder) {
-    unsafe {
-        // Fields up through `signalling` are configuration set at init time
-        // (mode, channel layout, band range); everything from `rng` onward is
-        // runtime state and gets cleared.
-        let OpusCustomDecoder {
-            mode: _,
-            overlap: _,
-            channels: _,
-            stream_channels: _,
-            downsample: _,
-            start: _,
-            end: _,
-            signalling: _,
-            rng,
-            error,
-            last_pitch_index,
-            loss_count,
-            postfilter_period,
-            postfilter_period_old,
-            postfilter_gain,
-            postfilter_gain_old,
-            postfilter_tapset,
-            postfilter_tapset_old,
-            preemph_mem_d,
-            decode_mem,
-            lpc,
-            old_band_e,
-            old_log_e,
-            old_log_e2,
-            background_log_e,
-        } = &mut *st;
+pub fn celt_decoder_reset(st: &mut CELTDecoder) {
+    // Fields up through `signalling` are configuration set at init time
+    // (mode, channel layout, band range); everything from `rng` onward is
+    // runtime state and gets cleared.
+    let OpusCustomDecoder {
+        mode: _,
+        overlap: _,
+        channels: _,
+        stream_channels: _,
+        downsample: _,
+        start: _,
+        end: _,
+        signalling: _,
+        rng,
+        error,
+        last_pitch_index,
+        loss_count,
+        postfilter_period,
+        postfilter_period_old,
+        postfilter_gain,
+        postfilter_gain_old,
+        postfilter_tapset,
+        postfilter_tapset_old,
+        preemph_mem_d,
+        decode_mem,
+        lpc,
+        old_band_e,
+        old_log_e,
+        old_log_e2,
+        background_log_e,
+    } = st;
 
-        *rng = 0;
-        *error = 0;
-        *last_pitch_index = 0;
-        *loss_count = 0;
-        *postfilter_period = 0;
-        *postfilter_period_old = 0;
-        *postfilter_gain = 0 as OpusVal16;
-        *postfilter_gain_old = 0 as OpusVal16;
-        *postfilter_tapset = 0;
-        *postfilter_tapset_old = 0;
-        preemph_mem_d.fill(0 as CeltSig);
-        decode_mem.fill(0 as CeltSig);
-        lpc.fill(0 as OpusVal16);
-        old_band_e.fill(0 as OpusVal16);
-        background_log_e.fill(0 as OpusVal16);
+    *rng = 0;
+    *error = 0;
+    *last_pitch_index = 0;
+    *loss_count = 0;
+    *postfilter_period = 0;
+    *postfilter_period_old = 0;
+    *postfilter_gain = 0 as OpusVal16;
+    *postfilter_gain_old = 0 as OpusVal16;
+    *postfilter_tapset = 0;
+    *postfilter_tapset_old = 0;
+    preemph_mem_d.fill(0 as CeltSig);
+    decode_mem.fill(0 as CeltSig);
+    lpc.fill(0 as OpusVal16);
+    old_band_e.fill(0 as OpusVal16);
+    background_log_e.fill(0 as OpusVal16);
 
-        // Initialise oldLogE and oldLogE2 to -28 dB
-        let init_val = -qconst16(28.0, DB_SHIFT);
-        old_log_e.fill(init_val);
-        old_log_e2.fill(init_val);
-    }
+    // Initialise oldLogE and oldLogE2 to -28 dB
+    let init_val = -qconst16(28.0, DB_SHIFT);
+    old_log_e.fill(init_val);
+    old_log_e2.fill(init_val);
 }
 
 // -- celt_decode_lost (packet loss concealment) --
@@ -745,7 +743,7 @@ pub unsafe fn celt_decode_with_ec(
         unquant_coarse_energy((*st).mode, (*st).start, (*st).end, old_band_e, intra_ener, dec, c_channels, lm);
 
         let mut tf_res = vec![0i32; (*st).mode.nb_ebands as usize];
-        tf_decode((*st).start, (*st).end, is_transient, tf_res.as_mut_ptr(), lm, dec);
+        tf_decode((*st).start, (*st).end, is_transient, &mut tf_res, lm, dec);
 
         tell = ec_tell(&*dec) as i32;
         let mut spread_decision: c_int = SPREAD_NORMAL;
@@ -758,7 +756,7 @@ pub unsafe fn celt_decode_with_ec(
         let mut offsets = vec![0i32; (*st).mode.nb_ebands as usize];
         let mut fine_priority = vec![0i32; (*st).mode.nb_ebands as usize];
 
-        init_caps((*st).mode, cap.as_mut_ptr(), lm, c_channels);
+        init_caps((*st).mode, &mut cap, lm, c_channels);
 
         let mut dynalloc_logp: c_int = 6;
         total_bits <<= BITRES;
@@ -1113,49 +1111,43 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-pub unsafe fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: *mut c_int, lm: c_int, dec: &mut ec_ctx) {
-    unsafe {
-        let budget = (*dec).storage as u32 * 8;
-        let mut tell = ec_tell(&*dec) as u32;
-        let mut logp: u32 = if is_transient != 0 { 2 } else { 4 };
-        let tf_select_rsv = (lm > 0 && tell + logp + 1 <= budget) as c_int;
-        let budget = budget - tf_select_rsv as u32;
-        let mut tf_changed = 0;
-        let mut curr = 0;
-        for i in start..end {
-            if tell + logp <= budget {
-                curr ^= ec_dec_bit_logp(dec, logp);
-                tell = ec_tell(&*dec) as u32;
-                tf_changed |= curr;
-            }
-            *tf_res.add(i as usize) = curr;
-            logp = if is_transient != 0 { 4 } else { 5 };
+pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut ec_ctx) {
+    let budget = dec.storage as u32 * 8;
+    let mut tell = ec_tell(dec) as u32;
+    let mut logp: u32 = if is_transient != 0 { 2 } else { 4 };
+    let tf_select_rsv = (lm > 0 && tell + logp + 1 <= budget) as c_int;
+    let budget = budget - tf_select_rsv as u32;
+    let mut tf_changed = 0;
+    let mut curr = 0;
+    for i in start..end {
+        if tell + logp <= budget {
+            curr ^= unsafe { ec_dec_bit_logp(dec, logp) };
+            tell = ec_tell(dec) as u32;
+            tf_changed |= curr;
         }
-        let mut tf_select = 0;
-        if tf_select_rsv != 0
-            && TF_SELECT_TABLE[lm as usize][(4 * is_transient + 0 + tf_changed) as usize]
-                != TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 + tf_changed) as usize]
-        {
-            tf_select = ec_dec_bit_logp(dec, 1);
-        }
-        for i in start..end {
-            *tf_res.add(i as usize) =
-                TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 * tf_select + *tf_res.add(i as usize)) as usize] as c_int;
-        }
+        tf_res[i as usize] = curr;
+        logp = if is_transient != 0 { 4 } else { 5 };
+    }
+    let mut tf_select = 0;
+    if tf_select_rsv != 0
+        && TF_SELECT_TABLE[lm as usize][(4 * is_transient + 0 + tf_changed) as usize]
+            != TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 + tf_changed) as usize]
+    {
+        tf_select = unsafe { ec_dec_bit_logp(dec, 1) };
+    }
+    for i in start..end {
+        tf_res[i as usize] =
+            TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 * tf_select + tf_res[i as usize]) as usize] as c_int;
     }
 }
 
 // -- init_caps --
 
 /// Initialise the per-band bit allocation caps from the mode's cache.
-pub unsafe fn init_caps(m: &CELTMode, cap: *mut c_int, lm: c_int, c: c_int) {
-    unsafe {
-        let mode = m;
-        for i in 0..mode.nb_ebands as usize {
-            let n = ((mode.ebands[i + 1] - mode.ebands[i]) as c_int) << lm;
-            *cap.add(i) =
-                (mode.cache.caps[mode.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n >> 2;
-        }
+pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
+    for i in 0..m.nb_ebands as usize {
+        let n = ((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm;
+        cap[i] = (m.cache.caps[m.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n >> 2;
     }
 }
 
@@ -1429,7 +1421,7 @@ pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: 
                 *ptr = (*st).mode;
             }
             CeltDecCtl::ResetState => {
-                celt_decoder_reset(st);
+                celt_decoder_reset(&mut *st);
             }
         }
         OPUS_OK
