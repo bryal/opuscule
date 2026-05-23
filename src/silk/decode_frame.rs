@@ -60,7 +60,7 @@ pub unsafe fn silk_decode_frame(
             silk_decode_core(ps_dec, &mut s_dec_ctrl, p_out, pulses.as_ptr());
 
             /* Update PLC state */
-            silk_plc(ps_dec, &mut s_dec_ctrl, p_out, 0);
+            silk_plc(&mut *ps_dec, &mut s_dec_ctrl, core::slice::from_raw_parts_mut(p_out, (*ps_dec).frame_length as usize), 0);
 
             (*ps_dec).loss_cnt = 0;
             (*ps_dec).prev_signal_type = (*ps_dec).indices.signal_type as i32;
@@ -69,7 +69,7 @@ pub unsafe fn silk_decode_frame(
             (*ps_dec).first_frame_after_reset = 0;
         } else {
             /* Handle packet loss by extrapolation */
-            silk_plc(ps_dec, &mut s_dec_ctrl, p_out, 1);
+            silk_plc(&mut *ps_dec, &mut s_dec_ctrl, core::slice::from_raw_parts_mut(p_out, (*ps_dec).frame_length as usize), 1);
         }
 
         /* Update output buffer. */
