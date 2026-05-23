@@ -135,70 +135,52 @@ pub unsafe fn intensity_stereo(
     }
 }
 
-/// Stereo split: convert (L, R) to (mid, side) using Haar-like transform.
-///
-/// X becomes (L+R)/sqrt(2), Y becomes (R-L)/sqrt(2).
-pub unsafe fn stereo_split(x: *mut CeltNorm, y: *mut CeltNorm, n: c_int) {
-    unsafe {
-        for j in 0..n as usize {
-            let l = mult16_16_q15(qconst16(0.70710678, 15), *x.add(j)) as CeltNorm;
-            let r = mult16_16_q15(qconst16(0.70710678, 15), *y.add(j)) as CeltNorm;
-            *x.add(j) = l + r;
-            *y.add(j) = r - l;
-        }
-    }
-}
-
 /// Stereo merge: reconstruct (L, R) from (mid, side) after decoding.
 ///
 /// Uses the energy invariance property to compute proper L/R gains
 /// from the decoded mid and side signals. Falls back to copying mid
 /// to both channels if the energy is near zero.
-pub unsafe fn stereo_merge(x: *mut CeltNorm, y: *mut CeltNorm, mid: OpusVal16, n: c_int) {
-    unsafe {
-        let mut xp: OpusVal32 = 0 as OpusVal32;
-        let mut side: OpusVal32 = 0 as OpusVal32;
+pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
+    let mut xp: OpusVal32 = 0 as OpusVal32;
+    let mut side: OpusVal32 = 0 as OpusVal32;
 
-        for j in 0..n as usize {
-            xp = mac16_16(xp, *x.add(j), *y.add(j));
-            side = mac16_16(side, *y.add(j), *y.add(j));
-        }
-        xp = mult16_32_q15(mid, xp);
-        let mid2 = shr32(mid as OpusVal32, 1) as OpusVal16;
-        let el = mult16_16(mid2, mid2) + side - (2 as OpusVal32) * xp;
-        let er = mult16_16(mid2, mid2) + side + (2 as OpusVal32) * xp;
-        if er < qconst32(6e-4, 28) || el < qconst32(6e-4, 28) {
-            for j in 0..n as usize {
-                *y.add(j) = *x.add(j);
-            }
-            return;
-        }
+    for j in 0..x.len() {
+        xp = mac16_16(xp, x[j], y[j]);
+        side = mac16_16(side, y[j], y[j]);
+    }
+    xp = mult16_32_q15(mid, xp);
+    let mid2 = shr32(mid as OpusVal32, 1) as OpusVal16;
+    let el = mult16_16(mid2, mid2) + side - (2 as OpusVal32) * xp;
+    let er = mult16_16(mid2, mid2) + side + (2 as OpusVal32) * xp;
+    if er < qconst32(6e-4, 28) || el < qconst32(6e-4, 28) {
+        y.copy_from_slice(x);
+        return;
+    }
 
-        #[cfg(feature = "fixed-point")]
-        let (kl, kr): (i32, i32);
-        #[cfg(not(feature = "fixed-point"))]
-        let (kl, kr): (i32, i32) = (0, 0);
+    #[cfg(feature = "fixed-point")]
+    let (kl, kr): (i32, i32);
+    #[cfg(not(feature = "fixed-point"))]
+    let (kl, kr): (i32, i32) = (0, 0);
 
-        #[cfg(feature = "fixed-point")]
-        {
-            kl = (celt_ilog2(el) >> 1) as i32;
-            kr = (celt_ilog2(er) >> 1) as i32;
-        }
+    #[cfg(feature = "fixed-point")]
+    {
+        kl = (celt_ilog2(el) >> 1) as i32;
+        kr = (celt_ilog2(er) >> 1) as i32;
+    }
 
-        let t = vshr32(el, (kl - 7) << 1);
-        let lgain = celt_rsqrt_norm(t);
-        let t = vshr32(er, (kr - 7) << 1);
-        let rgain = celt_rsqrt_norm(t);
+    let t = vshr32(el, (kl - 7) << 1);
+    let lgain = celt_rsqrt_norm(t);
+    let t = vshr32(er, (kr - 7) << 1);
+    let rgain = celt_rsqrt_norm(t);
 
-        #[cfg(feature = "fixed-point")]
-        let (kl, kr) = (kl.max(7), kr.max(7));
+    #[cfg(feature = "fixed-point")]
+    let (kl, kr) = (kl.max(7), kr.max(7));
 
-        for j in 0..n as usize {
-            let l = mult16_16_q15(mid, *x.add(j));
-            let r = *y.add(j);
-            *x.add(j) = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
-            *y.add(j) = extract16(pshr32(mult16_16(rgain as OpusVal16, add16(l as OpusVal16, r)), kr + 1));
-        }
+    for j in 0..x.len() {
+        let l = mult16_16_q15(mid, x[j]);
+        let r = y[j];
+        x[j] = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
+        y[j] = extract16(pshr32(mult16_16(rgain as OpusVal16, add16(l as OpusVal16, r)), kr + 1));
     }
 }
 
@@ -916,7 +898,11 @@ pub unsafe fn quant_band(
         if resynth {
             if stereo != 0 {
                 if n != 2 {
-                    stereo_merge(x, y, mid, n);
+                    stereo_merge(
+                        core::slice::from_raw_parts_mut(x, n as usize),
+                        core::slice::from_raw_parts_mut(y, n as usize),
+                        mid,
+                    );
                 }
                 if inv != 0 {
                     for j in 0..n as usize {
