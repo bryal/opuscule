@@ -9,8 +9,6 @@
 //! `opus_int16 buf[]`, treating those 32 bytes as 16 `i16`s — preserved
 //! literally here).
 
-use core::ffi::c_void;
-
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlabb, silk_smulbb, silk_smulwb};
 use super::resampler_private_up2_HQ::silk_resampler_private_up2_hq;
 use super::resampler_rom::{RESAMPLER_ORDER_FIR_12, SILK_RESAMPLER_FRAC_FIR_12};
@@ -55,9 +53,13 @@ unsafe fn silk_resampler_private_iir_fir_interpol(
 }
 
 /// `silk_resampler_private_IIR_FIR` — 2× IIR upsample + fractional FIR.
-pub unsafe fn silk_resampler_private_iir_fir(ss: *mut c_void, mut out: *mut i16, mut in_: *const i16, mut in_len: i32) {
+pub unsafe fn silk_resampler_private_iir_fir(
+    s: *mut SilkResamplerStateStruct,
+    mut out: *mut i16,
+    mut in_: *const i16,
+    mut in_len: i32,
+) {
     unsafe {
-        let s = ss as *mut SilkResamplerStateStruct;
         let mut buf = [0i16; RESAMPLER_MAX_BATCH_SIZE_IN + RESAMPLER_ORDER_FIR_12];
 
         /* Copy buffered samples to start of buffer */

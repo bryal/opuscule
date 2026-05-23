@@ -5,8 +5,6 @@
 //! dispatched on `FIR_Order` to let the compiler unroll the inner
 //! product.
 
-use core::ffi::c_void;
-
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_private_AR2::silk_resampler_private_ar2;
 use super::resampler_rom::{RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2};
@@ -129,9 +127,13 @@ unsafe fn silk_resampler_private_down_fir_interpol(
 }
 
 /// `silk_resampler_private_down_FIR` — downsampler (rational ratios).
-pub unsafe fn silk_resampler_private_down_fir(ss: *mut c_void, mut out: *mut i16, mut in_: *const i16, mut in_len: i32) {
+pub unsafe fn silk_resampler_private_down_fir(
+    s: *mut SilkResamplerStateStruct,
+    mut out: *mut i16,
+    mut in_: *const i16,
+    mut in_len: i32,
+) {
     unsafe {
-        let s = ss as *mut SilkResamplerStateStruct;
         let mut buf = [0i32; RESAMPLER_MAX_BATCH_SIZE_IN + SILK_RESAMPLER_MAX_FIR_ORDER];
 
         /* Copy buffered samples to start of buffer */

@@ -5,8 +5,6 @@
 //! table of sub-sampler selections — see the matrix at the top of the
 //! C source for the combinations each pair of rates uses.
 
-use core::ffi::c_void;
-
 use super::macros::{silk_lshift, silk_smulww};
 use super::resampler_private_IIR_FIR::silk_resampler_private_iir_fir;
 use super::resampler_private_down_FIR::silk_resampler_private_down_fir;
@@ -157,7 +155,6 @@ pub unsafe fn silk_resampler(s: *mut SilkResamplerStateStruct, out: *mut i16, in
         /* Copy to delay buffer */
         core::ptr::copy_nonoverlapping(in_, (*s).delay_buf.as_mut_ptr().offset((*s).input_delay as isize), n_samples as usize);
 
-        let ss = s as *mut c_void;
         let delay_buf_ptr = (*s).delay_buf.as_ptr();
         let out_tail = out.offset((*s).fs_out_khz as isize);
         let in_tail = in_.offset(n_samples as isize);
@@ -165,16 +162,16 @@ pub unsafe fn silk_resampler(s: *mut SilkResamplerStateStruct, out: *mut i16, in
 
         match (*s).resampler_function {
             x if x == USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER => {
-                silk_resampler_private_up2_hq_wrapper(ss, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_up2_hq_wrapper(ss, out_tail, in_tail, tail_len);
+                silk_resampler_private_up2_hq_wrapper(s, out, delay_buf_ptr, (*s).fs_in_khz);
+                silk_resampler_private_up2_hq_wrapper(s, out_tail, in_tail, tail_len);
             }
             x if x == USE_SILK_RESAMPLER_PRIVATE_IIR_FIR => {
-                silk_resampler_private_iir_fir(ss, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_iir_fir(ss, out_tail, in_tail, tail_len);
+                silk_resampler_private_iir_fir(s, out, delay_buf_ptr, (*s).fs_in_khz);
+                silk_resampler_private_iir_fir(s, out_tail, in_tail, tail_len);
             }
             x if x == USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR => {
-                silk_resampler_private_down_fir(ss, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_down_fir(ss, out_tail, in_tail, tail_len);
+                silk_resampler_private_down_fir(s, out, delay_buf_ptr, (*s).fs_in_khz);
+                silk_resampler_private_down_fir(s, out_tail, in_tail, tail_len);
             }
             _ => {
                 core::ptr::copy_nonoverlapping(delay_buf_ptr, out, (*s).fs_in_khz as usize);

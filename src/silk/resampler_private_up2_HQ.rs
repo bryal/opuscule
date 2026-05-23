@@ -4,10 +4,9 @@
 //! polyphase branch, followed (externally) by a notch filter just above
 //! the original Nyquist.
 
-use core::ffi::c_void;
-
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_rom::{SILK_RESAMPLER_UP2_HQ_0, SILK_RESAMPLER_UP2_HQ_1};
+use super::structs::SilkResamplerStateStruct;
 
 /// `silk_resampler_private_up2_HQ` — high-quality 2× upsampler.
 ///
@@ -75,14 +74,13 @@ pub unsafe fn silk_resampler_private_up2_hq(s: *mut i32, out: *mut i16, in_: *co
 
 /// `silk_resampler_private_up2_HQ_wrapper` — adapts the resampler dispatch
 /// signature to the typed entry above.
-///
-/// The C cast is `(silk_resampler_state_struct *)SS; ...; S->sIIR`. Because
-/// `sIIR[6]` is the first member of the C struct (and the header comment
-/// flags this as load-bearing), the cast plus member access is byte-for-byte
-/// equivalent to treating `SS` as `*mut i32`. We rely on the same invariant
-/// here until the resampler state struct is itself translated.
-pub unsafe fn silk_resampler_private_up2_hq_wrapper(ss: *mut c_void, out: *mut i16, in_: *const i16, len: i32) {
+pub unsafe fn silk_resampler_private_up2_hq_wrapper(
+    s: *mut SilkResamplerStateStruct,
+    out: *mut i16,
+    in_: *const i16,
+    len: i32,
+) {
     unsafe {
-        silk_resampler_private_up2_hq(ss as *mut i32, out, in_, len);
+        silk_resampler_private_up2_hq((*s).s_iir.as_mut_ptr(), out, in_, len);
     }
 }
