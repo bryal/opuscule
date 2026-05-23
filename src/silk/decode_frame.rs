@@ -89,7 +89,7 @@ pub unsafe fn silk_decode_frame(
         silk_plc_glue_frames(&mut *ps_dec, core::slice::from_raw_parts_mut(p_out, l as usize));
 
         /* Comfort noise generation / estimation */
-        silk_cng(ps_dec, &mut s_dec_ctrl, p_out, l);
+        silk_cng(&mut *ps_dec, &s_dec_ctrl, core::slice::from_raw_parts_mut(p_out, l as usize));
 
         /* Update some decoder state variables */
         (*ps_dec).lag_prev = s_dec_ctrl.pitch_l[((*ps_dec).nb_subfr - 1) as usize];
