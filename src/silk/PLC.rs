@@ -372,58 +372,55 @@ unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut Silk
 }
 
 /// `silk_PLC_glue_frames` — glue concealed frames with the next good frame.
-pub unsafe fn silk_plc_glue_frames(ps_dec: *mut SilkDecoderState, frame: *mut i16, length: i32) {
-    unsafe {
-        let ps_plc = &raw mut (*ps_dec).s_plc;
+pub fn silk_plc_glue_frames(ps_dec: &mut SilkDecoderState, frame: &mut [i16]) {
+    let length = frame.len() as i32;
+    let ps_plc = &mut ps_dec.s_plc;
 
-        if (*ps_dec).loss_cnt != 0 {
-            /* Calculate energy in concealed residual */
+    if ps_dec.loss_cnt != 0 {
+        /* Calculate energy in concealed residual */
+        let mut energy = 0i32;
+        let mut energy_shift = 0i32;
+        silk_sum_sqr_shift(&mut energy, &mut energy_shift, frame);
+        ps_plc.conc_energy = energy;
+        ps_plc.conc_energy_shift = energy_shift;
+        ps_plc.last_frame_lost = 1;
+    } else {
+        if ps_plc.last_frame_lost != 0 {
+            /* Calculate residual in decoded signal if last frame was lost */
             let mut energy = 0i32;
             let mut energy_shift = 0i32;
-            silk_sum_sqr_shift(&mut energy, &mut energy_shift, core::slice::from_raw_parts(frame, length as usize));
-            (*ps_plc).conc_energy = energy;
-            (*ps_plc).conc_energy_shift = energy_shift;
-            (*ps_plc).last_frame_lost = 1;
-        } else {
-            if (*ps_plc).last_frame_lost != 0 {
-                /* Calculate residual in decoded signal if last frame was lost */
-                let mut energy = 0i32;
-                let mut energy_shift = 0i32;
-                silk_sum_sqr_shift(&mut energy, &mut energy_shift, core::slice::from_raw_parts(frame, length as usize));
+            silk_sum_sqr_shift(&mut energy, &mut energy_shift, frame);
 
-                /* Normalize energies */
-                if energy_shift > (*ps_plc).conc_energy_shift {
-                    (*ps_plc).conc_energy >>= energy_shift - (*ps_plc).conc_energy_shift;
-                } else if energy_shift < (*ps_plc).conc_energy_shift {
-                    energy >>= (*ps_plc).conc_energy_shift - energy_shift;
-                }
+            /* Normalize energies */
+            if energy_shift > ps_plc.conc_energy_shift {
+                ps_plc.conc_energy >>= energy_shift - ps_plc.conc_energy_shift;
+            } else if energy_shift < ps_plc.conc_energy_shift {
+                energy >>= ps_plc.conc_energy_shift - energy_shift;
+            }
 
-                /* Fade in the energy difference */
-                if energy > (*ps_plc).conc_energy {
-                    let mut lz = silk_clz32((*ps_plc).conc_energy);
-                    lz -= 1;
-                    (*ps_plc).conc_energy = silk_lshift((*ps_plc).conc_energy, lz);
-                    energy >>= (24 - lz).max(0);
+            /* Fade in the energy difference */
+            if energy > ps_plc.conc_energy {
+                let mut lz = silk_clz32(ps_plc.conc_energy);
+                lz -= 1;
+                ps_plc.conc_energy = silk_lshift(ps_plc.conc_energy, lz);
+                energy >>= (24 - lz).max(0);
 
-                    let frac_q24 = (*ps_plc).conc_energy / energy.max(1);
+                let frac_q24 = ps_plc.conc_energy / energy.max(1);
 
-                    let mut gain_q16 = silk_lshift(silk_sqrt_approx(frac_q24), 4);
-                    let mut slope_q16 = ((1 << 16) - gain_q16) / length;
-                    /* Make slope 4x steeper to avoid missing onsets after DTX */
-                    slope_q16 = silk_lshift(slope_q16, 2);
+                let mut gain_q16 = silk_lshift(silk_sqrt_approx(frac_q24), 4);
+                let mut slope_q16 = ((1 << 16) - gain_q16) / length;
+                /* Make slope 4x steeper to avoid missing onsets after DTX */
+                slope_q16 = silk_lshift(slope_q16, 2);
 
-                    let mut i = 0i32;
-                    while i < length {
-                        *frame.offset(i as isize) = silk_smulwb(gain_q16, *frame.offset(i as isize) as i32) as i16;
-                        gain_q16 += slope_q16;
-                        if gain_q16 > 1 << 16 {
-                            break;
-                        }
-                        i += 1;
+                for slot in frame.iter_mut() {
+                    *slot = silk_smulwb(gain_q16, *slot as i32) as i16;
+                    gain_q16 += slope_q16;
+                    if gain_q16 > 1 << 16 {
+                        break;
                     }
                 }
             }
-            (*ps_plc).last_frame_lost = 0;
         }
+        ps_plc.last_frame_lost = 0;
     }
 }

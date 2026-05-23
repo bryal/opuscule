@@ -86,7 +86,7 @@ pub unsafe fn silk_decode_frame(
         );
 
         /* Ensure smooth connection of extrapolated and good frames */
-        silk_plc_glue_frames(ps_dec, p_out, l);
+        silk_plc_glue_frames(&mut *ps_dec, core::slice::from_raw_parts_mut(p_out, l as usize));
 
         /* Comfort noise generation / estimation */
         silk_cng(ps_dec, &mut s_dec_ctrl, p_out, l);
