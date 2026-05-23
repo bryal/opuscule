@@ -12,7 +12,7 @@ const LOG2_SHELL_CODEC_FRAME_LENGTH: i32 = 4;
 
 /// `silk_decode_signs` — decode signs of excitation pulses.
 pub unsafe fn silk_decode_signs(
-    ps_range_dec: *mut ec_dec,
+    ps_range_dec: &mut ec_dec,
     pulses: &mut [i32],
     length: i32,
     signal_type: i32,

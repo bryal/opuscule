@@ -161,7 +161,7 @@ pub unsafe fn alg_unquant(
     k: c_int,
     spread: c_int,
     b: c_int,
-    dec: *mut ec_dec,
+    dec: &mut ec_dec,
     gain: OpusVal16,
 ) -> u32 {
     debug_assert!(k > 0, "alg_unquant() needs at least one pulse");

@@ -105,7 +105,7 @@ unsafe fn interp_bits2pulses(
     fine_priority: *mut i32,
     c: i32,
     lm: i32,
-    ec: *mut ec_ctx,
+    ec: &mut ec_ctx,
     encode: i32,
     prev: i32,
 ) -> i32 {
@@ -364,7 +364,7 @@ pub unsafe fn compute_allocation(
     fine_priority: *mut c_int,
     c: c_int,
     lm: c_int,
-    ec: *mut ec_ctx,
+    ec: &mut ec_ctx,
     encode: c_int,
     prev: c_int,
 ) -> c_int {

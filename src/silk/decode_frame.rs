@@ -20,7 +20,7 @@ const FLAG_DECODE_LBRR: i32 = 2;
 /// `silk_decode_frame` — decode one SILK frame.
 pub unsafe fn silk_decode_frame(
     ps_dec: *mut SilkDecoderState,
-    ps_range_dec: *mut ec_dec,
+    ps_range_dec: &mut ec_dec,
     p_out: *mut i16,
     p_n: *mut i32,
     lost_flag: i32,

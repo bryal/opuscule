@@ -18,7 +18,7 @@ use super::tables_pulses_per_block::{
 /// (written into `children[..2]`) using `shell_table` keyed on
 /// `silk_shell_code_table_offsets[p]`.
 #[inline]
-unsafe fn decode_split(children: &mut [i32], ps_range_dec: *mut ec_dec, p: i32, shell_table: &[u8]) {
+unsafe fn decode_split(children: &mut [i32], ps_range_dec: &mut ec_dec, p: i32, shell_table: &[u8]) {
     if p > 0 {
         let offset = SILK_SHELL_CODE_TABLE_OFFSETS[p as usize] as usize;
         children[0] = unsafe { ec_dec_icdf(ps_range_dec, shell_table[offset..].as_ptr(), 8) };
@@ -31,7 +31,7 @@ unsafe fn decode_split(children: &mut [i32], ps_range_dec: *mut ec_dec, p: i32, 
 
 /// `silk_shell_decoder` — decode 16 nonnegative pulse amplitudes from a
 /// total pulse count `pulses4` (the root of the shell tree).
-pub unsafe fn silk_shell_decoder(pulses0: &mut [i32], ps_range_dec: *mut ec_dec, pulses4: i32) {
+pub unsafe fn silk_shell_decoder(pulses0: &mut [i32], ps_range_dec: &mut ec_dec, pulses4: i32) {
     let mut pulses3 = [0i32; 2];
     let mut pulses2 = [0i32; 4];
     let mut pulses1 = [0i32; 8];

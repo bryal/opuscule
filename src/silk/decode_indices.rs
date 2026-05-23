@@ -28,7 +28,7 @@ const NLSF_QUANT_MAX_AMPLITUDE: i32 = 4;
 /// `silk_decode_indices` — decode side-information parameters from payload.
 pub unsafe fn silk_decode_indices(
     ps_dec: &mut SilkDecoderState,
-    ps_range_dec: *mut ec_dec,
+    ps_range_dec: &mut ec_dec,
     frame_index: i32,
     decode_lbrr: i32,
     cond_coding: i32,

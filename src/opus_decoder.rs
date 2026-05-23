@@ -513,14 +513,7 @@ unsafe fn opus_decode_frame(
         // 5 ms redundant frame for CELT->SILK
         if redundancy != 0 && celt_to_silk != 0 {
             celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
-            celt_decode_with_ec(
-                celt_dec,
-                data.offset(len as isize),
-                redundancy_bytes,
-                redundant_audio,
-                f5,
-                std::ptr::null_mut(),
-            );
+            celt_decode_with_ec(celt_dec, data.offset(len as isize), redundancy_bytes, redundant_audio, f5, None);
             celt_decoder_ctl(celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
         }
 
@@ -540,7 +533,7 @@ unsafe fn opus_decode_frame(
                 len,
                 pcm,
                 celt_frame_size,
-                &mut dec,
+                Some(&mut dec),
             );
         } else {
             let silence: [u8; 2] = [0xFF, 0xFF];
@@ -553,7 +546,7 @@ unsafe fn opus_decode_frame(
             // do a fade-out by decoding a silence frame
             if (*st).prev_mode == MODE_HYBRID && !(redundancy != 0 && celt_to_silk != 0 && (*st).prev_redundancy != 0) {
                 celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
-                celt_decode_with_ec(celt_dec, silence.as_ptr(), 2, pcm, f2_5, std::ptr::null_mut());
+                celt_decode_with_ec(celt_dec, silence.as_ptr(), 2, pcm, f2_5, None);
             }
         }
 
@@ -588,14 +581,7 @@ unsafe fn opus_decode_frame(
             celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
             celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
 
-            celt_decode_with_ec(
-                celt_dec,
-                data.offset(len as isize),
-                redundancy_bytes,
-                redundant_audio,
-                f5,
-                std::ptr::null_mut(),
-            );
+            celt_decode_with_ec(celt_dec, data.offset(len as isize), redundancy_bytes, redundant_audio, f5, None);
             celt_decoder_ctl(celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
             smooth_fade(
                 pcm.offset(((*st).channels * (frame_size - f2_5)) as isize),

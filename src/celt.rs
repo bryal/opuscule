@@ -597,7 +597,7 @@ pub unsafe fn celt_decode_with_ec(
     len: c_int,
     pcm: *mut OpusVal16,
     frame_size: c_int,
-    dec: *mut ec_ctx,
+    dec: Option<&mut ec_ctx>,
 ) -> c_int {
     unsafe {
         let mut c: c_int;
@@ -682,11 +682,12 @@ pub unsafe fn celt_decode_with_ec(
         }
 
         let mut _dec: ec_ctx = std::mem::zeroed();
-        let dec = if dec.is_null() {
-            ec_dec_init(&mut _dec, data as *mut u8, len as u32);
-            &mut _dec as *mut ec_ctx
-        } else {
-            dec
+        let dec: &mut ec_ctx = match dec {
+            Some(d) => d,
+            None => {
+                ec_dec_init(&mut _dec, data as *mut u8, len as u32);
+                &mut _dec
+            }
         };
 
         if c_channels == 1 {
@@ -1112,7 +1113,7 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-pub unsafe fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: *mut c_int, lm: c_int, dec: *mut ec_ctx) {
+pub unsafe fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: *mut c_int, lm: c_int, dec: &mut ec_ctx) {
     unsafe {
         let budget = (*dec).storage as u32 * 8;
         let mut tell = ec_tell(&*dec) as u32;

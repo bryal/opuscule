@@ -67,9 +67,7 @@ fn ec_dec_normalize(this: &mut ec_ctx) {
 /// # Safety
 /// `buf` must point to a valid buffer of at least `storage` bytes that
 /// remains valid for the lifetime of the decoder context.
-pub unsafe fn ec_dec_init(this: *mut ec_dec, buf: *mut u8, storage: u32) {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_dec_init(this: &mut ec_dec, buf: *mut u8, storage: u32) {
     this.buf = buf;
     this.storage = storage;
     this.end_offs = 0;
@@ -94,9 +92,7 @@ pub unsafe fn ec_dec_init(this: *mut ec_dec, buf: *mut u8, storage: u32) {
 /// ec_dec_update().
 ///
 /// RFC 6716 Section 4.1.
-pub unsafe fn ec_decode(this: *mut ec_dec, ft: u32) -> u32 {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_decode(this: &mut ec_dec, ft: u32) -> u32 {
     this.ext = this.rng / ft;
     let s = this.val / this.ext;
     // EC_MINI(s+1, ft): ft - min(s+1, ft)
@@ -106,9 +102,7 @@ pub unsafe fn ec_decode(this: *mut ec_dec, ft: u32) -> u32 {
 /// Equivalent to ec_decode() with ft == 1 << bits.
 ///
 /// RFC 6716 Section 4.1.
-pub unsafe fn ec_decode_bin(this: *mut ec_dec, bits: u32) -> u32 {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_decode_bin(this: &mut ec_dec, bits: u32) -> u32 {
     this.ext = this.rng >> bits;
     let s = this.val / this.ext;
     (1u32 << bits) - ec_mini(s + 1, 1u32 << bits)
@@ -119,9 +113,7 @@ pub unsafe fn ec_decode_bin(this: *mut ec_dec, bits: u32) -> u32 {
 /// Must be called exactly once after ec_decode() / ec_decode_bin().
 ///
 /// RFC 6716 Section 4.1.
-pub unsafe fn ec_dec_update(this: *mut ec_dec, fl: u32, fh: u32, ft: u32) {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_dec_update(this: &mut ec_dec, fl: u32, fh: u32, ft: u32) {
     let s = this.ext.wrapping_mul(ft - fh);
     this.val -= s;
     this.rng = if fl > 0 { this.ext.wrapping_mul(fh - fl) } else { this.rng - s };
@@ -131,9 +123,7 @@ pub unsafe fn ec_dec_update(this: *mut ec_dec, fl: u32, fh: u32, ft: u32) {
 /// Decode a bit that has a 1/(1 << logp) probability of being a one.
 ///
 /// RFC 6716 Section 4.1.3.
-pub unsafe fn ec_dec_bit_logp(this: *mut ec_dec, logp: u32) -> c_int {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> c_int {
     let r = this.rng;
     let d = this.val;
     let s = r >> logp;
@@ -155,9 +145,7 @@ pub unsafe fn ec_dec_bit_logp(this: *mut ec_dec, logp: u32) -> c_int {
 /// No call to ec_dec_update() is necessary after this call.
 ///
 /// RFC 6716 Section 4.1.3.1.
-pub unsafe fn ec_dec_icdf(this: *mut ec_dec, icdf: *const u8, ftb: u32) -> c_int {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_dec_icdf(this: &mut ec_dec, icdf: *const u8, ftb: u32) -> c_int {
     let mut s = this.rng;
     let d = this.val;
     let r = s >> ftb;
@@ -185,7 +173,7 @@ pub unsafe fn ec_dec_icdf(this: *mut ec_dec, icdf: *const u8, ftb: u32) -> c_int
 /// The bits must have been encoded with ec_enc_uint().
 ///
 /// RFC 6716 Section 4.1.5.
-pub unsafe fn ec_dec_uint(this: *mut ec_dec, ft: u32) -> u32 {
+pub unsafe fn ec_dec_uint(this: &mut ec_dec, ft: u32) -> u32 {
     debug_assert!(ft > 1);
     let ft = ft - 1;
     let ftb = ec_ilog(ft);
@@ -218,9 +206,7 @@ pub unsafe fn ec_dec_uint(this: *mut ec_dec, ft: u32) -> u32 {
 /// middle.
 ///
 /// RFC 6716 Section 4.1.4.
-pub unsafe fn ec_dec_bits(this: *mut ec_dec, bits: u32) -> u32 {
-    // SAFETY: caller guarantees `this` is a valid pointer.
-    let this = unsafe { &mut *this };
+pub unsafe fn ec_dec_bits(this: &mut ec_dec, bits: u32) -> u32 {
     let mut window = this.end_window;
     let mut available = this.nend_bits;
     if (available as u32) < bits {
@@ -313,7 +299,7 @@ mod tests {
         let mut dec = std::mem::MaybeUninit::<ec_dec>::uninit();
         // SAFETY: dec is being initialized by ec_dec_init; buf is valid.
         unsafe {
-            ec_dec_init(dec.as_mut_ptr(), buf.as_mut_ptr(), buf.len() as u32);
+            ec_dec_init(&mut *dec.as_mut_ptr(), buf.as_mut_ptr(), buf.len() as u32);
         }
         let dec = unsafe { dec.assume_init_ref() };
         // After init, rng should be >= EC_CODE_BOT

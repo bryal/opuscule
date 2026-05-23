@@ -120,7 +120,7 @@ pub unsafe fn unquant_coarse_energy(
     end: c_int,
     old_ebands: *mut OpusVal16,
     intra: c_int,
-    dec: *mut ec_ctx,
+    dec: &mut ec_ctx,
     c_channels: c_int,
     lm: c_int,
 ) {
@@ -187,7 +187,7 @@ pub unsafe fn unquant_fine_energy(
     end: c_int,
     old_ebands: *mut OpusVal16,
     fine_quant: *const c_int,
-    dec: *mut ec_ctx,
+    dec: &mut ec_ctx,
     c_channels: c_int,
 ) {
     unsafe {
@@ -236,7 +236,7 @@ pub unsafe fn unquant_energy_finalise(
     fine_quant: *const c_int,
     fine_priority: *const c_int,
     mut bits_left: c_int,
-    dec: *mut ec_ctx,
+    dec: &mut ec_ctx,
     c_channels: c_int,
 ) {
     unsafe {

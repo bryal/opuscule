@@ -22,7 +22,7 @@ const N_RATE_LEVELS: usize = 10;
 
 /// `silk_decode_pulses` — decode quantization indices of the excitation signal.
 pub unsafe fn silk_decode_pulses(
-    ps_range_dec: *mut ec_dec,
+    ps_range_dec: &mut ec_dec,
     pulses: &mut [i32],
     signal_type: i32,
     quant_offset_type: i32,
