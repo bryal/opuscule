@@ -57,93 +57,70 @@ pub unsafe fn silk_plc(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDeco
             silk_plc_conceal(ps_dec, ps_dec_ctrl, frame);
             (*ps_dec).loss_cnt += 1;
         } else {
-            silk_plc_update(ps_dec, ps_dec_ctrl);
+            silk_plc_update(&mut *ps_dec, &*ps_dec_ctrl);
         }
     }
 }
 
 /// Update state of PLC.
-unsafe fn silk_plc_update(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl) {
-    unsafe {
-        let ps_plc = &raw mut (*ps_dec).s_plc;
-
-        /* Update parameters used in case of packet loss */
-        (*ps_dec).prev_signal_type = (*ps_dec).indices.signal_type as i32;
-        let mut ltp_gain_q14 = 0i32;
-        if (*ps_dec).indices.signal_type as i32 == TYPE_VOICED {
-            /* Find the parameters for the last subframe which contains a pitch pulse */
-            let mut j = 0i32;
-            while j * (*ps_dec).subfr_length < (*ps_dec_ctrl).pitch_l[((*ps_dec).nb_subfr - 1) as usize] {
-                if j == (*ps_dec).nb_subfr {
-                    break;
-                }
-                let mut temp_ltp_gain_q14 = 0i32;
-                let mut i = 0i32;
-                while i < LTP_ORDER as i32 {
-                    temp_ltp_gain_q14 +=
-                        (*ps_dec_ctrl).ltp_coef_q14[(((*ps_dec).nb_subfr - 1 - j) * LTP_ORDER as i32 + i) as usize] as i32;
-                    i += 1;
-                }
-                if temp_ltp_gain_q14 > ltp_gain_q14 {
-                    ltp_gain_q14 = temp_ltp_gain_q14;
-                    core::ptr::copy_nonoverlapping(
-                        (*ps_dec_ctrl)
-                            .ltp_coef_q14
-                            .as_ptr()
-                            .add(silk_smulbb((*ps_dec).nb_subfr - 1 - j, LTP_ORDER as i32) as usize),
-                        (*ps_plc).ltp_coef_q14.as_mut_ptr(),
-                        LTP_ORDER,
-                    );
-
-                    (*ps_plc).pitch_l_q8 = silk_lshift((*ps_dec_ctrl).pitch_l[((*ps_dec).nb_subfr - 1 - j) as usize], 8);
-                }
-                j += 1;
+fn silk_plc_update(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &SilkDecoderControl) {
+    /* Update parameters used in case of packet loss */
+    ps_dec.prev_signal_type = ps_dec.indices.signal_type as i32;
+    let mut ltp_gain_q14 = 0i32;
+    if ps_dec.indices.signal_type as i32 == TYPE_VOICED {
+        /* Find the parameters for the last subframe which contains a pitch pulse */
+        let mut j = 0i32;
+        while j * ps_dec.subfr_length < ps_dec_ctrl.pitch_l[(ps_dec.nb_subfr - 1) as usize] {
+            if j == ps_dec.nb_subfr {
+                break;
             }
-
-            (*ps_plc).ltp_coef_q14.fill(0);
-            (*ps_plc).ltp_coef_q14[LTP_ORDER / 2] = ltp_gain_q14 as i16;
-
-            /* Limit LT coefs */
-            if ltp_gain_q14 < V_PITCH_GAIN_START_MIN_Q14 {
-                let tmp = silk_lshift(V_PITCH_GAIN_START_MIN_Q14, 10);
-                let scale_q10 = tmp / ltp_gain_q14.max(1);
-                let mut i = 0;
-                while i < LTP_ORDER {
-                    (*ps_plc).ltp_coef_q14[i] = (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q10) >> 10) as i16;
-                    i += 1;
-                }
-            } else if ltp_gain_q14 > V_PITCH_GAIN_START_MAX_Q14 {
-                let tmp = silk_lshift(V_PITCH_GAIN_START_MAX_Q14, 14);
-                let scale_q14 = tmp / ltp_gain_q14.max(1);
-                let mut i = 0;
-                while i < LTP_ORDER {
-                    (*ps_plc).ltp_coef_q14[i] = (silk_smulbb((*ps_plc).ltp_coef_q14[i] as i32, scale_q14) >> 14) as i16;
-                    i += 1;
-                }
+            let mut temp_ltp_gain_q14 = 0i32;
+            let row = ((ps_dec.nb_subfr - 1 - j) * LTP_ORDER as i32) as usize;
+            for i in 0..LTP_ORDER {
+                temp_ltp_gain_q14 += ps_dec_ctrl.ltp_coef_q14[row + i] as i32;
             }
-        } else {
-            (*ps_plc).pitch_l_q8 = silk_lshift(silk_smulbb((*ps_dec).fs_khz, 18), 8);
-            (*ps_plc).ltp_coef_q14.fill(0);
+            if temp_ltp_gain_q14 > ltp_gain_q14 {
+                ltp_gain_q14 = temp_ltp_gain_q14;
+                ps_dec.s_plc.ltp_coef_q14.copy_from_slice(&ps_dec_ctrl.ltp_coef_q14[row..row + LTP_ORDER]);
+
+                ps_dec.s_plc.pitch_l_q8 = silk_lshift(ps_dec_ctrl.pitch_l[(ps_dec.nb_subfr - 1 - j) as usize], 8);
+            }
+            j += 1;
         }
 
-        /* Save LPC coeficients */
-        core::ptr::copy_nonoverlapping(
-            (*ps_dec_ctrl).pred_coef_q12[1].as_ptr(),
-            (*ps_plc).prev_lpc_q12.as_mut_ptr(),
-            (*ps_dec).lpc_order as usize,
-        );
-        (*ps_plc).prev_ltp_scale_q14 = (*ps_dec_ctrl).ltp_scale_q14 as i16;
+        ps_dec.s_plc.ltp_coef_q14.fill(0);
+        ps_dec.s_plc.ltp_coef_q14[LTP_ORDER / 2] = ltp_gain_q14 as i16;
 
-        /* Save last two gains */
-        core::ptr::copy_nonoverlapping(
-            (*ps_dec_ctrl).gains_q16.as_ptr().add(((*ps_dec).nb_subfr - 2) as usize),
-            (*ps_plc).prev_gain_q16.as_mut_ptr(),
-            2,
-        );
-
-        (*ps_plc).subfr_length = (*ps_dec).subfr_length;
-        (*ps_plc).nb_subfr = (*ps_dec).nb_subfr;
+        /* Limit LT coefs */
+        if ltp_gain_q14 < V_PITCH_GAIN_START_MIN_Q14 {
+            let tmp = silk_lshift(V_PITCH_GAIN_START_MIN_Q14, 10);
+            let scale_q10 = tmp / ltp_gain_q14.max(1);
+            for i in 0..LTP_ORDER {
+                ps_dec.s_plc.ltp_coef_q14[i] = (silk_smulbb(ps_dec.s_plc.ltp_coef_q14[i] as i32, scale_q10) >> 10) as i16;
+            }
+        } else if ltp_gain_q14 > V_PITCH_GAIN_START_MAX_Q14 {
+            let tmp = silk_lshift(V_PITCH_GAIN_START_MAX_Q14, 14);
+            let scale_q14 = tmp / ltp_gain_q14.max(1);
+            for i in 0..LTP_ORDER {
+                ps_dec.s_plc.ltp_coef_q14[i] = (silk_smulbb(ps_dec.s_plc.ltp_coef_q14[i] as i32, scale_q14) >> 14) as i16;
+            }
+        }
+    } else {
+        ps_dec.s_plc.pitch_l_q8 = silk_lshift(silk_smulbb(ps_dec.fs_khz, 18), 8);
+        ps_dec.s_plc.ltp_coef_q14.fill(0);
     }
+
+    /* Save LPC coeficients */
+    let lpc_order = ps_dec.lpc_order as usize;
+    ps_dec.s_plc.prev_lpc_q12[..lpc_order].copy_from_slice(&ps_dec_ctrl.pred_coef_q12[1][..lpc_order]);
+    ps_dec.s_plc.prev_ltp_scale_q14 = ps_dec_ctrl.ltp_scale_q14 as i16;
+
+    /* Save last two gains */
+    let nb = ps_dec.nb_subfr as usize;
+    ps_dec.s_plc.prev_gain_q16.copy_from_slice(&ps_dec_ctrl.gains_q16[nb - 2..nb]);
+
+    ps_dec.s_plc.subfr_length = ps_dec.subfr_length;
+    ps_dec.s_plc.nb_subfr = ps_dec.nb_subfr;
 }
 
 unsafe fn silk_plc_conceal(ps_dec: *mut SilkDecoderState, ps_dec_ctrl: *mut SilkDecoderControl, frame: *mut i16) {
