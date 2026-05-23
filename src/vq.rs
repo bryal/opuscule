@@ -171,7 +171,7 @@ pub unsafe fn alg_unquant(
     let mut iy = vec![0i32; n];
 
     // Decode pulse vector from bitstream
-    unsafe { decode_pulses(iy.as_mut_ptr(), n as c_int, k, dec) };
+    decode_pulses(&mut iy, k, dec);
 
     // Compute sum of squares: Ryy = sum(iy[i]^2)
     let mut ryy: OpusVal32 = 0 as OpusVal32;
