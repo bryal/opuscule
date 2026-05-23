@@ -404,7 +404,7 @@ pub unsafe fn anti_collapse(
                 }
                 // We just added some energy, so we need to renormalise
                 if renormalize != 0 {
-                    renormalise_vector(x_ptr, n0 << lm, Q15ONE);
+                    renormalise_vector(core::slice::from_raw_parts_mut(x_ptr, (n0 << lm) as usize), Q15ONE);
                 }
 
                 c += 1;
@@ -888,7 +888,7 @@ pub unsafe fn quant_band(
                             }
                             cm = fill as u32;
                         }
-                        renormalise_vector(x, n, gain);
+                        renormalise_vector(core::slice::from_raw_parts_mut(x, n as usize), gain);
                     }
                 }
             }

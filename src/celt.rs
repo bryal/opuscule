@@ -308,7 +308,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                         seed = celt_lcg_rand(seed);
                         x[boffs + j] = (seed as i32 >> 20) as CeltNorm;
                     }
-                    renormalise_vector(x.as_mut_ptr().add(boffs), blen, Q15ONE);
+                    renormalise_vector(&mut x[boffs..boffs + blen as usize], Q15ONE);
                 }
                 for i in ((*st).mode.ebands[(*st).end as usize] << lm) as c_int..n {
                     x[(c * n + i) as usize] = 0 as CeltNorm;

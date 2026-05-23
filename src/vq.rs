@@ -189,15 +189,10 @@ pub unsafe fn alg_unquant(
 
 /// Renormalise a coefficient vector to have the given gain (norm).
 ///
-/// # Safety
-/// `x` must point to N writable celt_norm elements.
-pub unsafe fn renormalise_vector(x: *mut CeltNorm, n: c_int, gain: OpusVal16) {
-    let n = n as usize;
-    let x = unsafe { std::slice::from_raw_parts_mut(x, n) };
-
+pub fn renormalise_vector(x: &mut [CeltNorm], gain: OpusVal16) {
     let mut e: OpusVal32 = EPSILON as OpusVal32;
-    for i in 0..n {
-        e = mac16_16(e, x[i], x[i]);
+    for &xi in x.iter() {
+        e = mac16_16(e, xi, xi);
     }
 
     #[cfg(feature = "fixed-point")]
@@ -205,15 +200,15 @@ pub unsafe fn renormalise_vector(x: *mut CeltNorm, n: c_int, gain: OpusVal16) {
         let k = celt_ilog2(e) >> 1;
         let t = vshr32(e, 2 * (k as i32 - 7));
         let g = mult16_16_p15(celt_rsqrt_norm(t), gain) as i16;
-        for i in 0..n {
-            x[i] = extract16(pshr32(mult16_16(g, x[i]), k as i32 + 1));
+        for xi in x.iter_mut() {
+            *xi = extract16(pshr32(mult16_16(g, *xi), k as i32 + 1));
         }
     }
     #[cfg(not(feature = "fixed-point"))]
     {
         let g = celt_rsqrt_norm(e) * gain;
-        for i in 0..n {
-            x[i] = g * x[i];
+        for xi in x.iter_mut() {
+            *xi = g * *xi;
         }
     }
 }
