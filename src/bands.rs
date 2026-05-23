@@ -81,18 +81,16 @@ pub unsafe fn denormalise_bands(
 /// for the Hadamard rearrangement that maps between time-domain short
 /// blocks and the band's frequency layout. Applies the unnormalised
 /// Haar butterfly (scaled by 1/sqrt(2)) in-place.
-pub unsafe fn haar1(x: *mut CeltNorm, n0: c_int, stride: c_int) {
-    unsafe {
-        let n0 = n0 >> 1;
-        for i in 0..stride {
-            for j in 0..n0 {
-                let idx0 = (stride * 2 * j + i) as usize;
-                let idx1 = (stride * (2 * j + 1) + i) as usize;
-                let tmp1 = mult16_16_q15(qconst16(0.70710678, 15), *x.add(idx0)) as CeltNorm;
-                let tmp2 = mult16_16_q15(qconst16(0.70710678, 15), *x.add(idx1)) as CeltNorm;
-                *x.add(idx0) = tmp1 + tmp2;
-                *x.add(idx1) = tmp1 - tmp2;
-            }
+pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
+    let n0 = n0 >> 1;
+    for i in 0..stride {
+        for j in 0..n0 {
+            let idx0 = (stride * 2 * j + i) as usize;
+            let idx1 = (stride * (2 * j + 1) + i) as usize;
+            let tmp1 = mult16_16_q15(qconst16(0.70710678, 15), x[idx0]) as CeltNorm;
+            let tmp2 = mult16_16_q15(qconst16(0.70710678, 15), x[idx1]) as CeltNorm;
+            x[idx0] = tmp1 + tmp2;
+            x[idx1] = tmp1 - tmp2;
         }
     }
 }
@@ -194,28 +192,24 @@ const ORDERY_TABLE: [c_int; 30] =
 /// Rearranges `X` from interleaved layout (stride-interleaved short blocks)
 /// into contiguous sub-vectors, optionally applying the ordery Hadamard
 /// permutation. Used before recursive band splitting in quant_band.
-pub unsafe fn deinterleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
-    unsafe {
-        let n = n0 * stride;
-        let mut tmp = vec![0 as CeltNorm; n as usize];
-        if hadamard != 0 {
-            let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
-            for i in 0..stride as usize {
-                for j in 0..n0 as usize {
-                    tmp[ordery[i] as usize * n0 as usize + j] = *x.add(j * stride as usize + i);
-                }
-            }
-        } else {
-            for i in 0..stride as usize {
-                for j in 0..n0 as usize {
-                    tmp[i * n0 as usize + j] = *x.add(j * stride as usize + i);
-                }
+pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamard: c_int) {
+    let n = (n0 * stride) as usize;
+    let mut tmp = vec![0 as CeltNorm; n];
+    if hadamard != 0 {
+        let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
+        for i in 0..stride as usize {
+            for j in 0..n0 as usize {
+                tmp[ordery[i] as usize * n0 as usize + j] = x[j * stride as usize + i];
             }
         }
-        for j in 0..n as usize {
-            *x.add(j) = tmp[j];
+    } else {
+        for i in 0..stride as usize {
+            for j in 0..n0 as usize {
+                tmp[i * n0 as usize + j] = x[j * stride as usize + i];
+            }
         }
     }
+    x[..n].copy_from_slice(&tmp);
 }
 
 /// Interleave sub-vectors with optional Hadamard reordering.
@@ -223,28 +217,24 @@ pub unsafe fn deinterleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, 
 /// Inverse of deinterleave_hadamard: rearranges contiguous sub-vectors
 /// back into stride-interleaved layout, with optional ordery Hadamard
 /// permutation. Used after recursive band reconstruction in quant_band.
-pub unsafe fn interleave_hadamard(x: *mut CeltNorm, n0: c_int, stride: c_int, hadamard: c_int) {
-    unsafe {
-        let n = n0 * stride;
-        let mut tmp = vec![0 as CeltNorm; n as usize];
-        if hadamard != 0 {
-            let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
-            for i in 0..stride as usize {
-                for j in 0..n0 as usize {
-                    tmp[j * stride as usize + i] = *x.add(ordery[i] as usize * n0 as usize + j);
-                }
-            }
-        } else {
-            for i in 0..stride as usize {
-                for j in 0..n0 as usize {
-                    tmp[j * stride as usize + i] = *x.add(i * n0 as usize + j);
-                }
+pub fn interleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamard: c_int) {
+    let n = (n0 * stride) as usize;
+    let mut tmp = vec![0 as CeltNorm; n];
+    if hadamard != 0 {
+        let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
+        for i in 0..stride as usize {
+            for j in 0..n0 as usize {
+                tmp[j * stride as usize + i] = x[ordery[i] as usize * n0 as usize + j];
             }
         }
-        for j in 0..n as usize {
-            *x.add(j) = tmp[j];
+    } else {
+        for i in 0..stride as usize {
+            for j in 0..n0 as usize {
+                tmp[j * stride as usize + i] = x[i * n0 as usize + j];
+            }
         }
     }
+    x[..n].copy_from_slice(&tmp);
 }
 
 /// Spread mode constants (from bands.h).
@@ -518,7 +508,9 @@ pub unsafe fn quant_band(
             for k in 0..recombine {
                 const BIT_INTERLEAVE_TABLE: [u8; 16] = [0, 1, 1, 1, 2, 3, 3, 3, 2, 3, 3, 3, 2, 3, 3, 3];
                 if !lowband.is_null() {
-                    haar1(lowband, n >> k, 1 << k);
+                    let n0 = n >> k;
+                    let stride = 1 << k;
+                    haar1(core::slice::from_raw_parts_mut(lowband, (n0 * stride) as usize), n0, stride);
                 }
                 fill = BIT_INTERLEAVE_TABLE[(fill & 0xF) as usize] as c_int
                     | (BIT_INTERLEAVE_TABLE[(fill >> 4) as usize] as c_int) << 2;
@@ -529,7 +521,7 @@ pub unsafe fn quant_band(
             // Increasing the time resolution
             while (n_b & 1) == 0 && tf_change < 0 {
                 if !lowband.is_null() {
-                    haar1(lowband, n_b, b_blocks);
+                    haar1(core::slice::from_raw_parts_mut(lowband, (n_b * b_blocks) as usize), n_b, b_blocks);
                 }
                 fill |= fill << b_blocks;
                 b_blocks <<= 1;
@@ -542,7 +534,14 @@ pub unsafe fn quant_band(
             // Reorganize the samples in time order instead of frequency order
             if b0 > 1 {
                 if !lowband.is_null() {
-                    deinterleave_hadamard(lowband, n_b >> recombine, b0 << recombine, long_blocks as c_int);
+                    let n0 = n_b >> recombine;
+                    let stride = b0 << recombine;
+                    deinterleave_hadamard(
+                        core::slice::from_raw_parts_mut(lowband, (n0 * stride) as usize),
+                        n0,
+                        stride,
+                        long_blocks as c_int,
+                    );
                 }
             }
         }
@@ -912,7 +911,14 @@ pub unsafe fn quant_band(
             } else if level == 0 {
                 // Undo the sample reorganization going from time order to frequency order
                 if b0 > 1 {
-                    interleave_hadamard(x, n_b >> recombine, b0 << recombine, long_blocks as c_int);
+                    let n0 = n_b >> recombine;
+                    let stride = b0 << recombine;
+                    interleave_hadamard(
+                        core::slice::from_raw_parts_mut(x, (n0 * stride) as usize),
+                        n0,
+                        stride,
+                        long_blocks as c_int,
+                    );
                 }
 
                 // Undo time-freq changes that we did earlier
@@ -922,14 +928,16 @@ pub unsafe fn quant_band(
                     b_blocks >>= 1;
                     n_b <<= 1;
                     cm |= cm >> b_blocks as u32;
-                    haar1(x, n_b, b_blocks);
+                    haar1(core::slice::from_raw_parts_mut(x, (n_b * b_blocks) as usize), n_b, b_blocks);
                 }
 
                 for k in 0..recombine {
                     const BIT_DEINTERLEAVE_TABLE: [u8; 16] =
                         [0x00, 0x03, 0x0C, 0x0F, 0x30, 0x33, 0x3C, 0x3F, 0xC0, 0xC3, 0xCC, 0xCF, 0xF0, 0xF3, 0xFC, 0xFF];
                     cm = BIT_DEINTERLEAVE_TABLE[cm as usize] as u32;
-                    haar1(x, n0 >> k, 1 << k);
+                    let n0_param = n0 >> k;
+                    let stride = 1 << k;
+                    haar1(core::slice::from_raw_parts_mut(x, (n0_param * stride) as usize), n0_param, stride);
                 }
                 b_blocks <<= recombine;
 

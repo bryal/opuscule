@@ -214,48 +214,6 @@ pub fn renormalise_vector(x: &mut [CeltNorm], gain: OpusVal16) {
 }
 
 /// Compute the stereo angle parameter itheta from two channel vectors.
-/// Returns a value in [0, 16384] representing the angle in the
-/// mid/side plane (0 = pure mid, 16384 = pure side).
-///
-/// # Safety
-/// `x` and `y` must each point to N readable celt_norm elements.
-pub unsafe fn stereo_itheta(x: *const CeltNorm, y: *const CeltNorm, stereo: c_int, n: c_int) -> c_int {
-    let n = n as usize;
-    let x = unsafe { std::slice::from_raw_parts(x, n) };
-    let y = unsafe { std::slice::from_raw_parts(y, n) };
-
-    let mut emid: OpusVal32 = EPSILON as OpusVal32;
-    let mut eside: OpusVal32 = EPSILON as OpusVal32;
-
-    if stereo != 0 {
-        for i in 0..n {
-            let m = add16(shr16(x[i], 1), shr16(y[i], 1));
-            let s = sub16(shr16(x[i], 1), shr16(y[i], 1));
-            emid = mac16_16(emid, m, m);
-            eside = mac16_16(eside, s, s);
-        }
-    } else {
-        for i in 0..n {
-            emid = mac16_16(emid, x[i], x[i]);
-            eside = mac16_16(eside, y[i], y[i]);
-        }
-    }
-
-    #[cfg(not(feature = "fixed-point"))]
-    {
-        let mid = celt_sqrt(emid);
-        let side = celt_sqrt(eside);
-        (0.5 + 16384.0 * 0.63662 * (side as f64).atan2(mid as f64)) as c_int
-    }
-    #[cfg(feature = "fixed-point")]
-    {
-        let mid = celt_sqrt(emid) as i16;
-        let side = celt_sqrt(eside) as i16;
-        // 0.63662 = 2/pi, QCONST16(0.63662, 15) = 20861
-        mult16_16_q15(20861, celt_atan2p(side, mid)) as c_int
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
