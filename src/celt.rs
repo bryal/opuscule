@@ -280,7 +280,14 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             let mut band_e = vec![0 as CeltEner; ((*st).mode.nb_ebands * cc) as usize];
 
             if (*st).loss_count >= 5 {
-                log2amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), background_log_e, cc);
+                log2amp(
+                    (*st).mode,
+                    (*st).start,
+                    (*st).end,
+                    &mut band_e,
+                    core::slice::from_raw_parts(background_log_e, BAND_E_SIZE),
+                    cc,
+                );
             } else {
                 // Energy decay
                 let decay: OpusVal16 = if (*st).loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
@@ -294,7 +301,14 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                         break;
                     }
                 }
-                log2amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), old_band_e, cc);
+                log2amp(
+                    (*st).mode,
+                    (*st).start,
+                    (*st).end,
+                    &mut band_e,
+                    core::slice::from_raw_parts(old_band_e, BAND_E_SIZE),
+                    cc,
+                );
             }
             seed = (*st).rng;
             for c in 0..cc {
@@ -746,7 +760,16 @@ pub unsafe fn celt_decode_with_ec(
         // Decode the global flags (first symbols in the stream)
         let intra_ener: c_int = if tell + 3 <= total_bits { ec_dec_bit_logp(dec, 3) } else { 0 };
         // Get band energies
-        unquant_coarse_energy((*st).mode, (*st).start, (*st).end, old_band_e, intra_ener, dec, c_channels, lm);
+        unquant_coarse_energy(
+            (*st).mode,
+            (*st).start,
+            (*st).end,
+            core::slice::from_raw_parts_mut(old_band_e, BAND_E_SIZE),
+            intra_ener,
+            dec,
+            c_channels,
+            lm,
+        );
 
         let mut tf_res = vec![0i32; (*st).mode.nb_ebands as usize];
         tf_decode((*st).start, (*st).end, is_transient, &mut tf_res, lm, dec);
@@ -819,7 +842,15 @@ pub unsafe fn celt_decode_with_ec(
             0,
         );
 
-        unquant_fine_energy((*st).mode, (*st).start, (*st).end, old_band_e, fine_quant.as_mut_ptr(), dec, c_channels);
+        unquant_fine_energy(
+            (*st).mode,
+            (*st).start,
+            (*st).end,
+            core::slice::from_raw_parts_mut(old_band_e, BAND_E_SIZE),
+            &fine_quant,
+            dec,
+            c_channels,
+        );
 
         // Decode fixed codebook
         let mut collapse_masks = vec![0u8; (c_channels * (*st).mode.nb_ebands) as usize];
@@ -854,10 +885,10 @@ pub unsafe fn celt_decode_with_ec(
             (*st).mode,
             (*st).start,
             (*st).end,
-            old_band_e,
-            fine_quant.as_mut_ptr(),
-            fine_priority.as_mut_ptr(),
-            len * 8 - ec_tell(&*dec) as c_int,
+            core::slice::from_raw_parts_mut(old_band_e, BAND_E_SIZE),
+            &fine_quant,
+            &fine_priority,
+            len * 8 - ec_tell(dec) as c_int,
             dec,
             c_channels,
         );
@@ -880,7 +911,14 @@ pub unsafe fn celt_decode_with_ec(
             );
         }
 
-        log2amp((*st).mode, (*st).start, (*st).end, band_e.as_mut_ptr(), old_band_e, c_channels);
+        log2amp(
+            (*st).mode,
+            (*st).start,
+            (*st).end,
+            &mut band_e,
+            core::slice::from_raw_parts(old_band_e, BAND_E_SIZE),
+            c_channels,
+        );
 
         if silence != 0 {
             for ii in 0..(c_channels * (*st).mode.nb_ebands) as usize {
