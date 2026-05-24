@@ -87,22 +87,16 @@ read_baseline() {
     . "$BASELINE_FILE"
 }
 
-# Compare two quality scores. Returns 0 if actual >= expected, 1 otherwise.
-# Uses awk because shell arithmetic doesn't handle floats.
-is_worse() {
-    awk "BEGIN { exit ($1 < $2) ? 0 : 1 }"
-}
-
-is_better() {
-    awk "BEGIN { exit ($1 > $2) ? 0 : 1 }"
-}
-
+# Any drift from the recorded baseline — better OR worse — counts as a
+# failure: improvements are often flukes that get baked in and then later
+# read as regressions when the underlying transient resolves. Investigate
+# the cause, then bump the baseline by hand if the new number is real.
 check_quality() {
     label=$1
     actual=$2
     expected=$3
-    if is_worse "$actual" "$expected"; then
-        echo "QUALITY REGRESSION: $label: expected $expected %, got $actual %"
+    if [ "$actual" != "$expected" ]; then
+        echo "QUALITY DELTA: $label: baseline $expected %, got $actual %"
         return 1
     fi
 }
@@ -132,25 +126,8 @@ check_quality "fixed mono"    "$result_fixed_mono"    "$fixed_mono"    || failed
 check_quality "fixed stereo"  "$result_fixed_stereo"  "$fixed_stereo"  || failed=1
 
 if [ "$failed" -eq 1 ]; then
-    echo "FAILED: quality regression detected."
+    echo "FAILED: quality differs from baseline. Investigate before bumping $BASELINE_FILE."
     exit 1
-fi
-
-# -- Update baseline if any score improved --
-improved=0
-is_better "$result_float_mono"    "$float_mono"    && improved=1
-is_better "$result_float_stereo"  "$float_stereo"  && improved=1
-is_better "$result_fixed_mono"    "$fixed_mono"    && improved=1
-is_better "$result_fixed_stereo"  "$fixed_stereo"  && improved=1
-
-if [ "$improved" -eq 1 ]; then
-    cat > "$BASELINE_FILE" <<BASELINE
-float_mono=$result_float_mono
-float_stereo=$result_float_stereo
-fixed_mono=$result_fixed_mono
-fixed_stereo=$result_fixed_stereo
-BASELINE
-    echo "Baseline updated (quality improved)."
 fi
 
 echo "All tests passed (both float and fixed-point)."
