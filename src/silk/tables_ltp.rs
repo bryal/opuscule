@@ -110,8 +110,7 @@ pub static SILK_LTP_GAIN_VQ_2: [[i8; 5]; 32] = [
 ];
 
 /// `silk_LTP_vq_ptrs_Q7` — pointers to the three VQ codebooks.
-pub static SILK_LTP_VQ_PTRS_Q7: [&'static i8; 3] =
-    [&SILK_LTP_GAIN_VQ_0[0][0], &SILK_LTP_GAIN_VQ_1[0][0], &SILK_LTP_GAIN_VQ_2[0][0]];
+pub static SILK_LTP_VQ_PTRS_Q7: [&'static [[i8; 5]]; 3] = [&SILK_LTP_GAIN_VQ_0, &SILK_LTP_GAIN_VQ_1, &SILK_LTP_GAIN_VQ_2];
 
 /// `silk_LTP_vq_sizes`
 pub static SILK_LTP_VQ_SIZES: [i8; 3] = [8, 16, 32];
