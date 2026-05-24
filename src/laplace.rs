@@ -34,13 +34,12 @@ fn ec_laplace_get_freq1(fs0: u32, decay: c_int) -> u32 {
 ///
 /// `fs` is the probability of zero (times 32768).
 /// `decay` controls how fast the tail probability decays.
-pub unsafe fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: c_int) -> c_int {
+pub fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: c_int) -> c_int {
     let mut val: c_int = 0;
     let mut fl: u32;
     let mut fs = fs;
 
-    // SAFETY: dec is a valid decoder pointer; ec_decode_bin is safe to call.
-    let fm = unsafe { ec_decode_bin(dec, 15) };
+    let fm = ec_decode_bin(dec, 15);
     fl = 0;
 
     if fm >= fs {
@@ -76,7 +75,6 @@ pub unsafe fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: c_int) -> c_in
     debug_assert!(fl <= fm);
     debug_assert!(fm < (fl + fs).min(32768));
 
-    // SAFETY: dec is a valid decoder pointer.
-    unsafe { ec_dec_update(dec, fl, (fl + fs).min(32768), 32768) };
+    ec_dec_update(dec, fl, (fl + fs).min(32768), 32768);
     val
 }

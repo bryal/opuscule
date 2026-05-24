@@ -98,9 +98,7 @@ pub fn ec_ilog(mut v: u32) -> i32 {
 ///
 /// Translated from c/celt/entcode.c ec_tell_frac().
 /// See RFC 6716 Section 4.1.
-pub unsafe fn ec_tell_frac(this: &ec_ctx) -> u32 {
-    // SAFETY: caller must pass a valid ec_ctx pointer.
-    let this = unsafe { &*this };
+pub fn ec_tell_frac(this: &ec_ctx) -> u32 {
     let nbits = (this.nbits_total as u32) << BITRES;
     let mut l = ec_ilog(this.rng);
     let mut r = this.rng >> (l as u32 - 16);

@@ -1127,7 +1127,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
     let mut curr = 0;
     for i in start..end {
         if tell + logp <= budget {
-            curr ^= unsafe { ec_dec_bit_logp(dec, logp) };
+            curr ^= ec_dec_bit_logp(dec, logp);
             tell = ec_tell(dec) as u32;
             tf_changed |= curr;
         }
@@ -1139,7 +1139,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
         && TF_SELECT_TABLE[lm as usize][(4 * is_transient + 0 + tf_changed) as usize]
             != TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 + tf_changed) as usize]
     {
-        tf_select = unsafe { ec_dec_bit_logp(dec, 1) };
+        tf_select = ec_dec_bit_logp(dec, 1);
     }
     for i in start..end {
         tf_res[i as usize] =

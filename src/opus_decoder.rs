@@ -95,7 +95,7 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
         return 0;
     }
     let mut silk_dec_size_bytes: c_int = 0;
-    let ret = unsafe { silk_get_decoder_size(&mut silk_dec_size_bytes) };
+    let ret = silk_get_decoder_size(&mut silk_dec_size_bytes);
     if ret != 0 {
         return 0;
     }

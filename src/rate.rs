@@ -182,7 +182,7 @@ unsafe fn interp_bits2pulses(
                     break;
                 }
                 // ec_enc_bit_logp(ec, 0, 1)
-            } else if unsafe { ec_dec_bit_logp(ec, 1) } != 0 {
+            } else if ec_dec_bit_logp(ec, 1) != 0 {
                 break;
             }
             psum += 1 << bitres;

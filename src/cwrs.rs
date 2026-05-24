@@ -288,24 +288,23 @@ pub fn decode_pulses(y: &mut [c_int], k: c_int, dec: &mut ec_dec) {
     match n {
         2 => {
             let nc = ncwrs2(k as u32);
-            // SAFETY: dec is a valid decoder.
-            let i = unsafe { ec_dec_uint(dec, nc) };
+            let i = ec_dec_uint(dec, nc);
             cwrsi2(k, i, y);
         }
         3 => {
             let nc = ncwrs3(k as u32);
-            let i = unsafe { ec_dec_uint(dec, nc) };
+            let i = ec_dec_uint(dec, nc);
             cwrsi3(k, i, y);
         }
         4 => {
             let nc = ncwrs4(k);
-            let i = unsafe { ec_dec_uint(dec, nc) };
+            let i = ec_dec_uint(dec, nc);
             cwrsi4(k, i, y);
         }
         _ => {
             let mut u = vec![0u32; k as usize + 2];
             let nc = ncwrs_urow(n, k as usize, &mut u);
-            let i = unsafe { ec_dec_uint(dec, nc) };
+            let i = ec_dec_uint(dec, nc);
             cwrsi(n, k, i, y, &mut u);
         }
     }

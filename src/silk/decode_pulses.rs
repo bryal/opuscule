@@ -21,7 +21,7 @@ const MAX_PULSES: i32 = 16;
 const N_RATE_LEVELS: usize = 10;
 
 /// `silk_decode_pulses` — decode quantization indices of the excitation signal.
-pub unsafe fn silk_decode_pulses(
+pub fn silk_decode_pulses(
     ps_range_dec: &mut ec_dec,
     pulses: &mut [i32],
     signal_type: i32,
@@ -68,7 +68,7 @@ pub unsafe fn silk_decode_pulses(
     for i in 0..iter as usize {
         let block = &mut pulses[i * frame_len..(i + 1) * frame_len];
         if sum_pulses[i] > 0 {
-            unsafe { silk_shell_decoder(block, ps_range_dec, sum_pulses[i]) };
+            silk_shell_decoder(block, ps_range_dec, sum_pulses[i]);
         } else {
             block.fill(0);
         }
@@ -84,7 +84,7 @@ pub unsafe fn silk_decode_pulses(
             for slot in block.iter_mut() {
                 for _ in 0..n_ls {
                     *slot = silk_lshift(*slot, 1);
-                    *slot += unsafe { ec_dec_icdf(ps_range_dec, &SILK_LSB_ICDF, 8) };
+                    *slot += ec_dec_icdf(ps_range_dec, &SILK_LSB_ICDF, 8);
                 }
             }
             /* Mark the number of pulses non-zero for sign decoding. */
@@ -95,5 +95,5 @@ pub unsafe fn silk_decode_pulses(
     /****************************************/
     /* Decode and add signs to pulse signal */
     /****************************************/
-    unsafe { silk_decode_signs(ps_range_dec, pulses, frame_length, signal_type, quant_offset_type, &sum_pulses) };
+    silk_decode_signs(ps_range_dec, pulses, frame_length, signal_type, quant_offset_type, &sum_pulses);
 }

@@ -92,7 +92,7 @@ pub unsafe fn ec_dec_init(this: &mut ec_dec, buf: *mut u8, storage: u32) {
 /// ec_dec_update().
 ///
 /// RFC 6716 Section 4.1.
-pub unsafe fn ec_decode(this: &mut ec_dec, ft: u32) -> u32 {
+pub fn ec_decode(this: &mut ec_dec, ft: u32) -> u32 {
     this.ext = this.rng / ft;
     let s = this.val / this.ext;
     // EC_MINI(s+1, ft): ft - min(s+1, ft)
@@ -102,7 +102,7 @@ pub unsafe fn ec_decode(this: &mut ec_dec, ft: u32) -> u32 {
 /// Equivalent to ec_decode() with ft == 1 << bits.
 ///
 /// RFC 6716 Section 4.1.
-pub unsafe fn ec_decode_bin(this: &mut ec_dec, bits: u32) -> u32 {
+pub fn ec_decode_bin(this: &mut ec_dec, bits: u32) -> u32 {
     this.ext = this.rng >> bits;
     let s = this.val / this.ext;
     (1u32 << bits) - ec_mini(s + 1, 1u32 << bits)
@@ -113,7 +113,7 @@ pub unsafe fn ec_decode_bin(this: &mut ec_dec, bits: u32) -> u32 {
 /// Must be called exactly once after ec_decode() / ec_decode_bin().
 ///
 /// RFC 6716 Section 4.1.
-pub unsafe fn ec_dec_update(this: &mut ec_dec, fl: u32, fh: u32, ft: u32) {
+pub fn ec_dec_update(this: &mut ec_dec, fl: u32, fh: u32, ft: u32) {
     let s = this.ext.wrapping_mul(ft - fh);
     this.val -= s;
     this.rng = if fl > 0 { this.ext.wrapping_mul(fh - fl) } else { this.rng - s };
@@ -123,7 +123,7 @@ pub unsafe fn ec_dec_update(this: &mut ec_dec, fl: u32, fh: u32, ft: u32) {
 /// Decode a bit that has a 1/(1 << logp) probability of being a one.
 ///
 /// RFC 6716 Section 4.1.3.
-pub unsafe fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> c_int {
+pub fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> c_int {
     let r = this.rng;
     let d = this.val;
     let s = r >> logp;
@@ -172,28 +172,25 @@ pub fn ec_dec_icdf(this: &mut ec_dec, icdf: &[u8], ftb: u32) -> c_int {
 /// The bits must have been encoded with ec_enc_uint().
 ///
 /// RFC 6716 Section 4.1.5.
-pub unsafe fn ec_dec_uint(this: &mut ec_dec, ft: u32) -> u32 {
+pub fn ec_dec_uint(this: &mut ec_dec, ft: u32) -> u32 {
     debug_assert!(ft > 1);
     let ft = ft - 1;
     let ftb = ec_ilog(ft);
     if ftb > EC_UINT_BITS as i32 {
         let ftb = (ftb as u32 - EC_UINT_BITS) as u32;
         let ft_top = (ft >> ftb) + 1;
-        // SAFETY: this is a valid decoder pointer.
-        let s = unsafe { ec_decode(this, ft_top) };
-        unsafe { ec_dec_update(this, s, s + 1, ft_top) };
-        let t = (s << ftb) | unsafe { ec_dec_bits(this, ftb) };
+        let s = ec_decode(this, ft_top);
+        ec_dec_update(this, s, s + 1, ft_top);
+        let t = (s << ftb) | ec_dec_bits(this, ftb);
         if t <= ft {
             return t;
         }
-        // SAFETY: this is a valid decoder pointer.
-        unsafe { &mut *this }.error = 1;
+        this.error = 1;
         ft
     } else {
         let ft = ft + 1;
-        // SAFETY: this is a valid decoder pointer.
-        let s = unsafe { ec_decode(this, ft) };
-        unsafe { ec_dec_update(this, s, s + 1, ft) };
+        let s = ec_decode(this, ft);
+        ec_dec_update(this, s, s + 1, ft);
         s
     }
 }
@@ -205,7 +202,7 @@ pub unsafe fn ec_dec_uint(this: &mut ec_dec, ft: u32) -> u32 {
 /// middle.
 ///
 /// RFC 6716 Section 4.1.4.
-pub unsafe fn ec_dec_bits(this: &mut ec_dec, bits: u32) -> u32 {
+pub fn ec_dec_bits(this: &mut ec_dec, bits: u32) -> u32 {
     let mut window = this.end_window;
     let mut available = this.nend_bits;
     if (available as u32) < bits {
