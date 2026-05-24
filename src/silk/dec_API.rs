@@ -350,7 +350,7 @@ pub unsafe fn silk_decode(
             let cs = channel_state.add(n);
             /* Resample decoded signal to API_sampleRate */
             ret += silk_resampler(
-                &raw mut (*cs).resampler_state,
+                &mut (*cs).resampler_state,
                 resample_out_ptr,
                 samples_out1_tmp[n].as_ptr().add(1),
                 n_samples_out_dec,
@@ -370,7 +370,7 @@ pub unsafe fn silk_decode(
                 /* Resample right channel for newly collapsed stereo just in case
                 we weren't doing collapsing when switching to mono */
                 ret += silk_resampler(
-                    &raw mut (*channel_state.add(1)).resampler_state,
+                    &mut (*channel_state.add(1)).resampler_state,
                     resample_out_ptr,
                     samples_out1_tmp[0].as_ptr().add(1),
                     n_samples_out_dec,

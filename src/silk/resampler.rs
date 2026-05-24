@@ -148,42 +148,47 @@ pub fn silk_resampler_init(s: &mut SilkResamplerStateStruct, fs_hz_in: i32, fs_h
 
 /// `silk_resampler` — convert from one sampling rate to another.
 /// Input and output sampling rates are at most 48000 Hz.
-pub unsafe fn silk_resampler(s: *mut SilkResamplerStateStruct, out: *mut i16, in_: *const i16, in_len: i32) -> i32 {
+pub unsafe fn silk_resampler(s: &mut SilkResamplerStateStruct, out: *mut i16, in_: *const i16, in_len: i32) -> i32 {
     unsafe {
-        let n_samples = (*s).fs_in_khz - (*s).input_delay;
+        let n_samples = s.fs_in_khz - s.input_delay;
+        let input_delay = s.input_delay;
+        let fs_in_khz = s.fs_in_khz;
+        let fs_out_khz = s.fs_out_khz;
+        let resampler_function = s.resampler_function;
+        let s_ptr: *mut SilkResamplerStateStruct = s;
 
         /* Copy to delay buffer */
-        core::ptr::copy_nonoverlapping(in_, (*s).delay_buf.as_mut_ptr().offset((*s).input_delay as isize), n_samples as usize);
+        core::ptr::copy_nonoverlapping(in_, (*s_ptr).delay_buf.as_mut_ptr().offset(input_delay as isize), n_samples as usize);
 
-        let delay_buf_ptr = (*s).delay_buf.as_ptr();
-        let out_tail = out.offset((*s).fs_out_khz as isize);
+        let delay_buf_ptr = (*s_ptr).delay_buf.as_ptr();
+        let out_tail = out.offset(fs_out_khz as isize);
         let in_tail = in_.offset(n_samples as isize);
-        let tail_len = in_len - (*s).fs_in_khz;
+        let tail_len = in_len - fs_in_khz;
 
-        match (*s).resampler_function {
+        match resampler_function {
             x if x == USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER => {
-                silk_resampler_private_up2_hq_wrapper(s, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_up2_hq_wrapper(s, out_tail, in_tail, tail_len);
+                silk_resampler_private_up2_hq_wrapper(s_ptr, out, delay_buf_ptr, fs_in_khz);
+                silk_resampler_private_up2_hq_wrapper(s_ptr, out_tail, in_tail, tail_len);
             }
             x if x == USE_SILK_RESAMPLER_PRIVATE_IIR_FIR => {
-                silk_resampler_private_iir_fir(s, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_iir_fir(s, out_tail, in_tail, tail_len);
+                silk_resampler_private_iir_fir(s_ptr, out, delay_buf_ptr, fs_in_khz);
+                silk_resampler_private_iir_fir(s_ptr, out_tail, in_tail, tail_len);
             }
             x if x == USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR => {
-                silk_resampler_private_down_fir(s, out, delay_buf_ptr, (*s).fs_in_khz);
-                silk_resampler_private_down_fir(s, out_tail, in_tail, tail_len);
+                silk_resampler_private_down_fir(s_ptr, out, delay_buf_ptr, fs_in_khz);
+                silk_resampler_private_down_fir(s_ptr, out_tail, in_tail, tail_len);
             }
             _ => {
-                core::ptr::copy_nonoverlapping(delay_buf_ptr, out, (*s).fs_in_khz as usize);
+                core::ptr::copy_nonoverlapping(delay_buf_ptr, out, fs_in_khz as usize);
                 core::ptr::copy_nonoverlapping(in_tail, out_tail, tail_len as usize);
             }
         }
 
         /* Copy to delay buffer */
         core::ptr::copy_nonoverlapping(
-            in_.offset((in_len - (*s).input_delay) as isize),
-            (*s).delay_buf.as_mut_ptr(),
-            (*s).input_delay as usize,
+            in_.offset((in_len - input_delay) as isize),
+            (*s_ptr).delay_buf.as_mut_ptr(),
+            input_delay as usize,
         );
 
         0
