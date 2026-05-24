@@ -161,7 +161,7 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
             return OPUS_INTERNAL_ERROR;
         }
 
-        let ret = celt_decoder_init(celt_dec, fs, channels);
+        let ret = celt_decoder_init(&mut *celt_dec, fs, channels);
         if ret != OPUS_OK {
             return OPUS_INTERNAL_ERROR;
         }

@@ -111,15 +111,17 @@ pub extern "C" fn opus_custom_decoder_get_size(_mode: *const CELTMode, _channels
 }
 
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
-pub unsafe fn celt_decoder_init(st: *mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
-    unsafe {
-        let ret = opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, std::ptr::null_mut()), channels);
-        if ret != OPUS_OK {
-            return ret;
-        }
-        (*st).downsample = resampling_factor(sampling_rate);
-        if (*st).downsample == 0 { OPUS_BAD_ARG } else { OPUS_OK }
+pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
+    // SAFETY: `opus_custom_decoder_init` is an `extern "C"` entry point and
+    // keeps its pointer ABI; called here with a valid live reference, and
+    // `opus_custom_mode_create(48000, 960, ...)` always returns a pointer to
+    // a `'static` mode for these arguments.
+    let ret = unsafe { opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, std::ptr::null_mut()), channels) };
+    if ret != OPUS_OK {
+        return ret;
     }
+    st.downsample = resampling_factor(sampling_rate);
+    if st.downsample == 0 { OPUS_BAD_ARG } else { OPUS_OK }
 }
 
 /// Initialise a CELT decoder for a given mode and channel count.
