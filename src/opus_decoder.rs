@@ -156,7 +156,7 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
         let silk_dec = silk_dec_ptr(st);
         let celt_dec = celt_dec_ptr(st);
 
-        let ret = silk_init_decoder(silk_dec);
+        let ret = silk_init_decoder(&mut *(silk_dec as *mut crate::silk::dec_API::SilkDecoder));
         if ret != 0 {
             return OPUS_INTERNAL_ERROR;
         }
@@ -394,7 +394,7 @@ unsafe fn opus_decode_frame(
             let mut pcm_ptr = pcm_silk;
 
             if (*st).prev_mode == MODE_CELT_ONLY {
-                silk_init_decoder(silk_dec);
+                silk_init_decoder(&mut *(silk_dec as *mut crate::silk::dec_API::SilkDecoder));
             }
 
             // The SILK PLC cannot produce frames of less than 10 ms
@@ -845,7 +845,7 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
                 *frame_size = *fs / 400;
 
                 celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
-                silk_init_decoder(silk_dec);
+                silk_init_decoder(&mut *(silk_dec as *mut crate::silk::dec_API::SilkDecoder));
             }
             OpusDecCtl::GetPitch(value) => {
                 if value.is_null() {

@@ -84,16 +84,12 @@ pub fn silk_get_decoder_size(dec_size_bytes: &mut c_int) -> c_int {
 }
 
 /// `silk_InitDecoder` — reset the per-channel states.
-pub unsafe fn silk_init_decoder(dec_state: *mut u8) -> c_int {
-    unsafe {
-        let ps_dec = dec_state as *mut SilkDecoder;
-        let channel_state = (*ps_dec).channel_state.as_mut_ptr();
-        let mut ret = SILK_NO_ERROR;
-        for n in 0..DECODER_NUM_CHANNELS {
-            ret = super::init_decoder::silk_init_decoder(&mut *channel_state.add(n));
-        }
-        ret
+pub fn silk_init_decoder(ps_dec: &mut SilkDecoder) -> c_int {
+    let mut ret = SILK_NO_ERROR;
+    for channel in ps_dec.channel_state.iter_mut().take(DECODER_NUM_CHANNELS) {
+        ret = super::init_decoder::silk_init_decoder(channel);
     }
+    ret
 }
 
 /// `silk_Decode` — decode a SILK frame (mono or stereo, normal/LBRR/PLC).
