@@ -416,7 +416,11 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                         }
                     }
 
-                    _celt_lpc(lpc.add((c * LPC_ORDER) as usize), ac.as_ptr(), LPC_ORDER);
+                    _celt_lpc(
+                        core::slice::from_raw_parts_mut(lpc.add((c * LPC_ORDER) as usize), LPC_ORDER as usize),
+                        &ac,
+                        LPC_ORDER,
+                    );
                 }
                 for i in 0..LPC_ORDER as usize {
                     mem[i] = round16(*out_mem[c as usize].add(MAX_PERIOD as usize - 1 - i), SIG_SHIFT);

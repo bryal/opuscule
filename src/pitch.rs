@@ -332,7 +332,7 @@ pub unsafe fn pitch_downsample(
 
     // Fit a 4th-order LPC model
     let mut lpc = [0 as OpusVal16; 4];
-    _celt_lpc(lpc.as_mut_ptr(), ac.as_mut_ptr(), 4);
+    _celt_lpc(&mut lpc, &ac, 4);
 
     // Exponential decay of LPC coefficients: lpc[i] *= 0.9^(i+1)
     let mut tmp: OpusVal16 = Q15ONE;

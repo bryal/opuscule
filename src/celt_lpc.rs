@@ -23,65 +23,59 @@ pub const LPC_ORDER: usize = 24;
 /// Computes `p` LPC coefficients from `p+1` autocorrelation values.
 /// Bails out early if prediction gain exceeds ~30 dB (error < ac[0]/1024
 /// in fixed-point, error < 0.001*ac[0] in float).
-pub unsafe fn _celt_lpc(_lpc: *mut OpusVal16, ac: *const OpusVal32, p: c_int) {
-    unsafe {
-        let p = p as usize;
+pub fn _celt_lpc(_lpc: &mut [OpusVal16], ac: &[OpusVal32], p: c_int) {
+    let p = p as usize;
 
-        // In fixed-point mode, work in a local i32 buffer then round to i16.
-        // In float mode, _lpc and lpc alias the same memory (matching C).
-        #[cfg(feature = "fixed-point")]
-        let mut lpc_buf = [0i32; LPC_ORDER];
-        #[cfg(feature = "fixed-point")]
-        let lpc = lpc_buf.as_mut_ptr();
-        #[cfg(not(feature = "fixed-point"))]
-        let lpc = _lpc;
+    // Work in an OpusVal32 buffer through the recursion (matches C, which
+    // either reuses the caller's array directly in float mode or stages
+    // into a local i32 buffer in fixed-point mode). At the end we narrow
+    // back to OpusVal16 for the caller — a no-op for the float build
+    // (where OpusVal16 == OpusVal32 == f32) and a round16 in fixed.
+    let mut lpc = [0 as OpusVal32; LPC_ORDER];
 
+    let mut error = ac[0];
+    if ac[0] != 0 as OpusVal32 {
         for i in 0..p {
-            *lpc.add(i) = 0 as OpusVal32;
-        }
+            // Sum up this iteration's reflection coefficient
+            let mut rr: OpusVal32 = 0 as OpusVal32;
+            for j in 0..i {
+                rr = rr + mult32_32_q31(lpc[j], ac[i - j]);
+            }
+            rr = rr + shr32(ac[i + 1], 3);
+            let r = -frac_div32(shl32(rr, 3), error);
+            // Update LPC coefficients and total error
+            lpc[i] = shr32(r, 3);
+            for j in 0..(i + 1) >> 1 {
+                let tmp1 = lpc[j];
+                let tmp2 = lpc[i - 1 - j];
+                lpc[j] = tmp1 + mult32_32_q31(r, tmp2);
+                lpc[i - 1 - j] = tmp2 + mult32_32_q31(r, tmp1);
+            }
 
-        let mut error = *ac;
-        if *ac != 0 as OpusVal32 {
-            for i in 0..p {
-                // Sum up this iteration's reflection coefficient
-                let mut rr: OpusVal32 = 0 as OpusVal32;
-                for j in 0..i {
-                    rr = rr + mult32_32_q31(*lpc.add(j), *ac.add(i - j));
+            error = error - mult32_32_q31(mult32_32_q31(r, r), error);
+            // Bail out once we get 30 dB gain
+            #[cfg(feature = "fixed-point")]
+            {
+                if error < shr32(ac[0], 10) {
+                    break;
                 }
-                rr = rr + shr32(*ac.add(i + 1), 3);
-                let r = -frac_div32(shl32(rr, 3), error);
-                // Update LPC coefficients and total error
-                *lpc.add(i) = shr32(r, 3);
-                for j in 0..(i + 1) >> 1 {
-                    let tmp1 = *lpc.add(j);
-                    let tmp2 = *lpc.add(i - 1 - j);
-                    *lpc.add(j) = tmp1 + mult32_32_q31(r, tmp2);
-                    *lpc.add(i - 1 - j) = tmp2 + mult32_32_q31(r, tmp1);
-                }
-
-                error = error - mult32_32_q31(mult32_32_q31(r, r), error);
-                // Bail out once we get 30 dB gain
-                #[cfg(feature = "fixed-point")]
-                {
-                    if error < shr32(*ac, 10) {
-                        break;
-                    }
-                }
-                #[cfg(not(feature = "fixed-point"))]
-                {
-                    if error < 0.001f32 * *ac {
-                        break;
-                    }
+            }
+            #[cfg(not(feature = "fixed-point"))]
+            {
+                if error < 0.001f32 * ac[0] {
+                    break;
                 }
             }
         }
+    }
 
-        #[cfg(feature = "fixed-point")]
-        {
-            for i in 0..p {
-                *_lpc.add(i) = round16(*lpc.add(i), 16);
-            }
-        }
+    #[cfg(feature = "fixed-point")]
+    for i in 0..p {
+        _lpc[i] = round16(lpc[i], 16);
+    }
+    #[cfg(not(feature = "fixed-point"))]
+    for i in 0..p {
+        _lpc[i] = lpc[i];
     }
 }
 
@@ -298,7 +292,7 @@ mod tests {
         let mut lpc = [0.0 as OpusVal16; 4];
 
         unsafe {
-            _celt_lpc(lpc.as_mut_ptr(), ac.as_ptr(), 4);
+            _celt_lpc(&mut lpc, &ac, 4);
         }
         for i in 0..4 {
             assert!((lpc[i]).abs() < 1e-6, "lpc[{}] = {} should be ~0 for white noise", i, lpc[i]);
@@ -381,7 +375,7 @@ mod tests {
         let mut lpc = [0i16; 4];
 
         unsafe {
-            _celt_lpc(lpc.as_mut_ptr(), ac.as_ptr(), 4);
+            _celt_lpc(&mut lpc, &ac, 4);
         }
         for i in 0..4 {
             assert_eq!(lpc[i], 0, "lpc[{}] = {} should be 0 for white noise", i, lpc[i]);
