@@ -204,11 +204,9 @@ pub unsafe fn silk_decode(
                     if (*cs).n_frames_per_packet == 1 {
                         (*cs).lbrr_flags[0] = 1;
                     } else {
-                        let lbrr_symbol = ec_dec_icdf(
-                            ps_range_dec,
-                            SILK_LBRR_FLAGS_ICDF_PTR[((*cs).n_frames_per_packet - 2) as usize] as *const u8,
-                            8,
-                        ) + 1;
+                        let lbrr_symbol =
+                            ec_dec_icdf(ps_range_dec, SILK_LBRR_FLAGS_ICDF_PTR[((*cs).n_frames_per_packet - 2) as usize], 8)
+                                + 1;
                         for i in 0..(*cs).n_frames_per_packet as usize {
                             (*cs).lbrr_flags[i] = (lbrr_symbol >> i as i32) & 1;
                         }

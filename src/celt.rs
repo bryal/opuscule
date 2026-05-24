@@ -720,7 +720,7 @@ pub unsafe fn celt_decode_with_ec(
                 postfilter_pitch = (16 << octave) + ec_dec_bits(dec, (4 + octave) as u32) as c_int - 1;
                 let qg = ec_dec_bits(dec, 3) as c_int;
                 if ec_tell(&*dec) as i32 + 2 <= total_bits {
-                    postfilter_tapset = ec_dec_icdf(dec, TAPSET_ICDF.as_ptr(), 2);
+                    postfilter_tapset = ec_dec_icdf(dec, &TAPSET_ICDF, 2);
                 }
                 postfilter_gain = qconst16(0.09375, 15) * (qg + 1) as OpusVal16;
             }
@@ -748,7 +748,7 @@ pub unsafe fn celt_decode_with_ec(
         tell = ec_tell(&*dec) as i32;
         let mut spread_decision: c_int = SPREAD_NORMAL;
         if tell + 4 <= total_bits {
-            spread_decision = ec_dec_icdf(dec, SPREAD_ICDF.as_ptr(), 5);
+            spread_decision = ec_dec_icdf(dec, &SPREAD_ICDF, 5);
         }
 
         let mut pulses = vec![0i32; (*st).mode.nb_ebands as usize];
@@ -783,7 +783,7 @@ pub unsafe fn celt_decode_with_ec(
         }
 
         let mut fine_quant = vec![0i32; (*st).mode.nb_ebands as usize];
-        let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, TRIM_ICDF.as_ptr(), 7) } else { 5 };
+        let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
 
         let mut bits: i32 = ((len as i32 * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
         let anti_collapse_rsv: c_int =

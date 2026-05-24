@@ -145,7 +145,7 @@ pub unsafe fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> c_int {
 /// No call to ec_dec_update() is necessary after this call.
 ///
 /// RFC 6716 Section 4.1.3.1.
-pub unsafe fn ec_dec_icdf(this: &mut ec_dec, icdf: *const u8, ftb: u32) -> c_int {
+pub fn ec_dec_icdf(this: &mut ec_dec, icdf: &[u8], ftb: u32) -> c_int {
     let mut s = this.rng;
     let d = this.val;
     let r = s >> ftb;
@@ -154,10 +154,9 @@ pub unsafe fn ec_dec_icdf(this: &mut ec_dec, icdf: *const u8, ftb: u32) -> c_int
     loop {
         t = s;
         ret += 1;
-        // SAFETY: icdf is a valid pointer to an inverse CDF table.
         // The loop terminates because the last icdf entry is 0, which
         // makes s = 0, and d >= 0 always holds.
-        s = r.wrapping_mul(unsafe { *icdf.add(ret as usize) } as u32);
+        s = r.wrapping_mul(icdf[ret as usize] as u32);
         if d >= s {
             break;
         }

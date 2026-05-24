@@ -21,7 +21,7 @@ use super::tables_pulses_per_block::{
 unsafe fn decode_split(children: &mut [i32], ps_range_dec: &mut ec_dec, p: i32, shell_table: &[u8]) {
     if p > 0 {
         let offset = SILK_SHELL_CODE_TABLE_OFFSETS[p as usize] as usize;
-        children[0] = unsafe { ec_dec_icdf(ps_range_dec, shell_table[offset..].as_ptr(), 8) };
+        children[0] = unsafe { ec_dec_icdf(ps_range_dec, &shell_table[offset..], 8) };
         children[1] = p - children[0];
     } else {
         children[0] = 0;

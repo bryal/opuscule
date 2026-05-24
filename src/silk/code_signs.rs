@@ -31,7 +31,7 @@ pub unsafe fn silk_decode_signs(
             for slot in block.iter_mut() {
                 if *slot > 0 {
                     /* implementation with shift, subtraction, multiplication */
-                    let dec_val = unsafe { ec_dec_icdf(ps_range_dec, icdf.as_ptr(), 8) };
+                    let dec_val = unsafe { ec_dec_icdf(ps_range_dec, &icdf, 8) };
                     *slot *= (dec_val << 1) - 1;
                 }
             }

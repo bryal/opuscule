@@ -151,7 +151,7 @@ pub unsafe fn unquant_coarse_energy(
                     let pi = 2 * (i as i32).min(20) as usize;
                     qi = ec_laplace_decode(dec, (prob_model[pi] as u32) << 7, ((prob_model[pi + 1] as u32) << 6) as c_int);
                 } else if budget - tell >= 2 {
-                    let raw = ec_dec_icdf(dec, SMALL_ENERGY_ICDF.as_ptr(), 2);
+                    let raw = ec_dec_icdf(dec, &SMALL_ENERGY_ICDF, 2);
                     qi = (raw >> 1) ^ -(raw & 1);
                 } else if budget - tell >= 1 {
                     qi = -ec_dec_bit_logp(dec, 1);

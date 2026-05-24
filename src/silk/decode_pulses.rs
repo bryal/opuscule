@@ -34,7 +34,7 @@ pub unsafe fn silk_decode_pulses(
     /*********************/
     /* Decode rate level */
     /*********************/
-    let rate_level_index = unsafe { ec_dec_icdf(ps_range_dec, SILK_RATE_LEVELS_ICDF[(signal_type >> 1) as usize].as_ptr(), 8) };
+    let rate_level_index = ec_dec_icdf(ps_range_dec, &SILK_RATE_LEVELS_ICDF[(signal_type >> 1) as usize], 8);
 
     /* Calculate number of shell blocks */
     /* silk_assert(1 << LOG2_SHELL_CODEC_FRAME_LENGTH == SHELL_CODEC_FRAME_LENGTH); */
@@ -47,22 +47,17 @@ pub unsafe fn silk_decode_pulses(
     /***************************************************/
     /* Sum-Weighted-Pulses Decoding                    */
     /***************************************************/
-    let cdf_ptr = SILK_PULSES_PER_BLOCK_ICDF[rate_level_index as usize].as_ptr();
+    let cdf = &SILK_PULSES_PER_BLOCK_ICDF[rate_level_index as usize][..];
     for i in 0..iter as usize {
         n_lshifts[i] = 0;
-        sum_pulses[i] = unsafe { ec_dec_icdf(ps_range_dec, cdf_ptr, 8) };
+        sum_pulses[i] = ec_dec_icdf(ps_range_dec, cdf, 8);
 
         /* LSB indication */
         while sum_pulses[i] == MAX_PULSES + 1 {
             n_lshifts[i] += 1;
             /* When we've already got 10 LSBs, we shift the table to not allow (MAX_PULSES + 1) */
-            sum_pulses[i] = unsafe {
-                ec_dec_icdf(
-                    ps_range_dec,
-                    SILK_PULSES_PER_BLOCK_ICDF[N_RATE_LEVELS - 1].as_ptr().offset((n_lshifts[i] == 10) as isize),
-                    8,
-                )
-            };
+            let off = (n_lshifts[i] == 10) as usize;
+            sum_pulses[i] = ec_dec_icdf(ps_range_dec, &SILK_PULSES_PER_BLOCK_ICDF[N_RATE_LEVELS - 1][off..], 8);
         }
     }
 
@@ -89,7 +84,7 @@ pub unsafe fn silk_decode_pulses(
             for slot in block.iter_mut() {
                 for _ in 0..n_ls {
                     *slot = silk_lshift(*slot, 1);
-                    *slot += unsafe { ec_dec_icdf(ps_range_dec, SILK_LSB_ICDF.as_ptr(), 8) };
+                    *slot += unsafe { ec_dec_icdf(ps_range_dec, &SILK_LSB_ICDF, 8) };
                 }
             }
             /* Mark the number of pulses non-zero for sign decoding. */
