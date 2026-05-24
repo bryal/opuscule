@@ -1435,7 +1435,11 @@ pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: 
 }
 
 /// Convenience wrapper matching the old `celt_decoder_ctl` name.
-pub unsafe fn celt_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
+pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> c_int {
+    // SAFETY: `opus_custom_decoder_ctl` is the `extern "C"` entry point and
+    // keeps its `*mut CELTDecoder` ABI; we forward a live `&mut` reference
+    // via reference-to-pointer coercion. The `CeltDecCtl` variants that
+    // carry raw out-pointers are still the caller's responsibility.
     unsafe { opus_custom_decoder_ctl(st, request) }
 }
 

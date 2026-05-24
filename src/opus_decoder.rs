@@ -166,7 +166,7 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
             return OPUS_INTERNAL_ERROR;
         }
 
-        celt_decoder_ctl(celt_dec, CeltDecCtl::SetSignalling(0));
+        celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetSignalling(0));
 
         OPUS_OK
     }
@@ -498,8 +498,8 @@ unsafe fn opus_decode_frame(
                 OPUS_BANDWIDTH_FULLBAND => 21,
                 _ => 21,
             };
-            celt_decoder_ctl(celt_dec, CeltDecCtl::SetEndBand(endband));
-            celt_decoder_ctl(celt_dec, CeltDecCtl::SetChannels((*st).stream_channels));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetEndBand(endband));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetChannels((*st).stream_channels));
         }
 
         if redundancy != 0 {
@@ -512,19 +512,19 @@ unsafe fn opus_decode_frame(
 
         // 5 ms redundant frame for CELT->SILK
         if redundancy != 0 && celt_to_silk != 0 {
-            celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(0));
             celt_decode_with_ec(celt_dec, data.offset(len as isize), redundancy_bytes, redundant_audio, f5, None);
-            celt_decoder_ctl(celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
         }
 
         // MUST be after PLC
-        celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(start_band));
+        celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(start_band));
 
         if mode != MODE_SILK_ONLY {
             let celt_frame_size = f20.min(frame_size);
             // Make sure to discard any previous CELT state
             if mode != (*st).prev_mode && (*st).prev_mode > 0 && (*st).prev_redundancy == 0 {
-                celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
+                celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::ResetState);
             }
             // Decode CELT
             celt_ret = celt_decode_with_ec(
@@ -545,7 +545,7 @@ unsafe fn opus_decode_frame(
             // For hybrid -> SILK transitions, we let the CELT MDCT
             // do a fade-out by decoding a silence frame
             if (*st).prev_mode == MODE_HYBRID && !(redundancy != 0 && celt_to_silk != 0 && (*st).prev_redundancy != 0) {
-                celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
+                celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(0));
                 celt_decode_with_ec(celt_dec, silence.as_ptr(), 2, pcm, f2_5, None);
             }
         }
@@ -572,17 +572,17 @@ unsafe fn opus_decode_frame(
         let window: *const OpusVal16;
         {
             let mut celt_mode: *const CELTMode = std::ptr::null();
-            celt_decoder_ctl(celt_dec, CeltDecCtl::GetMode(&mut celt_mode));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetMode(&mut celt_mode));
             window = (*celt_mode).window.as_ptr();
         }
 
         // 5 ms redundant frame for SILK->CELT
         if redundancy != 0 && celt_to_silk == 0 {
-            celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
-            celt_decoder_ctl(celt_dec, CeltDecCtl::SetStartBand(0));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::ResetState);
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(0));
 
             celt_decode_with_ec(celt_dec, data.offset(len as isize), redundancy_bytes, redundant_audio, f5, None);
-            celt_decoder_ctl(celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
+            celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
             smooth_fade(
                 pcm.offset(((*st).channels * (frame_size - f2_5)) as isize),
                 redundant_audio.offset(((*st).channels * f2_5) as isize),
@@ -844,7 +844,7 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
                 *stream_channels = *channels;
                 *frame_size = *fs / 400;
 
-                celt_decoder_ctl(celt_dec, CeltDecCtl::ResetState);
+                celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::ResetState);
                 silk_init_decoder(&mut *(silk_dec as *mut crate::silk::dec_API::SilkDecoder));
             }
             OpusDecCtl::GetPitch(value) => {
@@ -852,7 +852,7 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
                     return OPUS_BAD_ARG;
                 }
                 if (*st).prev_mode == MODE_CELT_ONLY {
-                    celt_decoder_ctl(celt_dec, CeltDecCtl::GetPitch(value));
+                    celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetPitch(value));
                 } else {
                     *value = (*st).dec_control.prev_pitch_lag;
                 }
