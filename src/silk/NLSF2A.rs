@@ -29,25 +29,26 @@ const ONE_OVER_MAX_PREDICTION_POWER_GAIN_Q30: i32 = (1.0 / 1e4 * (1u32 << 30) as
 const SC_BASE_Q16: i32 = (0.999 * (1u32 << 16) as f64 + 0.5) as i32;
 
 /// `silk_NLSF2A_find_poly` — build a polynomial by recursive convolution.
+///
+/// `c_lsf` holds every second 2*cos(LSF) value: the caller passes the
+/// cos table offset by 0 (even LSFs) or 1 (odd LSFs) and this reads
+/// `c_lsf[2 * k]`, matching the C's strided pointer access.
 #[inline]
-unsafe fn silk_nlsf2a_find_poly(out: *mut i32, c_lsf: *const i32, dd: i32) {
-    unsafe {
-        *out.offset(0) = silk_lshift(1, QA);
-        *out.offset(1) = -*c_lsf.offset(0);
-        let mut k = 1i32;
-        while k < dd {
-            let ftmp = *c_lsf.offset((2 * k) as isize); /* QA */
-            *out.offset((k + 1) as isize) = silk_lshift(*out.offset((k - 1) as isize), 1)
-                - silk_rshift_round64(silk_smull(ftmp, *out.offset(k as isize)), QA) as i32;
-            let mut n = k;
-            while n > 1 {
-                *out.offset(n as isize) += *out.offset((n - 2) as isize)
-                    - silk_rshift_round64(silk_smull(ftmp, *out.offset((n - 1) as isize)), QA) as i32;
-                n -= 1;
-            }
-            *out.offset(1) -= ftmp;
-            k += 1;
+fn silk_nlsf2a_find_poly(out: &mut [i32], c_lsf: &[i32], dd: i32) {
+    out[0] = silk_lshift(1, QA);
+    out[1] = -c_lsf[0];
+    let mut k = 1i32;
+    while k < dd {
+        let ftmp = c_lsf[(2 * k) as usize]; /* QA */
+        out[(k + 1) as usize] =
+            silk_lshift(out[(k - 1) as usize], 1) - silk_rshift_round64(silk_smull(ftmp, out[k as usize]), QA) as i32;
+        let mut n = k;
+        while n > 1 {
+            out[n as usize] += out[(n - 2) as usize] - silk_rshift_round64(silk_smull(ftmp, out[(n - 1) as usize]), QA) as i32;
+            n -= 1;
         }
+        out[1] -= ftmp;
+        k += 1;
     }
 }
 
@@ -94,10 +95,8 @@ pub fn silk_nlsf2a(a_q12: &mut [i16], nlsf: &[i16], d: i32) {
     let dd = d >> 1;
 
     /* generate even and odd polynomials using convolution */
-    unsafe {
-        silk_nlsf2a_find_poly(p_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(0), dd);
-        silk_nlsf2a_find_poly(q_poly.as_mut_ptr(), cos_lsf_qa.as_ptr().offset(1), dd);
-    }
+    silk_nlsf2a_find_poly(&mut p_poly, &cos_lsf_qa[0..], dd);
+    silk_nlsf2a_find_poly(&mut q_poly, &cos_lsf_qa[1..], dd);
 
     /* convert even and odd polynomials to opus_int32 Q12 filter coefs */
     let mut k = 0i32;
