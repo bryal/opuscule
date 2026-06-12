@@ -564,520 +564,456 @@ static TAPSET_ICDF: [u8; 3] = [2, 1, 0];
 /// Main CELT decode function.
 ///
 /// Decodes a CELT frame from the bitstream into PCM samples.
-/// If data is NULL or len <= 1, runs packet loss concealment instead.
-pub unsafe fn celt_decode_with_ec(
-    st: *mut CELTDecoder,
-    data: *const u8,
+/// If data is None or len <= 1, runs packet loss concealment instead.
+pub fn celt_decode_with_ec<'a>(
+    st: &mut CELTDecoder,
+    data: Option<&'a [u8]>,
     len: c_int,
-    pcm: *mut OpusVal16,
+    pcm: &mut [OpusVal16],
     frame_size: c_int,
-    dec: Option<&mut ec_ctx>,
+    dec: Option<&mut ec_ctx<'a>>,
 ) -> c_int {
-    unsafe {
-        let mut c: c_int;
-        let cc = (*st).channels;
-        let mut out_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
-        let mut decode_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
-        let mut overlap_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
-        let mut out_syn: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
+    let mode = st.mode;
+    let cc = st.channels;
+    let ch_size = (DECODE_BUFFER_SIZE + st.overlap) as usize;
 
-        let mut frame_size = frame_size;
-        frame_size *= (*st).downsample;
+    let mut frame_size = frame_size;
+    frame_size *= st.downsample;
 
-        c = 0;
-        loop {
-            decode_mem[c as usize] = (*st).decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
-            out_mem[c as usize] = decode_mem[c as usize].add((DECODE_BUFFER_SIZE - MAX_PERIOD) as usize);
-            overlap_mem[c as usize] = decode_mem[c as usize].add(DECODE_BUFFER_SIZE as usize);
-            c += 1;
-            if c >= cc {
+    // Without CUSTOM_MODES, find LM from frame_size
+    let mut lm: c_int = 0;
+    while lm <= mode.max_lm {
+        if mode.short_mdct_size << lm == frame_size {
+            break;
+        }
+        lm += 1;
+    }
+    if lm > mode.max_lm {
+        return OPUS_BAD_ARG;
+    }
+    let m: c_int = 1 << lm;
+
+    let len = len;
+    if len < 0 || len > 1275 {
+        return OPUS_BAD_ARG;
+    }
+
+    let n: c_int = m * mode.short_mdct_size;
+
+    let mut eff_end = st.end;
+    if eff_end > mode.eff_ebands {
+        eff_end = mode.eff_ebands;
+    }
+
+    let c_channels = st.stream_channels;
+    let mut freq = vec![0 as CeltSig; (cc.max(c_channels) * n) as usize];
+    let mut x = vec![0 as CeltNorm; (c_channels * n) as usize];
+    let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * c_channels) as usize];
+
+    let mut c = 0;
+    loop {
+        for ii in 0..m * mode.ebands[st.start as usize] as c_int {
+            x[(c * n + ii) as usize] = 0 as CeltNorm;
+        }
+        c += 1;
+        if c >= c_channels {
+            break;
+        }
+    }
+    c = 0;
+    loop {
+        for ii in m * mode.ebands[eff_end as usize] as c_int..n {
+            x[(c * n + ii) as usize] = 0 as CeltNorm;
+        }
+        c += 1;
+        if c >= c_channels {
+            break;
+        }
+    }
+
+    if data.is_none() || len <= 1 {
+        let pcm_len = (n / st.downsample * cc) as usize;
+        celt_decode_lost(st, &mut pcm[..pcm_len], n, lm);
+        return frame_size / st.downsample;
+    }
+
+    let mut _dec = ec_ctx::empty();
+    let dec: &mut ec_ctx = match dec {
+        Some(d) => d,
+        None => {
+            ec_dec_init(&mut _dec, &data.unwrap()[..len as usize], len as u32);
+            &mut _dec
+        }
+    };
+
+    if c_channels == 1 {
+        for ii in 0..mode.nb_ebands {
+            st.old_band_e[ii as usize] = max16(st.old_band_e[ii as usize], st.old_band_e[(mode.nb_ebands + ii) as usize]);
+        }
+    }
+
+    let mut total_bits: i32 = len * 8;
+    let mut tell: i32 = ec_tell(dec) as i32;
+
+    let silence: c_int;
+    if tell >= total_bits {
+        silence = 1;
+    } else if tell == 1 {
+        silence = ec_dec_bit_logp(dec, 15);
+    } else {
+        silence = 0;
+    }
+    if silence != 0 {
+        tell = len * 8;
+        dec.nbits_total += tell - ec_tell(dec) as i32;
+    }
+
+    let mut postfilter_gain: OpusVal16 = 0 as OpusVal16;
+    let mut postfilter_pitch: c_int = 0;
+    let mut postfilter_tapset: c_int = 0;
+    if st.start == 0 && tell + 16 <= total_bits {
+        if ec_dec_bit_logp(dec, 1) != 0 {
+            let octave = ec_dec_uint(dec, 6) as c_int;
+            postfilter_pitch = (16 << octave) + ec_dec_bits(dec, (4 + octave) as u32) as c_int - 1;
+            let qg = ec_dec_bits(dec, 3) as c_int;
+            if ec_tell(dec) as i32 + 2 <= total_bits {
+                postfilter_tapset = ec_dec_icdf(dec, &TAPSET_ICDF, 2);
+            }
+            postfilter_gain = qconst16(0.09375, 15) * (qg + 1) as OpusVal16;
+        }
+        tell = ec_tell(dec) as i32;
+    }
+
+    let is_transient: c_int;
+    if lm > 0 && tell + 3 <= total_bits {
+        is_transient = ec_dec_bit_logp(dec, 3);
+        tell = ec_tell(dec) as i32;
+    } else {
+        is_transient = 0;
+    }
+
+    let short_blocks: c_int = if is_transient != 0 { m } else { 0 };
+
+    // Decode the global flags (first symbols in the stream)
+    let intra_ener: c_int = if tell + 3 <= total_bits { ec_dec_bit_logp(dec, 3) } else { 0 };
+    // Get band energies
+    unquant_coarse_energy(mode, st.start, st.end, &mut st.old_band_e, intra_ener, dec, c_channels, lm);
+
+    let mut tf_res = vec![0i32; mode.nb_ebands as usize];
+    tf_decode(st.start, st.end, is_transient, &mut tf_res, lm, dec);
+
+    tell = ec_tell(dec) as i32;
+    let mut spread_decision: c_int = SPREAD_NORMAL;
+    if tell + 4 <= total_bits {
+        spread_decision = ec_dec_icdf(dec, &SPREAD_ICDF, 5);
+    }
+
+    let mut pulses = vec![0i32; mode.nb_ebands as usize];
+    let mut cap = vec![0i32; mode.nb_ebands as usize];
+    let mut offsets = vec![0i32; mode.nb_ebands as usize];
+    let mut fine_priority = vec![0i32; mode.nb_ebands as usize];
+
+    init_caps(mode, &mut cap, lm, c_channels);
+
+    let mut dynalloc_logp: c_int = 6;
+    total_bits <<= BITRES;
+    tell = ec_tell_frac(dec) as i32;
+    for ii in st.start..st.end {
+        let width = (c_channels * (mode.ebands[ii as usize + 1] - mode.ebands[ii as usize]) as c_int) << lm;
+        let quanta = (width << BITRES).min((6i32 << BITRES).max(width));
+        let mut dynalloc_loop_logp = dynalloc_logp;
+        let mut boost: c_int = 0;
+        while tell + (dynalloc_loop_logp << BITRES) < total_bits && boost < cap[ii as usize] {
+            let flag = ec_dec_bit_logp(dec, dynalloc_loop_logp as u32);
+            tell = ec_tell_frac(dec) as i32;
+            if flag == 0 {
                 break;
             }
+            boost += quanta;
+            total_bits -= quanta;
+            dynalloc_loop_logp = 1;
         }
-        let old_band_e = (*st).old_band_e.as_mut_ptr();
-        let old_log_e = (*st).old_log_e.as_mut_ptr();
-        let old_log_e2 = (*st).old_log_e2.as_mut_ptr();
-        let background_log_e = (*st).background_log_e.as_mut_ptr();
-
-        // Without CUSTOM_MODES, find LM from frame_size
-        let mut lm: c_int = 0;
-        while lm <= (*st).mode.max_lm {
-            if (*st).mode.short_mdct_size << lm == frame_size {
-                break;
-            }
-            lm += 1;
+        offsets[ii as usize] = boost;
+        if boost > 0 {
+            dynalloc_logp = 2i32.max(dynalloc_logp - 1);
         }
-        if lm > (*st).mode.max_lm {
-            return OPUS_BAD_ARG;
-        }
-        let m: c_int = 1 << lm;
+    }
 
-        let len = len;
-        if len < 0 || len > 1275 || pcm.is_null() {
-            return OPUS_BAD_ARG;
-        }
+    let mut fine_quant = vec![0i32; mode.nb_ebands as usize];
+    let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
 
-        let n: c_int = m * (*st).mode.short_mdct_size;
+    let mut bits: i32 = ((len as i32 * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
+    let anti_collapse_rsv: c_int = if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) { 1 << BITRES } else { 0 };
+    bits -= anti_collapse_rsv;
+    let mut intensity: c_int = 0;
+    let mut dual_stereo: c_int = 0;
+    let mut balance: i32 = 0;
+    let coded_bands = compute_allocation(
+        mode,
+        st.start,
+        st.end,
+        &offsets,
+        &cap,
+        alloc_trim,
+        &mut intensity,
+        &mut dual_stereo,
+        bits,
+        &mut balance,
+        &mut pulses,
+        &mut fine_quant,
+        &mut fine_priority,
+        c_channels,
+        lm,
+        dec,
+        0,
+        0,
+    );
 
-        let mut eff_end = (*st).end;
-        if eff_end > (*st).mode.eff_ebands {
-            eff_end = (*st).mode.eff_ebands;
-        }
+    unquant_fine_energy(mode, st.start, st.end, &mut st.old_band_e, &fine_quant, dec, c_channels);
 
-        let c_channels = (*st).stream_channels;
-        let mut freq = vec![0 as CeltSig; (cc.max(c_channels) * n) as usize];
-        let mut x = vec![0 as CeltNorm; (c_channels * n) as usize];
-        let mut band_e = vec![0 as CeltEner; ((*st).mode.nb_ebands * c_channels) as usize];
-
-        c = 0;
-        loop {
-            for ii in 0..m * (*st).mode.ebands[(*st).start as usize] as c_int {
-                x[(c * n + ii) as usize] = 0 as CeltNorm;
-            }
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
-        }
-        c = 0;
-        loop {
-            for ii in m * (*st).mode.ebands[eff_end as usize] as c_int..n {
-                x[(c * n + ii) as usize] = 0 as CeltNorm;
-            }
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
-        }
-
-        if data.is_null() || len <= 1 {
-            let pcm_len = (n / (*st).downsample * cc) as usize;
-            celt_decode_lost(&mut *st, core::slice::from_raw_parts_mut(pcm, pcm_len), n, lm);
-            return frame_size / (*st).downsample;
-        }
-
-        let mut _dec = ec_ctx::empty();
-        let dec: &mut ec_ctx = match dec {
-            Some(d) => d,
-            None => {
-                ec_dec_init(&mut _dec, core::slice::from_raw_parts(data, len as usize), len as u32);
-                &mut _dec
-            }
-        };
-
-        if c_channels == 1 {
-            for ii in 0..(*st).mode.nb_ebands {
-                *old_band_e.add(ii as usize) =
-                    max16(*old_band_e.add(ii as usize), *old_band_e.add(((*st).mode.nb_ebands + ii) as usize));
-            }
-        }
-
-        let mut total_bits: i32 = len * 8;
-        let mut tell: i32 = ec_tell(&*dec) as i32;
-
-        let silence: c_int;
-        if tell >= total_bits {
-            silence = 1;
-        } else if tell == 1 {
-            silence = ec_dec_bit_logp(dec, 15);
-        } else {
-            silence = 0;
-        }
-        if silence != 0 {
-            tell = len * 8;
-            (*dec).nbits_total += tell - ec_tell(&*dec) as i32;
-        }
-
-        let mut postfilter_gain: OpusVal16 = 0 as OpusVal16;
-        let mut postfilter_pitch: c_int = 0;
-        let mut postfilter_tapset: c_int = 0;
-        if (*st).start == 0 && tell + 16 <= total_bits {
-            if ec_dec_bit_logp(dec, 1) != 0 {
-                let octave = ec_dec_uint(dec, 6) as c_int;
-                postfilter_pitch = (16 << octave) + ec_dec_bits(dec, (4 + octave) as u32) as c_int - 1;
-                let qg = ec_dec_bits(dec, 3) as c_int;
-                if ec_tell(&*dec) as i32 + 2 <= total_bits {
-                    postfilter_tapset = ec_dec_icdf(dec, &TAPSET_ICDF, 2);
-                }
-                postfilter_gain = qconst16(0.09375, 15) * (qg + 1) as OpusVal16;
-            }
-            tell = ec_tell(&*dec) as i32;
-        }
-
-        let is_transient: c_int;
-        if lm > 0 && tell + 3 <= total_bits {
-            is_transient = ec_dec_bit_logp(dec, 3);
-            tell = ec_tell(&*dec) as i32;
-        } else {
-            is_transient = 0;
-        }
-
-        let short_blocks: c_int = if is_transient != 0 { m } else { 0 };
-
-        // Decode the global flags (first symbols in the stream)
-        let intra_ener: c_int = if tell + 3 <= total_bits { ec_dec_bit_logp(dec, 3) } else { 0 };
-        // Get band energies
-        unquant_coarse_energy(
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            core::slice::from_raw_parts_mut(old_band_e, BAND_E_SIZE),
-            intra_ener,
-            dec,
-            c_channels,
-            lm,
-        );
-
-        let mut tf_res = vec![0i32; (*st).mode.nb_ebands as usize];
-        tf_decode((*st).start, (*st).end, is_transient, &mut tf_res, lm, dec);
-
-        tell = ec_tell(&*dec) as i32;
-        let mut spread_decision: c_int = SPREAD_NORMAL;
-        if tell + 4 <= total_bits {
-            spread_decision = ec_dec_icdf(dec, &SPREAD_ICDF, 5);
-        }
-
-        let mut pulses = vec![0i32; (*st).mode.nb_ebands as usize];
-        let mut cap = vec![0i32; (*st).mode.nb_ebands as usize];
-        let mut offsets = vec![0i32; (*st).mode.nb_ebands as usize];
-        let mut fine_priority = vec![0i32; (*st).mode.nb_ebands as usize];
-
-        init_caps((*st).mode, &mut cap, lm, c_channels);
-
-        let mut dynalloc_logp: c_int = 6;
-        total_bits <<= BITRES;
-        tell = ec_tell_frac(dec) as i32;
-        for ii in (*st).start..(*st).end {
-            let width = (c_channels * ((*st).mode.ebands[ii as usize + 1] - (*st).mode.ebands[ii as usize]) as c_int) << lm;
-            let quanta = (width << BITRES).min((6i32 << BITRES).max(width));
-            let mut dynalloc_loop_logp = dynalloc_logp;
-            let mut boost: c_int = 0;
-            while tell + (dynalloc_loop_logp << BITRES) < total_bits && boost < cap[ii as usize] {
-                let flag = ec_dec_bit_logp(dec, dynalloc_loop_logp as u32);
-                tell = ec_tell_frac(dec) as i32;
-                if flag == 0 {
-                    break;
-                }
-                boost += quanta;
-                total_bits -= quanta;
-                dynalloc_loop_logp = 1;
-            }
-            offsets[ii as usize] = boost;
-            if boost > 0 {
-                dynalloc_logp = 2i32.max(dynalloc_logp - 1);
-            }
-        }
-
-        let mut fine_quant = vec![0i32; (*st).mode.nb_ebands as usize];
-        let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
-
-        let mut bits: i32 = ((len as i32 * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
-        let anti_collapse_rsv: c_int =
-            if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) { 1 << BITRES } else { 0 };
-        bits -= anti_collapse_rsv;
-        let mut intensity: c_int = 0;
-        let mut dual_stereo: c_int = 0;
-        let mut balance: i32 = 0;
-        let coded_bands = compute_allocation(
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            &offsets,
-            &cap,
-            alloc_trim,
-            &mut intensity,
-            &mut dual_stereo,
-            bits,
-            &mut balance,
-            &mut pulses,
-            &mut fine_quant,
-            &mut fine_priority,
-            c_channels,
-            lm,
-            dec,
+    // Decode fixed codebook
+    let mut collapse_masks = vec![0u8; (c_channels * mode.nb_ebands) as usize];
+    {
+        let (x_ch, y_ch) = x.split_at_mut(n as usize);
+        quant_all_bands(
             0,
-            0,
-        );
-
-        unquant_fine_energy(
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            core::slice::from_raw_parts_mut(old_band_e, BAND_E_SIZE),
-            &fine_quant,
+            mode,
+            st.start,
+            st.end,
+            x_ch,
+            if c_channels == 2 { Some(y_ch) } else { None },
+            &mut collapse_masks,
+            &pulses,
+            short_blocks,
+            spread_decision,
+            dual_stereo,
+            intensity,
+            &tf_res,
+            len * (8 << BITRES) - anti_collapse_rsv,
+            balance,
             dec,
-            c_channels,
+            lm,
+            coded_bands,
+            &mut st.rng,
         );
+    }
 
-        // Decode fixed codebook
-        let mut collapse_masks = vec![0u8; (c_channels * (*st).mode.nb_ebands) as usize];
-        {
-            let (x_ch, y_ch) = x.split_at_mut(n as usize);
-            quant_all_bands(
-                0,
-                (*st).mode,
-                (*st).start,
-                (*st).end,
-                x_ch,
-                if c_channels == 2 { Some(y_ch) } else { None },
-                &mut collapse_masks,
-                &pulses,
-                short_blocks,
-                spread_decision,
-                dual_stereo,
-                intensity,
-                &tf_res,
-                len * (8 << BITRES) - anti_collapse_rsv,
-                balance,
-                dec,
-                lm,
-                coded_bands,
-                &mut (*st).rng,
-            );
-        }
+    let mut anti_collapse_on: c_int = 0;
+    if anti_collapse_rsv > 0 {
+        anti_collapse_on = ec_dec_bits(dec, 1) as c_int;
+    }
 
-        let mut anti_collapse_on: c_int = 0;
-        if anti_collapse_rsv > 0 {
-            anti_collapse_on = ec_dec_bits(dec, 1) as c_int;
-        }
+    unquant_energy_finalise(
+        mode,
+        st.start,
+        st.end,
+        &mut st.old_band_e,
+        &fine_quant,
+        &fine_priority,
+        len * 8 - ec_tell(dec) as c_int,
+        dec,
+        c_channels,
+    );
 
-        unquant_energy_finalise(
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            core::slice::from_raw_parts_mut(old_band_e, BAND_E_SIZE),
-            &fine_quant,
-            &fine_priority,
-            len * 8 - ec_tell(dec) as c_int,
-            dec,
+    if anti_collapse_on != 0 {
+        anti_collapse(
+            mode,
+            &mut x,
+            &collapse_masks,
+            lm,
             c_channels,
+            n,
+            st.start,
+            st.end,
+            &st.old_band_e,
+            &st.old_log_e,
+            &st.old_log_e2,
+            &pulses,
+            st.rng,
         );
+    }
 
-        if anti_collapse_on != 0 {
-            anti_collapse(
-                (*st).mode,
-                &mut x,
-                &collapse_masks,
-                lm,
-                c_channels,
-                n,
-                (*st).start,
-                (*st).end,
-                core::slice::from_raw_parts(old_band_e, BAND_E_SIZE),
-                core::slice::from_raw_parts(old_log_e, BAND_E_SIZE),
-                core::slice::from_raw_parts(old_log_e2, BAND_E_SIZE),
-                &pulses,
-                (*st).rng,
-            );
+    log2amp(mode, st.start, st.end, &mut band_e, &st.old_band_e, c_channels);
+
+    if silence != 0 {
+        for ii in 0..(c_channels * mode.nb_ebands) as usize {
+            band_e[ii] = 0 as CeltEner;
+            st.old_band_e[ii] = -qconst16(28.0, DB_SHIFT);
         }
+    }
+    // Synthesis
+    denormalise_bands(mode, &x, &mut freq, &band_e, eff_end, c_channels, m);
 
-        log2amp(
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            &mut band_e,
-            core::slice::from_raw_parts(old_band_e, BAND_E_SIZE),
-            c_channels,
-        );
+    // OPUS_MOVE: memmove decode_mem forward by N
+    for ci in 0..cc as usize {
+        let base = ci * ch_size;
+        st.decode_mem.copy_within(base + n as usize..base + DECODE_BUFFER_SIZE as usize, base);
+    }
 
-        if silence != 0 {
-            for ii in 0..(c_channels * (*st).mode.nb_ebands) as usize {
-                band_e[ii] = 0 as CeltEner;
-                *old_band_e.add(ii) = -qconst16(28.0, DB_SHIFT);
-            }
+    c = 0;
+    loop {
+        for ii in 0..m * mode.ebands[st.start as usize] as c_int {
+            freq[(c * n + ii) as usize] = 0 as CeltSig;
         }
-        // Synthesis
-        denormalise_bands((*st).mode, &x, &mut freq, &band_e, eff_end, c_channels, m);
+        c += 1;
+        if c >= c_channels {
+            break;
+        }
+    }
+    c = 0;
+    loop {
+        let mut bound = m * mode.ebands[eff_end as usize] as c_int;
+        if st.downsample != 1 {
+            bound = bound.min(n / st.downsample);
+        }
+        for ii in bound..n {
+            freq[(c * n + ii) as usize] = 0 as CeltSig;
+        }
+        c += 1;
+        if c >= c_channels {
+            break;
+        }
+    }
 
-        // OPUS_MOVE: memmove decode_mem forward by N
-        std::ptr::copy(decode_mem[0].add(n as usize), decode_mem[0], (DECODE_BUFFER_SIZE - n) as usize);
+    // out_syn[c] starts at DECODE_BUFFER_SIZE - n within each channel
+    let os = (DECODE_BUFFER_SIZE - n) as usize;
+
+    if cc == 2 && c_channels == 1 {
+        for ii in 0..n as usize {
+            freq[n as usize + ii] = freq[ii];
+        }
+    }
+    if cc == 1 && c_channels == 2 {
+        for ii in 0..n as usize {
+            freq[ii] = half32(add32(freq[ii], freq[n as usize + ii]));
+        }
+    }
+
+    // Compute inverse MDCTs
+    {
+        let ch_len = (n + st.overlap) as usize;
+        let mut it = st.decode_mem.chunks_mut(ch_size);
+        let c0 = it.next().unwrap();
         if cc == 2 {
-            std::ptr::copy(decode_mem[1].add(n as usize), decode_mem[1], (DECODE_BUFFER_SIZE - n) as usize);
+            let c1 = it.next().unwrap();
+            compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len], &mut c1[os..os + ch_len]], cc, lm);
+        } else {
+            compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len]], cc, lm);
         }
+    }
 
-        c = 0;
-        loop {
-            for ii in 0..m * (*st).mode.ebands[(*st).start as usize] as c_int {
-                freq[(c * n + ii) as usize] = 0 as CeltSig;
-            }
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
-        }
-        c = 0;
-        loop {
-            let mut bound = m * (*st).mode.ebands[eff_end as usize] as c_int;
-            if (*st).downsample != 1 {
-                bound = bound.min(n / (*st).downsample);
-            }
-            for ii in bound..n {
-                freq[(c * n + ii) as usize] = 0 as CeltSig;
-            }
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
-        }
-
-        out_syn[0] = out_mem[0].add((MAX_PERIOD - n) as usize);
-        if cc == 2 {
-            out_syn[1] = out_mem[1].add((MAX_PERIOD - n) as usize);
-        }
-
-        if cc == 2 && c_channels == 1 {
-            for ii in 0..n as usize {
-                freq[n as usize + ii] = freq[ii];
-            }
-        }
-        if cc == 1 && c_channels == 2 {
-            for ii in 0..n as usize {
-                freq[ii] = half32(add32(freq[ii], freq[n as usize + ii]));
-            }
-        }
-
-        // Compute inverse MDCTs
-        {
-            let ch_len = (n + (*st).overlap) as usize;
-            let ch0 = core::slice::from_raw_parts_mut(out_syn[0], ch_len);
-            if cc == 2 {
-                let ch1 = core::slice::from_raw_parts_mut(out_syn[1], ch_len);
-                compute_inv_mdcts((*st).mode, short_blocks, &freq, &mut [ch0, ch1], cc, lm);
-            } else {
-                compute_inv_mdcts((*st).mode, short_blocks, &freq, &mut [ch0], cc, lm);
-            }
-        }
-
-        c = 0;
-        loop {
-            (*st).postfilter_period = (*st).postfilter_period.max(COMBFILTER_MINPERIOD);
-            (*st).postfilter_period_old = (*st).postfilter_period_old.max(COMBFILTER_MINPERIOD);
+    c = 0;
+    loop {
+        let base = c as usize * ch_size;
+        st.postfilter_period = st.postfilter_period.max(COMBFILTER_MINPERIOD);
+        st.postfilter_period_old = st.postfilter_period_old.max(COMBFILTER_MINPERIOD);
+        comb_filter(
+            None,
+            &mut st.decode_mem[base..base + ch_size],
+            (DECODE_BUFFER_SIZE - n) as usize,
+            st.postfilter_period_old,
+            st.postfilter_period,
+            mode.short_mdct_size,
+            st.postfilter_gain_old,
+            st.postfilter_gain,
+            st.postfilter_tapset_old,
+            st.postfilter_tapset,
+            mode.window,
+            st.overlap,
+        );
+        if lm != 0 {
             comb_filter(
                 None,
-                core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
-                (DECODE_BUFFER_SIZE - n) as usize,
-                (*st).postfilter_period_old,
-                (*st).postfilter_period,
-                (*st).mode.short_mdct_size,
-                (*st).postfilter_gain_old,
-                (*st).postfilter_gain,
-                (*st).postfilter_tapset_old,
-                (*st).postfilter_tapset,
-                (*st).mode.window,
-                (*st).overlap,
+                &mut st.decode_mem[base..base + ch_size],
+                (DECODE_BUFFER_SIZE - n + mode.short_mdct_size) as usize,
+                st.postfilter_period,
+                postfilter_pitch,
+                n - mode.short_mdct_size,
+                st.postfilter_gain,
+                postfilter_gain,
+                st.postfilter_tapset,
+                postfilter_tapset,
+                mode.window,
+                mode.overlap,
             );
-            if lm != 0 {
-                comb_filter(
-                    None,
-                    core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
-                    (DECODE_BUFFER_SIZE - n + (*st).mode.short_mdct_size) as usize,
-                    (*st).postfilter_period,
-                    postfilter_pitch,
-                    n - (*st).mode.short_mdct_size,
-                    (*st).postfilter_gain,
-                    postfilter_gain,
-                    (*st).postfilter_tapset,
-                    postfilter_tapset,
-                    (*st).mode.window,
-                    (*st).mode.overlap,
-                );
-            }
-            c += 1;
-            if c >= cc {
-                break;
-            }
         }
-        (*st).postfilter_period_old = (*st).postfilter_period;
-        (*st).postfilter_gain_old = (*st).postfilter_gain;
-        (*st).postfilter_tapset_old = (*st).postfilter_tapset;
-        (*st).postfilter_period = postfilter_pitch;
-        (*st).postfilter_gain = postfilter_gain;
-        (*st).postfilter_tapset = postfilter_tapset;
-        if lm != 0 {
-            (*st).postfilter_period_old = (*st).postfilter_period;
-            (*st).postfilter_gain_old = (*st).postfilter_gain;
-            (*st).postfilter_tapset_old = (*st).postfilter_tapset;
+        c += 1;
+        if c >= cc {
+            break;
         }
-
-        if c_channels == 1 {
-            for ii in 0..(*st).mode.nb_ebands {
-                *old_band_e.add(((*st).mode.nb_ebands + ii) as usize) = *old_band_e.add(ii as usize);
-            }
-        }
-
-        // In case start or end were to change
-        if is_transient == 0 {
-            for ii in 0..2 * (*st).mode.nb_ebands {
-                *old_log_e2.add(ii as usize) = *old_log_e.add(ii as usize);
-            }
-            for ii in 0..2 * (*st).mode.nb_ebands {
-                *old_log_e.add(ii as usize) = *old_band_e.add(ii as usize);
-            }
-            for ii in 0..2 * (*st).mode.nb_ebands {
-                *background_log_e.add(ii as usize) = min16(
-                    *background_log_e.add(ii as usize) + m as OpusVal16 * qconst16(0.001, DB_SHIFT),
-                    *old_band_e.add(ii as usize),
-                );
-            }
-        } else {
-            for ii in 0..2 * (*st).mode.nb_ebands {
-                *old_log_e.add(ii as usize) = min16(*old_log_e.add(ii as usize), *old_band_e.add(ii as usize));
-            }
-        }
-        c = 0;
-        loop {
-            for ii in 0..(*st).start {
-                *old_band_e.add((c * (*st).mode.nb_ebands + ii) as usize) = 0 as OpusVal16;
-                *old_log_e.add((c * (*st).mode.nb_ebands + ii) as usize) = -qconst16(28.0, DB_SHIFT);
-                *old_log_e2.add((c * (*st).mode.nb_ebands + ii) as usize) = -qconst16(28.0, DB_SHIFT);
-            }
-            for ii in (*st).end..(*st).mode.nb_ebands {
-                *old_band_e.add((c * (*st).mode.nb_ebands + ii) as usize) = 0 as OpusVal16;
-                *old_log_e.add((c * (*st).mode.nb_ebands + ii) as usize) = -qconst16(28.0, DB_SHIFT);
-                *old_log_e2.add((c * (*st).mode.nb_ebands + ii) as usize) = -qconst16(28.0, DB_SHIFT);
-            }
-            c += 1;
-            if c >= 2 {
-                break;
-            }
-        }
-        (*st).rng = (*dec).rng;
-
-        {
-            let pcm_len = (n / (*st).downsample * cc) as usize;
-            let ch0 = core::slice::from_raw_parts(out_syn[0] as *const CeltSig, n as usize);
-            if cc == 2 {
-                let ch1 = core::slice::from_raw_parts(out_syn[1] as *const CeltSig, n as usize);
-                deemphasis(
-                    &[ch0, ch1],
-                    core::slice::from_raw_parts_mut(pcm, pcm_len),
-                    n,
-                    cc,
-                    (*st).downsample,
-                    &(*st).mode.preemph,
-                    &mut (*st).preemph_mem_d,
-                );
-            } else {
-                deemphasis(
-                    &[ch0],
-                    core::slice::from_raw_parts_mut(pcm, pcm_len),
-                    n,
-                    cc,
-                    (*st).downsample,
-                    &(*st).mode.preemph,
-                    &mut (*st).preemph_mem_d,
-                );
-            }
-        }
-        (*st).loss_count = 0;
-        if ec_tell(&*dec) as c_int > 8 * len {
-            return OPUS_INTERNAL_ERROR;
-        }
-        if (*dec).error != 0 {
-            (*st).error = 1;
-        }
-        frame_size / (*st).downsample
     }
+    st.postfilter_period_old = st.postfilter_period;
+    st.postfilter_gain_old = st.postfilter_gain;
+    st.postfilter_tapset_old = st.postfilter_tapset;
+    st.postfilter_period = postfilter_pitch;
+    st.postfilter_gain = postfilter_gain;
+    st.postfilter_tapset = postfilter_tapset;
+    if lm != 0 {
+        st.postfilter_period_old = st.postfilter_period;
+        st.postfilter_gain_old = st.postfilter_gain;
+        st.postfilter_tapset_old = st.postfilter_tapset;
+    }
+
+    if c_channels == 1 {
+        for ii in 0..mode.nb_ebands {
+            st.old_band_e[(mode.nb_ebands + ii) as usize] = st.old_band_e[ii as usize];
+        }
+    }
+
+    // In case start or end were to change
+    if is_transient == 0 {
+        for ii in 0..(2 * mode.nb_ebands) as usize {
+            st.old_log_e2[ii] = st.old_log_e[ii];
+        }
+        for ii in 0..(2 * mode.nb_ebands) as usize {
+            st.old_log_e[ii] = st.old_band_e[ii];
+        }
+        for ii in 0..(2 * mode.nb_ebands) as usize {
+            st.background_log_e[ii] =
+                min16(st.background_log_e[ii] + m as OpusVal16 * qconst16(0.001, DB_SHIFT), st.old_band_e[ii]);
+        }
+    } else {
+        for ii in 0..(2 * mode.nb_ebands) as usize {
+            st.old_log_e[ii] = min16(st.old_log_e[ii], st.old_band_e[ii]);
+        }
+    }
+    c = 0;
+    loop {
+        for ii in 0..st.start {
+            st.old_band_e[(c * mode.nb_ebands + ii) as usize] = 0 as OpusVal16;
+            st.old_log_e[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
+            st.old_log_e2[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
+        }
+        for ii in st.end..mode.nb_ebands {
+            st.old_band_e[(c * mode.nb_ebands + ii) as usize] = 0 as OpusVal16;
+            st.old_log_e[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
+            st.old_log_e2[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
+        }
+        c += 1;
+        if c >= 2 {
+            break;
+        }
+    }
+    st.rng = dec.rng;
+
+    {
+        let pcm_len = (n / st.downsample * cc) as usize;
+        let ch0 = &st.decode_mem[os..os + n as usize];
+        if cc == 2 {
+            let ch1 = &st.decode_mem[ch_size + os..ch_size + os + n as usize];
+            deemphasis(&[ch0, ch1], &mut pcm[..pcm_len], n, cc, st.downsample, &mode.preemph, &mut st.preemph_mem_d);
+        } else {
+            deemphasis(&[ch0], &mut pcm[..pcm_len], n, cc, st.downsample, &mode.preemph, &mut st.preemph_mem_d);
+        }
+    }
+    st.loss_count = 0;
+    if ec_tell(dec) as c_int > 8 * len {
+        return OPUS_INTERNAL_ERROR;
+    }
+    if dec.error != 0 {
+        st.error = 1;
+    }
+    frame_size / st.downsample
 }
 
 // -- tf_select_table (used by tf_decode) --

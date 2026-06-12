@@ -513,7 +513,14 @@ unsafe fn opus_decode_frame(
         // 5 ms redundant frame for CELT->SILK
         if redundancy != 0 && celt_to_silk != 0 {
             celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(0));
-            celt_decode_with_ec(celt_dec, data.offset(len as isize), redundancy_bytes, redundant_audio, f5, None);
+            celt_decode_with_ec(
+                &mut *celt_dec,
+                Some(core::slice::from_raw_parts(data.offset(len as isize), redundancy_bytes as usize)),
+                redundancy_bytes,
+                core::slice::from_raw_parts_mut(redundant_audio, (f5 * (*st).channels) as usize),
+                f5,
+                None,
+            );
             celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
         }
 
@@ -528,10 +535,10 @@ unsafe fn opus_decode_frame(
             }
             // Decode CELT
             celt_ret = celt_decode_with_ec(
-                celt_dec,
-                if decode_fec != 0 { std::ptr::null() } else { data },
+                &mut *celt_dec,
+                if decode_fec != 0 || data.is_null() { None } else { Some(core::slice::from_raw_parts(data, len as usize)) },
                 len,
-                pcm,
+                core::slice::from_raw_parts_mut(pcm, (celt_frame_size * (*st).channels) as usize),
                 celt_frame_size,
                 Some(&mut dec),
             );
@@ -546,7 +553,14 @@ unsafe fn opus_decode_frame(
             // do a fade-out by decoding a silence frame
             if (*st).prev_mode == MODE_HYBRID && !(redundancy != 0 && celt_to_silk != 0 && (*st).prev_redundancy != 0) {
                 celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(0));
-                celt_decode_with_ec(celt_dec, silence.as_ptr(), 2, pcm, f2_5, None);
+                celt_decode_with_ec(
+                    &mut *celt_dec,
+                    Some(&silence),
+                    2,
+                    core::slice::from_raw_parts_mut(pcm, (f2_5 * (*st).channels) as usize),
+                    f2_5,
+                    None,
+                );
             }
         }
 
@@ -581,7 +595,14 @@ unsafe fn opus_decode_frame(
             celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::ResetState);
             celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::SetStartBand(0));
 
-            celt_decode_with_ec(celt_dec, data.offset(len as isize), redundancy_bytes, redundant_audio, f5, None);
+            celt_decode_with_ec(
+                &mut *celt_dec,
+                Some(core::slice::from_raw_parts(data.offset(len as isize), redundancy_bytes as usize)),
+                redundancy_bytes,
+                core::slice::from_raw_parts_mut(redundant_audio, (f5 * (*st).channels) as usize),
+                f5,
+                None,
+            );
             celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
             smooth_fade(
                 pcm.offset(((*st).channels * (frame_size - f2_5)) as isize),
