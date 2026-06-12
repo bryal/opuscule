@@ -10,7 +10,7 @@ use crate::bands::{SPREAD_NORMAL, anti_collapse, celt_lcg_rand, denormalise_band
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir, celt_iir};
 use crate::entcode::{BITRES, ec_ctx, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf, ec_dec_init, ec_dec_uint, ec_tell};
-use crate::mdct::{MdctLookup, clt_mdct_backward};
+use crate::mdct::clt_mdct_backward;
 use crate::modes::{CELTMode, opus_custom_mode_create};
 use crate::pitch::{pitch_downsample, pitch_search};
 use crate::quant_bands::{log2amp, unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
@@ -1232,10 +1232,11 @@ pub unsafe fn compute_inv_mdcts(
 
             for b in 0..b_count {
                 clt_mdct_backward(
-                    &mode.mdct as *const MdctLookup,
-                    x.add((b + c * n2 * b_count) as usize),
-                    x_buf.add((n2 * b) as usize),
-                    mode.window.as_ptr(),
+                    &mode.mdct,
+                    core::slice::from_raw_parts(x.add((b + c * n2 * b_count) as usize), (n - b) as usize),
+                    &mut buf,
+                    (n2 * b) as usize,
+                    mode.window,
                     overlap,
                     if short_blocks != 0 { mode.max_lm } else { mode.max_lm - lm },
                     b_count,
