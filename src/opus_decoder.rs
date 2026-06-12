@@ -286,7 +286,7 @@ unsafe fn opus_decode_frame(
         let mut i: c_int;
         let mut silk_ret: c_int;
         let mut celt_ret: c_int = 0;
-        let mut dec: ec_ctx = std::mem::zeroed();
+        let mut dec = ec_ctx::empty();
         let mut silk_frame_size: i32 = 0;
 
         let audiosize: c_int;
@@ -321,7 +321,7 @@ unsafe fn opus_decode_frame(
         if !data.is_null() {
             audiosize = (*st).frame_size;
             mode = (*st).mode;
-            ec_dec_init(&mut dec, data as *mut u8, len as u32);
+            ec_dec_init(&mut dec, core::slice::from_raw_parts(data, len as usize), len as u32);
         } else {
             audiosize = frame_size;
             if (*st).prev_mode == 0 {

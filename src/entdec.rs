@@ -17,9 +17,7 @@ use crate::entcode::{
 #[inline]
 fn ec_read_byte(this: &mut ec_ctx) -> i32 {
     if this.offs < this.storage {
-        // SAFETY: offs < storage guarantees buf[offs] is in bounds.
-        // The caller (ec_dec_init) set buf to a valid buffer of `storage` bytes.
-        let b = unsafe { *this.buf.add(this.offs as usize) };
+        let b = this.buf[this.offs as usize];
         this.offs += 1;
         b as i32
     } else {
@@ -32,8 +30,7 @@ fn ec_read_byte(this: &mut ec_ctx) -> i32 {
 fn ec_read_byte_from_end(this: &mut ec_ctx) -> i32 {
     if this.end_offs < this.storage {
         this.end_offs += 1;
-        // SAFETY: end_offs <= storage guarantees storage - end_offs is in bounds.
-        let b = unsafe { *this.buf.add((this.storage - this.end_offs) as usize) };
+        let b = this.buf[(this.storage - this.end_offs) as usize];
         b as i32
     } else {
         0
@@ -64,10 +61,9 @@ fn ec_dec_normalize(this: &mut ec_ctx) {
 ///
 /// RFC 6716 Section 4.1.1.
 ///
-/// # Safety
-/// `buf` must point to a valid buffer of at least `storage` bytes that
-/// remains valid for the lifetime of the decoder context.
-pub unsafe fn ec_dec_init(this: &mut ec_dec, buf: *mut u8, storage: u32) {
+/// `buf` must hold at least `storage` bytes.
+pub fn ec_dec_init<'a>(this: &mut ec_dec<'a>, buf: &'a [u8], storage: u32) {
+    debug_assert!(buf.len() >= storage as usize);
     this.buf = buf;
     this.storage = storage;
     this.end_offs = 0;
@@ -260,7 +256,7 @@ mod tests {
         // ec_tell = nbits_total - ec_ilog(rng)
         // With nbits_total=33, rng=0x80000000: 33 - 32 = 1
         let ctx = ec_ctx {
-            buf: std::ptr::null_mut(),
+            buf: &[],
             storage: 0,
             end_offs: 0,
             end_window: 0,
@@ -291,13 +287,9 @@ mod tests {
 
         // We'll test with a known 4-byte buffer. After init, the decoder
         // reads the first byte and normalizes. We verify basic invariants.
-        let mut buf = [0x40u8, 0x00, 0x00, 0x00];
-        let mut dec = std::mem::MaybeUninit::<ec_dec>::uninit();
-        // SAFETY: dec is being initialized by ec_dec_init; buf is valid.
-        unsafe {
-            ec_dec_init(&mut *dec.as_mut_ptr(), buf.as_mut_ptr(), buf.len() as u32);
-        }
-        let dec = unsafe { dec.assume_init_ref() };
+        let buf = [0x40u8, 0x00, 0x00, 0x00];
+        let mut dec = ec_dec::empty();
+        ec_dec_init(&mut dec, &buf, buf.len() as u32);
         // After init, rng should be >= EC_CODE_BOT
         assert!(dec.rng >= (EC_CODE_TOP >> EC_SYM_BITS));
         assert_eq!(dec.error, 0);

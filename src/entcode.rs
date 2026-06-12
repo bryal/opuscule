@@ -31,9 +31,11 @@ pub const EC_WINDOW_SIZE: u32 = 32;
 
 /// The entropy encoder/decoder context.
 /// We use the same structure for both. See c/celt/entcode.h struct ec_ctx.
-pub struct ec_ctx {
+/// The decoder only ever reads the payload, so `buf` is a shared slice
+/// borrowed for the decoder's lifetime (the C used a raw `*mut u8`).
+pub struct ec_ctx<'a> {
     /// Buffered input/output.
-    pub buf: *mut u8,
+    pub buf: &'a [u8],
     /// The size of the buffer.
     pub storage: u32,
     /// The offset at which the last byte containing raw bits was read/written.
@@ -62,9 +64,31 @@ pub struct ec_ctx {
 
 // Type aliases matching C's typedefs.
 #[allow(non_camel_case_types)]
-pub type ec_dec = ec_ctx;
+pub type ec_dec<'a> = ec_ctx<'a>;
 #[allow(non_camel_case_types)]
-pub type ec_enc = ec_ctx;
+pub type ec_enc<'a> = ec_ctx<'a>;
+
+impl ec_ctx<'_> {
+    /// All-zero context with an empty buffer — the safe replacement for
+    /// the C pattern of declaring an uninitialised `ec_dec` on the stack
+    /// before `ec_dec_init` fills it in.
+    pub const fn empty() -> ec_ctx<'static> {
+        ec_ctx {
+            buf: &[],
+            storage: 0,
+            end_offs: 0,
+            end_window: 0,
+            nend_bits: 0,
+            nbits_total: 0,
+            offs: 0,
+            rng: 0,
+            val: 0,
+            ext: 0,
+            rem: 0,
+            error: 0,
+        }
+    }
+}
 
 /// Integer logarithm: returns floor(log2(v)) + 1, or 0 if v == 0.
 /// Branchless implementation matching c/celt/entcode.c ec_ilog().

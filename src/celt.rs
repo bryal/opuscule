@@ -718,11 +718,11 @@ pub unsafe fn celt_decode_with_ec(
             return frame_size / (*st).downsample;
         }
 
-        let mut _dec: ec_ctx = std::mem::zeroed();
+        let mut _dec = ec_ctx::empty();
         let dec: &mut ec_ctx = match dec {
             Some(d) => d,
             None => {
-                ec_dec_init(&mut _dec, data as *mut u8, len as u32);
+                ec_dec_init(&mut _dec, core::slice::from_raw_parts(data, len as usize), len as u32);
                 &mut _dec
             }
         };
