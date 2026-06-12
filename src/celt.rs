@@ -873,27 +873,30 @@ pub unsafe fn celt_decode_with_ec(
 
         // Decode fixed codebook
         let mut collapse_masks = vec![0u8; (c_channels * (*st).mode.nb_ebands) as usize];
-        quant_all_bands(
-            0,
-            (*st).mode,
-            (*st).start,
-            (*st).end,
-            x.as_mut_ptr(),
-            if c_channels == 2 { x.as_mut_ptr().add(n as usize) } else { std::ptr::null_mut() },
-            collapse_masks.as_mut_ptr(),
-            pulses.as_mut_ptr(),
-            short_blocks,
-            spread_decision,
-            dual_stereo,
-            intensity,
-            tf_res.as_mut_ptr(),
-            len * (8 << BITRES) - anti_collapse_rsv,
-            balance,
-            dec,
-            lm,
-            coded_bands,
-            &mut (*st).rng,
-        );
+        {
+            let (x_ch, y_ch) = x.split_at_mut(n as usize);
+            quant_all_bands(
+                0,
+                (*st).mode,
+                (*st).start,
+                (*st).end,
+                x_ch,
+                if c_channels == 2 { Some(y_ch) } else { None },
+                &mut collapse_masks,
+                &pulses,
+                short_blocks,
+                spread_decision,
+                dual_stereo,
+                intensity,
+                &tf_res,
+                len * (8 << BITRES) - anti_collapse_rsv,
+                balance,
+                dec,
+                lm,
+                coded_bands,
+                &mut (*st).rng,
+            );
+        }
 
         let mut anti_collapse_on: c_int = 0;
         if anti_collapse_rsv > 0 {
