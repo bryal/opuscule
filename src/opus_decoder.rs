@@ -424,12 +424,12 @@ unsafe fn opus_decode_frame(
                 // Call SILK decoder
                 let first_frame = if decoded_samples == 0 { 1 } else { 0 };
                 silk_ret = silk_decode(
-                    silk_dec,
+                    &mut *(silk_dec as *mut crate::silk::dec_API::SilkDecoder),
                     &mut (*st).dec_control,
                     lost_flag,
                     first_frame,
                     &mut dec,
-                    pcm_ptr,
+                    core::slice::from_raw_parts_mut(pcm_ptr, pcm_silk_buf.len() - (decoded_samples * (*st).channels) as usize),
                     &mut silk_frame_size,
                 );
                 if silk_ret != 0 {

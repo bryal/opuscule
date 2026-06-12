@@ -90,6 +90,9 @@ pub struct SilkPlcStruct {
 }
 
 /// `silk_resampler_state_struct` — per-channel resampler state.
+/// Clone matches the C's whole-struct memcpy in silk_Decode's
+/// stereo-transition path (all fields are plain values).
+#[derive(Clone)]
 pub struct SilkResamplerStateStruct {
     pub s_iir: [i32; SILK_RESAMPLER_MAX_IIR_ORDER],
     pub s_fir: [i32; SILK_RESAMPLER_MAX_FIR_ORDER],
