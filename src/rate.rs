@@ -35,39 +35,33 @@ pub fn get_pulses(i: i32) -> i32 {
 }
 
 /// Convert bits to pseudo-pulse count via binary search of the pulse cache.
-///
-/// # Safety
-/// `m` must point to a valid CELTMode with initialized cache.
 #[inline]
-pub unsafe fn bits2pulses(m: &CELTMode, band: i32, lm: i32, bits: i32) -> i32 {
+pub fn bits2pulses(m: &CELTMode, band: i32, lm: i32, bits: i32) -> i32 {
     let lm1 = lm + 1;
     let cache_idx = m.cache.index[(lm1 * m.nb_ebands + band) as usize];
-    let cache = m.cache.bits.as_ptr().add(cache_idx as usize);
+    let cache = &m.cache.bits[cache_idx as usize..];
     let mut lo = 0i32;
-    let mut hi = unsafe { *cache } as i32;
+    let mut hi = cache[0] as i32;
     let bits = bits - 1;
     for _ in 0..LOG_MAX_PSEUDO {
         let mid = (lo + hi + 1) >> 1;
-        if unsafe { *cache.add(mid as usize) } as i32 >= bits {
+        if cache[mid as usize] as i32 >= bits {
             hi = mid;
         } else {
             lo = mid;
         }
     }
-    let lo_val = if lo == 0 { -1 } else { (unsafe { *cache.add(lo as usize) }) as i32 };
-    if bits - lo_val <= unsafe { *cache.add(hi as usize) } as i32 - bits { lo } else { hi }
+    let lo_val = if lo == 0 { -1 } else { cache[lo as usize] as i32 };
+    if bits - lo_val <= cache[hi as usize] as i32 - bits { lo } else { hi }
 }
 
 /// Convert pseudo-pulse count to bits via the pulse cache.
-///
-/// # Safety
-/// `m` must point to a valid CELTMode with initialized cache.
 #[inline]
-pub unsafe fn pulses2bits(m: &CELTMode, band: i32, lm: i32, pulses: i32) -> i32 {
+pub fn pulses2bits(m: &CELTMode, band: i32, lm: i32, pulses: i32) -> i32 {
     let lm1 = lm + 1;
     let cache_idx = m.cache.index[(lm1 * m.nb_ebands + band) as usize];
-    let cache = m.cache.bits.as_ptr().add(cache_idx as usize);
-    if pulses == 0 { 0 } else { (unsafe { *cache.add(pulses as usize) }) as i32 + 1 }
+    let cache = &m.cache.bits[cache_idx as usize..];
+    if pulses == 0 { 0 } else { cache[pulses as usize] as i32 + 1 }
 }
 
 /// Read an i16 from a pointer at offset, as i32.
@@ -80,29 +74,26 @@ fn eb(ebands: &[i16], i: i32) -> i32 {
 
 /// Inner bit allocation: interpolate between two allocation vectors,
 /// decide which bands to skip, and distribute bits to PVQ vs fine energy.
-///
-/// # Safety
-/// All pointer parameters must be valid. `m` must point to a valid CELTMode.
 #[allow(clippy::too_many_arguments)]
-unsafe fn interp_bits2pulses(
+fn interp_bits2pulses(
     m: &CELTMode,
     start: i32,
     end: i32,
     skip_start: i32,
-    bits1: *const i32,
-    bits2: *const i32,
-    thresh: *const i32,
-    cap: *const i32,
+    bits1: &[i32],
+    bits2: &[i32],
+    thresh: &[i32],
+    cap: &[i32],
     mut total: i32,
-    balance_out: *mut i32,
+    balance_out: &mut i32,
     skip_rsv: i32,
-    intensity: *mut i32,
+    intensity: &mut i32,
     mut intensity_rsv: i32,
-    dual_stereo: *mut i32,
+    dual_stereo: &mut i32,
     dual_stereo_rsv: i32,
-    bits: *mut i32,
-    ebits: *mut i32,
-    fine_priority: *mut i32,
+    bits: &mut [i32],
+    ebits: &mut [i32],
+    fine_priority: &mut [i32],
     c: i32,
     lm: i32,
     ec: &mut ec_ctx,
@@ -123,10 +114,10 @@ unsafe fn interp_bits2pulses(
         let mut done = false;
         for j in (start..end).rev() {
             let ju = j as usize;
-            let tmp = unsafe { *bits1.add(ju) } + ((mid as i64 * unsafe { *bits2.add(ju) } as i64) >> ALLOC_STEPS) as i32;
-            if tmp >= unsafe { *thresh.add(ju) } || done {
+            let tmp = bits1[ju] + ((mid as i64 * bits2[ju] as i64) >> ALLOC_STEPS) as i32;
+            if tmp >= thresh[ju] || done {
                 done = true;
-                psum += tmp.min(unsafe { *cap.add(ju) });
+                psum += tmp.min(cap[ju]);
             } else if tmp >= alloc_floor {
                 psum += alloc_floor;
             }
@@ -143,14 +134,14 @@ unsafe fn interp_bits2pulses(
     let mut done = false;
     for j in (start..end).rev() {
         let ju = j as usize;
-        let mut tmp = unsafe { *bits1.add(ju) } + (lo * unsafe { *bits2.add(ju) } >> ALLOC_STEPS);
-        if tmp < unsafe { *thresh.add(ju) } && !done {
+        let mut tmp = bits1[ju] + (lo * bits2[ju] >> ALLOC_STEPS);
+        if tmp < thresh[ju] && !done {
             tmp = if tmp >= alloc_floor { alloc_floor } else { 0 };
         } else {
             done = true;
         }
-        tmp = tmp.min(unsafe { *cap.add(ju) });
-        unsafe { *bits.add(ju) = tmp };
+        tmp = tmp.min(cap[ju]);
+        bits[ju] = tmp;
         psum += tmp;
     }
 
@@ -167,9 +158,9 @@ unsafe fn interp_bits2pulses(
         let left_rem = left - (eb(m.ebands, coded_bands) - eb(m.ebands, start)) * percoeff;
         let rem = (left_rem - (eb(m.ebands, j) - eb(m.ebands, start))).max(0);
         let band_width = eb(m.ebands, coded_bands) - eb(m.ebands, j);
-        let mut band_bits = unsafe { *bits.add(j as usize) } + percoeff * band_width + rem;
+        let mut band_bits = bits[j as usize] + percoeff * band_width + rem;
 
-        if band_bits >= unsafe { *thresh.add(j as usize) }.max(alloc_floor + (1 << bitres)) {
+        if band_bits >= thresh[j as usize].max(alloc_floor + (1 << bitres)) {
             if encode != 0 {
                 // Encoder path -- skip decision signaling
                 // We translate this minimally: the encoder would call
@@ -188,16 +179,16 @@ unsafe fn interp_bits2pulses(
             psum += 1 << bitres;
             band_bits -= 1 << bitres;
         }
-        psum -= unsafe { *bits.add(j as usize) } + intensity_rsv;
+        psum -= bits[j as usize] + intensity_rsv;
         if intensity_rsv > 0 {
             intensity_rsv = LOG2_FRAC_TABLE[(j - start) as usize] as i32;
         }
         psum += intensity_rsv;
         if band_bits >= alloc_floor {
             psum += alloc_floor;
-            unsafe { *bits.add(j as usize) = alloc_floor };
+            bits[j as usize] = alloc_floor;
         } else {
-            unsafe { *bits.add(j as usize) = 0 };
+            bits[j as usize] = 0;
         }
         coded_bands -= 1;
     }
@@ -207,21 +198,17 @@ unsafe fn interp_bits2pulses(
     // Code the intensity and dual stereo parameters
     if intensity_rsv > 0 {
         if encode != 0 {
-            unsafe {
-                *intensity = (*intensity).min(coded_bands);
-                // ec_enc_uint(ec, *intensity - start, coded_bands + 1 - start)
-            }
+            *intensity = (*intensity).min(coded_bands);
+            // ec_enc_uint(ec, *intensity - start, coded_bands + 1 - start)
         } else {
-            unsafe {
-                *intensity = start + ec_dec_uint(ec, (coded_bands + 1 - start) as u32) as i32;
-            }
+            *intensity = start + ec_dec_uint(ec, (coded_bands + 1 - start) as u32) as i32;
         }
     } else {
-        unsafe { *intensity = 0 };
+        *intensity = 0;
     }
 
     let mut dual_stereo_rsv = dual_stereo_rsv;
-    if unsafe { *intensity } <= start {
+    if *intensity <= start {
         total += dual_stereo_rsv;
         dual_stereo_rsv = 0;
     }
@@ -230,10 +217,10 @@ unsafe fn interp_bits2pulses(
         if encode != 0 {
             // ec_enc_bit_logp(ec, *dual_stereo, 1)
         } else {
-            unsafe { *dual_stereo = ec_dec_bit_logp(ec, 1) };
+            *dual_stereo = ec_dec_bit_logp(ec, 1);
         }
     } else {
-        unsafe { *dual_stereo = 0 };
+        *dual_stereo = 0;
     }
 
     // Allocate the remaining bits
@@ -243,12 +230,12 @@ unsafe fn interp_bits2pulses(
 
     for j in start..coded_bands {
         let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
-        unsafe { *bits.add(j as usize) += percoeff * bw };
+        bits[j as usize] += percoeff * bw;
     }
     for j in start..coded_bands {
         let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
         let tmp = left.min(bw);
-        unsafe { *bits.add(j as usize) += tmp };
+        bits[j as usize] += tmp;
         left -= tmp;
     }
 
@@ -258,14 +245,14 @@ unsafe fn interp_bits2pulses(
     while j < coded_bands {
         let n0 = eb(m.ebands, j + 1) - eb(m.ebands, j);
         let n = n0 << lm;
-        unsafe { *bits.add(j as usize) += balance };
+        bits[j as usize] += balance;
 
         let excess;
         if n > 1 {
-            excess = (unsafe { *bits.add(j as usize) } - unsafe { *cap.add(j as usize) }).max(0);
-            unsafe { *bits.add(j as usize) -= excess };
+            excess = (bits[j as usize] - cap[j as usize]).max(0);
+            bits[j as usize] -= excess;
 
-            let den = c * n + if c == 2 && n > 2 && unsafe { *dual_stereo } == 0 && j < unsafe { *intensity } { 1 } else { 0 };
+            let den = c * n + if c == 2 && n > 2 && *dual_stereo == 0 && j < *intensity { 1 } else { 0 };
 
             let nc_log_n = den * (m.log_n[j as usize] as i32 + log_m);
             let mut offset = (nc_log_n >> 1) - den * FINE_OFFSET;
@@ -273,7 +260,7 @@ unsafe fn interp_bits2pulses(
                 offset += den << bitres >> 2;
             }
 
-            let bj = unsafe { *bits.add(j as usize) };
+            let bj = bits[j as usize];
             if bj + offset < den * 2 << bitres {
                 offset += nc_log_n >> 2;
             } else if bj + offset < den * 3 << bitres {
@@ -286,51 +273,43 @@ unsafe fn interp_bits2pulses(
             }
             eb_j = eb_j.min(MAX_FINE_BITS);
 
-            unsafe {
-                *fine_priority.add(j as usize) = (eb_j * (den << bitres) >= bj + offset) as i32;
-                *bits.add(j as usize) -= c * eb_j << bitres;
-                *ebits.add(j as usize) = eb_j;
-            }
+            fine_priority[j as usize] = (eb_j * (den << bitres) >= bj + offset) as i32;
+            bits[j as usize] -= c * eb_j << bitres;
+            ebits[j as usize] = eb_j;
         } else {
             // For N=1, all bits go to fine energy except for a single sign bit
-            excess = (unsafe { *bits.add(j as usize) } - (c << bitres)).max(0);
-            unsafe {
-                *bits.add(j as usize) -= excess;
-                *ebits.add(j as usize) = 0;
-                *fine_priority.add(j as usize) = 1;
-            }
+            excess = (bits[j as usize] - (c << bitres)).max(0);
+            bits[j as usize] -= excess;
+            ebits[j as usize] = 0;
+            fine_priority[j as usize] = 1;
         }
 
         // Fine energy can't take advantage of re-balancing in quant_all_bands().
         // Instead, do the re-balancing here.
         let mut excess = excess;
         if excess > 0 {
-            let extra_fine = (excess >> (stereo + bitres)).min(MAX_FINE_BITS - unsafe { *ebits.add(j as usize) });
-            unsafe { *ebits.add(j as usize) += extra_fine };
+            let extra_fine = (excess >> (stereo + bitres)).min(MAX_FINE_BITS - ebits[j as usize]);
+            ebits[j as usize] += extra_fine;
             let extra_bits = extra_fine * c << bitres;
-            unsafe {
-                *fine_priority.add(j as usize) = (extra_bits >= excess - balance) as i32;
-            }
+            fine_priority[j as usize] = (extra_bits >= excess - balance) as i32;
             excess -= extra_bits;
         }
         balance = excess;
 
-        debug_assert!(unsafe { *bits.add(j as usize) } >= 0);
-        debug_assert!(unsafe { *ebits.add(j as usize) } >= 0);
+        debug_assert!(bits[j as usize] >= 0);
+        debug_assert!(ebits[j as usize] >= 0);
         j += 1;
     }
 
     // Save remaining bits for rebalancing in quant_all_bands()
-    unsafe { *balance_out = balance };
+    *balance_out = balance;
 
     // Skipped bands use all their bits for fine energy
     while j < end {
-        unsafe {
-            *ebits.add(j as usize) = *bits.add(j as usize) >> stereo >> bitres;
-            debug_assert!(c * *ebits.add(j as usize) << bitres == *bits.add(j as usize));
-            *bits.add(j as usize) = 0;
-            *fine_priority.add(j as usize) = (*ebits.add(j as usize) < 1) as i32;
-        }
+        ebits[j as usize] = bits[j as usize] >> stereo >> bitres;
+        debug_assert!(c * ebits[j as usize] << bitres == bits[j as usize]);
+        bits[j as usize] = 0;
+        fine_priority[j as usize] = (ebits[j as usize] < 1) as i32;
         j += 1;
     }
 
@@ -344,24 +323,21 @@ unsafe fn interp_bits2pulses(
 /// vs fine energy coding.
 ///
 /// RFC 6716 Section 4.3.3.
-///
-/// # Safety
-/// All pointer parameters must be valid. `m` must point to a valid CELTMode.
 #[allow(clippy::too_many_arguments)]
-pub unsafe fn compute_allocation(
+pub fn compute_allocation(
     m: &CELTMode,
     start: c_int,
     end: c_int,
-    offsets: *const c_int,
-    cap: *const c_int,
+    offsets: &[c_int],
+    cap: &[c_int],
     alloc_trim: c_int,
-    intensity: *mut c_int,
-    dual_stereo: *mut c_int,
+    intensity: &mut c_int,
+    dual_stereo: &mut c_int,
     total: i32,
-    balance: *mut i32,
-    pulses: *mut c_int,
-    ebits: *mut c_int,
-    fine_priority: *mut c_int,
+    balance: &mut i32,
+    pulses: &mut [c_int],
+    ebits: &mut [c_int],
+    fine_priority: &mut [c_int],
     c: c_int,
     lm: c_int,
     ec: &mut ec_ctx,
@@ -423,10 +399,10 @@ pub unsafe fn compute_allocation(
             if bitsj > 0 {
                 bitsj = (bitsj + trim_offset_v[ju]).max(0);
             }
-            bitsj += unsafe { *offsets.add(ju) };
+            bitsj += offsets[ju];
             if bitsj >= thresh_v[ju] || done {
                 done = true;
-                psum += bitsj.min(unsafe { *cap.add(ju) });
+                psum += bitsj.min(cap[ju]);
             } else if bitsj >= c << bitres {
                 psum += c << bitres;
             }
@@ -446,7 +422,7 @@ pub unsafe fn compute_allocation(
         let n = eb(m.ebands, j + 1) - eb(m.ebands, j);
         let mut bits1j = c * n * (m.alloc_vectors[(lo * len + j) as usize] as i32) << lm >> 2;
         let mut bits2j = if hi >= m.nb_alloc_vectors {
-            unsafe { *cap.add(ju) }
+            cap[ju]
         } else {
             c * n * (m.alloc_vectors[(hi * len + j) as usize] as i32) << lm >> 2
         };
@@ -457,10 +433,10 @@ pub unsafe fn compute_allocation(
             bits2j = (bits2j + trim_offset_v[ju]).max(0);
         }
         if lo > 0 {
-            bits1j += unsafe { *offsets.add(ju) };
+            bits1j += offsets[ju];
         }
-        bits2j += unsafe { *offsets.add(ju) };
-        if unsafe { *offsets.add(ju) } > 0 {
+        bits2j += offsets[ju];
+        if offsets[ju] > 0 {
             skip_start = j;
         }
         bits2j = (bits2j - bits1j).max(0);
@@ -468,32 +444,29 @@ pub unsafe fn compute_allocation(
         bits2_v[ju] = bits2j;
     }
 
-    let coded_bands = unsafe {
-        interp_bits2pulses(
-            m,
-            start,
-            end,
-            skip_start,
-            bits1_v.as_ptr(),
-            bits2_v.as_ptr(),
-            thresh_v.as_ptr(),
-            cap,
-            total,
-            balance,
-            skip_rsv,
-            intensity,
-            intensity_rsv,
-            dual_stereo,
-            dual_stereo_rsv,
-            pulses,
-            ebits,
-            fine_priority,
-            c,
-            lm,
-            ec,
-            encode,
-            prev,
-        )
-    };
-    coded_bands
+    interp_bits2pulses(
+        m,
+        start,
+        end,
+        skip_start,
+        &bits1_v,
+        &bits2_v,
+        &thresh_v,
+        cap,
+        total,
+        balance,
+        skip_rsv,
+        intensity,
+        intensity_rsv,
+        dual_stereo,
+        dual_stereo_rsv,
+        pulses,
+        ebits,
+        fine_priority,
+        c,
+        lm,
+        ec,
+        encode,
+        prev,
+    )
 }
