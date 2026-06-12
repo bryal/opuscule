@@ -19,7 +19,7 @@ use super::macros::{silk_lshift, silk_smulbb};
 use super::resampler::silk_resampler;
 use super::stereo_decode_pred::{silk_stereo_decode_mid_only, silk_stereo_decode_pred};
 use super::stereo_ms_to_lr::silk_stereo_ms_to_lr;
-use super::structs::{MAX_FRAMES_PER_PACKET, SilkDecoderState, SilkResamplerStateStruct, StereoDecState};
+use super::structs::{MAX_FRAMES_PER_PACKET, SilkDecoderState, StereoDecState};
 use super::tables_other::SILK_LBRR_FLAGS_ICDF_PTR;
 
 const DECODER_NUM_CHANNELS: usize = 2;
