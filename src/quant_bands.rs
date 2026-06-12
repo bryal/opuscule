@@ -299,29 +299,26 @@ pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [OpusVal32]
 ///
 /// Computes bandLogE[i] = log2(bandE[i] * 4) - eMeans[i] for active bands,
 /// setting inactive bands to -14.0 (Q10).
-pub unsafe fn amp2log2(
+pub fn amp2log2(
     m: &CELTMode,
     eff_end: c_int,
     end: c_int,
-    band_e: *const OpusVal32,
-    band_log_e: *mut OpusVal16,
+    band_e: &[OpusVal32],
+    band_log_e: &mut [OpusVal16],
     c_channels: c_int,
 ) {
-    unsafe {
-        let nb_ebands = m.nb_ebands as usize;
-        let mut c: usize = 0;
-        loop {
-            for i in 0..(eff_end as usize) {
-                *band_log_e.add(i + c * nb_ebands) =
-                    celt_log2(shl32(*band_e.add(i + c * nb_ebands), 2)) - shl16(E_MEANS[i] as OpusVal16, 6);
-            }
-            for i in (eff_end as usize)..(end as usize) {
-                *band_log_e.add(c * nb_ebands + i) = -qconst16(14.0, DB_SHIFT);
-            }
-            c += 1;
-            if c as c_int >= c_channels {
-                break;
-            }
+    let nb_ebands = m.nb_ebands as usize;
+    let mut c: usize = 0;
+    loop {
+        for i in 0..(eff_end as usize) {
+            band_log_e[i + c * nb_ebands] = celt_log2(shl32(band_e[i + c * nb_ebands], 2)) - shl16(E_MEANS[i] as OpusVal16, 6);
+        }
+        for i in (eff_end as usize)..(end as usize) {
+            band_log_e[c * nb_ebands + i] = -qconst16(14.0, DB_SHIFT);
+        }
+        c += 1;
+        if c as c_int >= c_channels {
+            break;
         }
     }
 }

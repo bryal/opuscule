@@ -317,11 +317,12 @@ pub unsafe fn silk_decode(
 
         if (*dec_control).n_channels_api == 2 && (*dec_control).n_channels_internal == 2 {
             /* Convert Mid/Side to Left/Right */
+            let (ch_mid, ch_side) = samples_out1_tmp.split_at_mut(1);
             silk_stereo_ms_to_lr(
-                &raw mut (*ps_dec).s_stereo,
-                samples_out1_tmp[0].as_mut_ptr(),
-                samples_out1_tmp[1].as_mut_ptr(),
-                ms_pred_q13.as_ptr(),
+                &mut (*ps_dec).s_stereo,
+                &mut ch_mid[0],
+                &mut ch_side[0],
+                &ms_pred_q13,
                 (*channel_state).fs_khz,
                 n_samples_out_dec,
             );
