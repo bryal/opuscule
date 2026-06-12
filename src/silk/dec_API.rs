@@ -302,10 +302,10 @@ pub unsafe fn silk_decode(
                     CODE_CONDITIONALLY
                 };
                 ret += silk_decode_frame(
-                    cs,
+                    &mut *cs,
                     ps_range_dec,
-                    samples_out1_tmp[n].as_mut_ptr().add(2),
-                    &raw mut n_samples_out_dec,
+                    &mut samples_out1_tmp[n][2..],
+                    &mut n_samples_out_dec,
                     lost_flag,
                     cond_coding,
                 );
