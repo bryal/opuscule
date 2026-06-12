@@ -356,7 +356,16 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     break;
                 }
             }
-            compute_inv_mdcts((*st).mode, 0, freq.as_mut_ptr(), out_syn.as_mut_ptr(), overlap_mem.as_mut_ptr(), cc, lm);
+            {
+                let ch_len = (n + (*st).overlap) as usize;
+                let ch0 = core::slice::from_raw_parts_mut(out_syn[0], ch_len);
+                if cc == 2 {
+                    let ch1 = core::slice::from_raw_parts_mut(out_syn[1], ch_len);
+                    compute_inv_mdcts((*st).mode, 0, &freq, &mut [ch0, ch1], cc, lm);
+                } else {
+                    compute_inv_mdcts((*st).mode, 0, &freq, &mut [ch0], cc, lm);
+                }
+            }
         } else {
             // Pitch-based PLC
             if (*st).loss_count == 0 {
@@ -987,7 +996,16 @@ pub unsafe fn celt_decode_with_ec(
         }
 
         // Compute inverse MDCTs
-        compute_inv_mdcts((*st).mode, short_blocks, freq.as_mut_ptr(), out_syn.as_mut_ptr(), overlap_mem.as_mut_ptr(), cc, lm);
+        {
+            let ch_len = (n + (*st).overlap) as usize;
+            let ch0 = core::slice::from_raw_parts_mut(out_syn[0], ch_len);
+            if cc == 2 {
+                let ch1 = core::slice::from_raw_parts_mut(out_syn[1], ch_len);
+                compute_inv_mdcts((*st).mode, short_blocks, &freq, &mut [ch0, ch1], cc, lm);
+            } else {
+                compute_inv_mdcts((*st).mode, short_blocks, &freq, &mut [ch0], cc, lm);
+            }
+        }
 
         c = 0;
         loop {
@@ -1231,64 +1249,62 @@ pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
 /// For each channel: runs the IMDCT (possibly multiple short blocks),
 /// overlap-adds with the previous frame's tail, and saves the new tail
 /// into overlap_mem.
-pub unsafe fn compute_inv_mdcts(
+/// `out_syn` holds one slice per channel covering `n + overlap` samples:
+/// the C's separate `out_mem[c]` (n samples) and `overlap_mem[c]`
+/// (overlap samples) pointers are contiguous in decode_mem, so each
+/// channel passes the combined region and the overlap memory lives at
+/// `[n..n + overlap]`.
+pub fn compute_inv_mdcts(
     mode: &CELTMode,
     short_blocks: c_int,
-    x: *mut CeltSig,
-    out_mem: *mut *mut CeltSig,
-    overlap_mem: *mut *mut CeltSig,
+    x: &[CeltSig],
+    out_syn: &mut [&mut [CeltSig]],
     c_channels: c_int,
     lm: c_int,
 ) {
-    unsafe {
-        let n = mode.short_mdct_size << lm;
-        let overlap = mode.overlap;
-        let mut buf = vec![0 as OpusVal32; (n + overlap) as usize];
-        let x_buf = buf.as_mut_ptr();
+    let n = mode.short_mdct_size << lm;
+    let overlap = mode.overlap;
+    let mut buf = vec![0 as OpusVal32; (n + overlap) as usize];
 
-        let mut c = 0;
-        loop {
-            let mut n2 = n;
-            let mut b_count = 1;
+    let mut c = 0;
+    loop {
+        let mut n2 = n;
+        let mut b_count = 1;
 
-            if short_blocks != 0 {
-                n2 = mode.short_mdct_size;
-                b_count = short_blocks;
-            }
-            // Prevents problems from the imdct doing the overlap-add
-            for j in 0..overlap as usize {
-                *x_buf.add(j) = 0 as OpusVal32;
-            }
+        if short_blocks != 0 {
+            n2 = mode.short_mdct_size;
+            b_count = short_blocks;
+        }
+        // Prevents problems from the imdct doing the overlap-add
+        buf[..overlap as usize].fill(0 as OpusVal32);
 
-            for b in 0..b_count {
-                clt_mdct_backward(
-                    &mode.mdct,
-                    core::slice::from_raw_parts(x.add((b + c * n2 * b_count) as usize), (n - b) as usize),
-                    &mut buf,
-                    (n2 * b) as usize,
-                    mode.window,
-                    overlap,
-                    if short_blocks != 0 { mode.max_lm } else { mode.max_lm - lm },
-                    b_count,
-                );
-            }
+        for b in 0..b_count {
+            clt_mdct_backward(
+                &mode.mdct,
+                &x[(c * n + b) as usize..((c + 1) * n) as usize],
+                &mut buf,
+                (n2 * b) as usize,
+                mode.window,
+                overlap,
+                if short_blocks != 0 { mode.max_lm } else { mode.max_lm - lm },
+                b_count,
+            );
+        }
 
-            let out = *out_mem.add(c as usize);
-            let ovlp = *overlap_mem.add(c as usize);
-            for j in 0..overlap as usize {
-                *out.add(j) = *x_buf.add(j) + *ovlp.add(j);
-            }
-            for j in overlap as usize..n as usize {
-                *out.add(j) = *x_buf.add(j);
-            }
-            for j in 0..overlap as usize {
-                *ovlp.add(j) = *x_buf.add((n as usize) + j);
-            }
+        let chan = &mut out_syn[c as usize];
+        for j in 0..overlap as usize {
+            chan[j] = buf[j] + chan[n as usize + j];
+        }
+        for j in overlap as usize..n as usize {
+            chan[j] = buf[j];
+        }
+        for j in 0..overlap as usize {
+            chan[n as usize + j] = buf[n as usize + j];
+        }
 
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
+        c += 1;
+        if c >= c_channels {
+            break;
         }
     }
 }
