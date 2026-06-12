@@ -232,388 +232,325 @@ pub fn celt_decoder_reset(st: &mut CELTDecoder) {
 ///
 /// Uses noise-based PLC after 5+ consecutive losses (or if start!=0),
 /// otherwise pitch-based PLC with LPC synthesis.
-pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_int, lm: c_int) {
-    unsafe {
-        let mut c: c_int;
-        let pitch_index: c_int;
-        let overlap = (*st).mode.overlap;
-        let mut fade: OpusVal16 = Q15ONE;
-        let cc = (*st).channels;
-        let mut offset: c_int;
-        let mut out_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
-        let mut decode_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
-        let mut overlap_mem: [*mut CeltSig; 2] = [std::ptr::null_mut(); 2];
-        let mut out_syn: [*mut OpusVal32; 2] = [std::ptr::null_mut(); 2];
+pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, lm: c_int) {
+    let mode = st.mode;
+    let overlap = mode.overlap;
+    let mut fade: OpusVal16 = Q15ONE;
+    let cc = st.channels;
+    let mut offset: c_int;
+    let pitch_index: c_int;
 
-        c = 0;
+    // Per-channel views of decode_mem; out_mem[c] starts at OM and
+    // out_syn[c] at DECODE_BUFFER_SIZE - n within each channel.
+    let ch_size = (DECODE_BUFFER_SIZE + st.overlap) as usize;
+    const OM: usize = (DECODE_BUFFER_SIZE - MAX_PERIOD) as usize;
+    let mut chans: Vec<&mut [CeltSig]> = st.decode_mem.chunks_mut(ch_size).take(cc as usize).collect();
+    let os = (DECODE_BUFFER_SIZE - n) as usize; // out_syn offset
+
+    let len = n + mode.overlap;
+
+    if st.loss_count >= 5 || st.start != 0 {
+        // Noise-based PLC/CNG
+        let mut seed: u32;
+
+        let mut eff_end = st.end;
+        if eff_end > mode.eff_ebands {
+            eff_end = mode.eff_ebands;
+        }
+
+        let mut freq = vec![0 as CeltSig; (cc * n) as usize];
+        let mut x = vec![0 as CeltNorm; (cc * n) as usize];
+        let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * cc) as usize];
+
+        if st.loss_count >= 5 {
+            log2amp(mode, st.start, st.end, &mut band_e, &st.background_log_e, cc);
+        } else {
+            // Energy decay
+            let decay: OpusVal16 = if st.loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
+            let mut c = 0;
+            loop {
+                for i in st.start..st.end {
+                    st.old_band_e[(c * mode.nb_ebands + i) as usize] -= decay;
+                }
+                c += 1;
+                if c >= cc {
+                    break;
+                }
+            }
+            log2amp(mode, st.start, st.end, &mut band_e, &st.old_band_e, cc);
+        }
+        seed = st.rng;
+        for c in 0..cc {
+            for i in 0..(mode.ebands[st.start as usize] as c_int) << lm {
+                x[(c * n + i) as usize] = 0 as CeltNorm;
+            }
+            for i in st.start..mode.eff_ebands {
+                let boffs = (n * c + ((mode.ebands[i as usize] as c_int) << lm)) as usize;
+                let blen = ((mode.ebands[i as usize + 1] - mode.ebands[i as usize]) as c_int) << lm;
+                for j in 0..blen as usize {
+                    seed = celt_lcg_rand(seed);
+                    x[boffs + j] = (seed as i32 >> 20) as CeltNorm;
+                }
+                renormalise_vector(&mut x[boffs..boffs + blen as usize], Q15ONE);
+            }
+            for i in ((mode.ebands[st.end as usize] as c_int) << lm)..n {
+                x[(c * n + i) as usize] = 0 as CeltNorm;
+            }
+        }
+        st.rng = seed;
+
+        denormalise_bands(mode, &x, &mut freq, &band_e, mode.eff_ebands, cc, 1 << lm);
+
+        let mut c = 0;
         loop {
-            decode_mem[c as usize] = (*st).decode_mem.as_mut_ptr().add((c * (DECODE_BUFFER_SIZE + (*st).overlap)) as usize);
-            out_mem[c as usize] = decode_mem[c as usize].add((DECODE_BUFFER_SIZE - MAX_PERIOD) as usize);
-            overlap_mem[c as usize] = decode_mem[c as usize].add(DECODE_BUFFER_SIZE as usize);
+            for i in 0..((mode.ebands[st.start as usize] as c_int) << lm) {
+                freq[(c * n + i) as usize] = 0 as CeltSig;
+            }
             c += 1;
             if c >= cc {
                 break;
             }
         }
-        let lpc = (*st).lpc.as_mut_ptr();
-        let old_band_e = (*st).old_band_e.as_mut_ptr();
-        let background_log_e = (*st).background_log_e.as_mut_ptr();
-
-        out_syn[0] = out_mem[0].add((MAX_PERIOD - n) as usize);
-        if cc == 2 {
-            out_syn[1] = out_mem[1].add((MAX_PERIOD - n) as usize);
+        c = 0;
+        loop {
+            let mut bound = (mode.ebands[eff_end as usize] as c_int) << lm;
+            if st.downsample != 1 {
+                bound = bound.min(n / st.downsample);
+            }
+            for i in bound..n {
+                freq[(c * n + i) as usize] = 0 as CeltSig;
+            }
+            c += 1;
+            if c >= cc {
+                break;
+            }
+        }
+        {
+            let ch_len = (n + st.overlap) as usize;
+            if cc == 2 {
+                let (c0, c1) = chans.split_at_mut(1);
+                compute_inv_mdcts(mode, 0, &freq, &mut [&mut c0[0][os..os + ch_len], &mut c1[0][os..os + ch_len]], cc, lm);
+            } else {
+                compute_inv_mdcts(mode, 0, &freq, &mut [&mut chans[0][os..os + ch_len]], cc, lm);
+            }
+        }
+    } else {
+        // Pitch-based PLC
+        if st.loss_count == 0 {
+            let mut pitch_buf = vec![0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
+            let poffset: c_int = 720;
+            {
+                let ch0 = &chans[0][..DECODE_BUFFER_SIZE as usize];
+                if cc == 2 {
+                    let ch1 = &chans[1][..DECODE_BUFFER_SIZE as usize];
+                    pitch_downsample(&[ch0, ch1], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
+                } else {
+                    pitch_downsample(&[ch0], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
+                }
+            }
+            let mut pi: c_int = 0;
+            pitch_search(
+                &pitch_buf[(poffset >> 1) as usize..],
+                &pitch_buf,
+                DECODE_BUFFER_SIZE - poffset,
+                poffset - 100,
+                &mut pi,
+            );
+            pitch_index = poffset - pi;
+            st.last_pitch_index = pitch_index;
+        } else {
+            pitch_index = st.last_pitch_index;
+            fade = qconst16(0.8, 15);
         }
 
-        let len = n + (*st).mode.overlap;
+        let mut c = 0;
+        loop {
+            let cu = c as usize;
+            let mut exc = [0 as OpusVal16; MAX_PERIOD as usize];
+            let mut ac = [0 as OpusVal32; (LPC_ORDER + 1) as usize];
+            let mut decay: OpusVal16;
+            let mut s1: OpusVal32 = 0 as OpusVal32;
+            let mut mem = [0 as OpusVal16; LPC_ORDER as usize];
 
-        if (*st).loss_count >= 5 || (*st).start != 0 {
-            // Noise-based PLC/CNG
-            let mut seed: u32;
+            let mut e = vec![0 as OpusVal32; (MAX_PERIOD + 2 * mode.overlap) as usize];
 
-            let mut eff_end = (*st).end;
-            if eff_end > (*st).mode.eff_ebands {
-                eff_end = (*st).mode.eff_ebands;
+            offset = MAX_PERIOD - pitch_index;
+            for i in 0..MAX_PERIOD as usize {
+                exc[i] = round16(chans[cu][OM + i], SIG_SHIFT);
             }
 
-            let mut freq = vec![0 as CeltSig; (cc * n) as usize];
-            let mut x = vec![0 as CeltNorm; (cc * n) as usize];
-            let mut band_e = vec![0 as CeltEner; ((*st).mode.nb_ebands * cc) as usize];
+            if st.loss_count == 0 {
+                _celt_autocorr(&exc, &mut ac, mode.window, mode.overlap, LPC_ORDER, MAX_PERIOD);
 
-            if (*st).loss_count >= 5 {
-                log2amp(
-                    (*st).mode,
-                    (*st).start,
-                    (*st).end,
-                    &mut band_e,
-                    core::slice::from_raw_parts(background_log_e, BAND_E_SIZE),
-                    cc,
-                );
-            } else {
-                // Energy decay
-                let decay: OpusVal16 = if (*st).loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
-                c = 0;
-                loop {
-                    for i in (*st).start..(*st).end {
-                        *old_band_e.add((c * (*st).mode.nb_ebands + i) as usize) -= decay;
+                // Noise floor -40 dB
+                #[cfg(feature = "fixed-point")]
+                {
+                    ac[0] += shr32(ac[0], 13);
+                }
+                #[cfg(not(feature = "fixed-point"))]
+                {
+                    ac[0] *= 1.0001;
+                }
+                // Lag windowing
+                for i in 1..=LPC_ORDER {
+                    #[cfg(feature = "fixed-point")]
+                    {
+                        ac[i as usize] -= mult16_32_q15((2 * i * i) as OpusVal16, ac[i as usize]);
                     }
-                    c += 1;
-                    if c >= cc {
-                        break;
+                    #[cfg(not(feature = "fixed-point"))]
+                    {
+                        ac[i as usize] -= ac[i as usize] * (0.008 * i as f32) * (0.008 * i as f32);
                     }
                 }
-                log2amp(
-                    (*st).mode,
-                    (*st).start,
-                    (*st).end,
-                    &mut band_e,
-                    core::slice::from_raw_parts(old_band_e, BAND_E_SIZE),
-                    cc,
-                );
-            }
-            seed = (*st).rng;
-            for c in 0..cc {
-                for i in 0..((*st).mode.ebands[(*st).start as usize] as c_int) << lm {
-                    x[(c * n + i) as usize] = 0 as CeltNorm;
-                }
-                for i in (*st).start..(*st).mode.eff_ebands {
-                    let boffs = (n * c + ((*st).mode.ebands[i as usize] << lm) as c_int) as usize;
-                    let blen = (((*st).mode.ebands[i as usize + 1] - (*st).mode.ebands[i as usize]) << lm) as c_int;
-                    for j in 0..blen as usize {
-                        seed = celt_lcg_rand(seed);
-                        x[boffs + j] = (seed as i32 >> 20) as CeltNorm;
-                    }
-                    renormalise_vector(&mut x[boffs..boffs + blen as usize], Q15ONE);
-                }
-                for i in ((*st).mode.ebands[(*st).end as usize] << lm) as c_int..n {
-                    x[(c * n + i) as usize] = 0 as CeltNorm;
-                }
-            }
-            (*st).rng = seed;
 
-            denormalise_bands((*st).mode, &x, &mut freq, &band_e, (*st).mode.eff_ebands, cc, 1 << lm);
-
-            c = 0;
-            loop {
-                for i in 0..((*st).mode.ebands[(*st).start as usize] << lm) as c_int {
-                    freq[(c * n + i) as usize] = 0 as CeltSig;
-                }
-                c += 1;
-                if c >= cc {
-                    break;
-                }
+                let lpc_off = (c * LPC_ORDER) as usize;
+                _celt_lpc(&mut st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], &ac, LPC_ORDER);
             }
-            c = 0;
-            loop {
-                let mut bound = ((*st).mode.ebands[eff_end as usize] << lm) as c_int;
-                if (*st).downsample != 1 {
-                    bound = bound.min(n / (*st).downsample);
-                }
-                for i in bound..n {
-                    freq[(c * n + i) as usize] = 0 as CeltSig;
-                }
-                c += 1;
-                if c >= cc {
-                    break;
-                }
+            for i in 0..LPC_ORDER as usize {
+                mem[i] = round16(chans[cu][OM + MAX_PERIOD as usize - 1 - i], SIG_SHIFT);
             }
             {
-                let ch_len = (n + (*st).overlap) as usize;
-                let ch0 = core::slice::from_raw_parts_mut(out_syn[0], ch_len);
-                if cc == 2 {
-                    let ch1 = core::slice::from_raw_parts_mut(out_syn[1], ch_len);
-                    compute_inv_mdcts((*st).mode, 0, &freq, &mut [ch0, ch1], cc, lm);
+                let lpc_off = (c * LPC_ORDER) as usize;
+                celt_fir(&mut exc, &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], MAX_PERIOD, LPC_ORDER, &mut mem);
+            }
+            // Check if the waveform is decaying (and if so how fast)
+            {
+                let mut e1: OpusVal32 = 1 as OpusVal32;
+                let mut e2: OpusVal32 = 1 as OpusVal32;
+                let period: c_int;
+                if pitch_index <= MAX_PERIOD / 2 {
+                    period = pitch_index;
                 } else {
-                    compute_inv_mdcts((*st).mode, 0, &freq, &mut [ch0], cc, lm);
+                    period = MAX_PERIOD / 2;
                 }
-            }
-        } else {
-            // Pitch-based PLC
-            if (*st).loss_count == 0 {
-                let mut pitch_buf = vec![0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
-                let poffset: c_int = 720;
-                {
-                    let ch0 = core::slice::from_raw_parts(decode_mem[0] as *const CeltSig, DECODE_BUFFER_SIZE as usize);
-                    if cc == 2 {
-                        let ch1 = core::slice::from_raw_parts(decode_mem[1] as *const CeltSig, DECODE_BUFFER_SIZE as usize);
-                        pitch_downsample(&[ch0, ch1], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
-                    } else {
-                        pitch_downsample(&[ch0], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
-                    }
-                }
-                let mut pi: c_int = 0;
-                pitch_search(
-                    &pitch_buf[(poffset >> 1) as usize..],
-                    &pitch_buf,
-                    DECODE_BUFFER_SIZE - poffset,
-                    poffset - 100,
-                    &mut pi,
-                );
-                pitch_index = poffset - pi;
-                (*st).last_pitch_index = pitch_index;
-            } else {
-                pitch_index = (*st).last_pitch_index;
-                fade = qconst16(0.8, 15);
-            }
-
-            c = 0;
-            loop {
-                let mut exc = [0 as OpusVal16; MAX_PERIOD as usize];
-                let mut ac = [0 as OpusVal32; (LPC_ORDER + 1) as usize];
-                let mut decay: OpusVal16;
-                let mut s1: OpusVal32 = 0 as OpusVal32;
-                let mut mem = [0 as OpusVal16; LPC_ORDER as usize];
-
-                let mut e = vec![0 as OpusVal32; (MAX_PERIOD + 2 * (*st).mode.overlap) as usize];
-
-                offset = MAX_PERIOD - pitch_index;
-                for i in 0..MAX_PERIOD as usize {
-                    exc[i] = round16(*out_mem[c as usize].add(i), SIG_SHIFT);
-                }
-
-                if (*st).loss_count == 0 {
-                    _celt_autocorr(&exc, &mut ac, (*st).mode.window, (*st).mode.overlap, LPC_ORDER, MAX_PERIOD);
-
-                    // Noise floor -40 dB
-                    #[cfg(feature = "fixed-point")]
-                    {
-                        ac[0] += shr32(ac[0], 13);
-                    }
-                    #[cfg(not(feature = "fixed-point"))]
-                    {
-                        ac[0] *= 1.0001;
-                    }
-                    // Lag windowing
-                    for i in 1..=LPC_ORDER {
-                        #[cfg(feature = "fixed-point")]
-                        {
-                            ac[i as usize] -= mult16_32_q15((2 * i * i) as OpusVal16, ac[i as usize]);
-                        }
-                        #[cfg(not(feature = "fixed-point"))]
-                        {
-                            ac[i as usize] -= ac[i as usize] * (0.008 * i as f32) * (0.008 * i as f32);
-                        }
-                    }
-
-                    _celt_lpc(
-                        core::slice::from_raw_parts_mut(lpc.add((c * LPC_ORDER) as usize), LPC_ORDER as usize),
-                        &ac,
-                        LPC_ORDER,
+                for i in 0..period {
+                    e1 += shr32(mult16_16(exc[(MAX_PERIOD - period + i) as usize], exc[(MAX_PERIOD - period + i) as usize]), 8);
+                    e2 += shr32(
+                        mult16_16(exc[(MAX_PERIOD - 2 * period + i) as usize], exc[(MAX_PERIOD - 2 * period + i) as usize]),
+                        8,
                     );
                 }
-                for i in 0..LPC_ORDER as usize {
-                    mem[i] = round16(*out_mem[c as usize].add(MAX_PERIOD as usize - 1 - i), SIG_SHIFT);
+                if e1 > e2 {
+                    e1 = e2;
                 }
-                celt_fir(
-                    &mut exc,
-                    core::slice::from_raw_parts(lpc.add((c * LPC_ORDER) as usize), LPC_ORDER as usize),
-                    MAX_PERIOD,
-                    LPC_ORDER,
-                    &mut mem,
-                );
-                // Check if the waveform is decaying (and if so how fast)
-                {
-                    let mut e1: OpusVal32 = 1 as OpusVal32;
-                    let mut e2: OpusVal32 = 1 as OpusVal32;
-                    let period: c_int;
-                    if pitch_index <= MAX_PERIOD / 2 {
-                        period = pitch_index;
-                    } else {
-                        period = MAX_PERIOD / 2;
-                    }
-                    for i in 0..period {
-                        e1 += shr32(
-                            mult16_16(exc[(MAX_PERIOD - period + i) as usize], exc[(MAX_PERIOD - period + i) as usize]),
-                            8,
-                        );
-                        e2 += shr32(
-                            mult16_16(exc[(MAX_PERIOD - 2 * period + i) as usize], exc[(MAX_PERIOD - 2 * period + i) as usize]),
-                            8,
-                        );
-                    }
-                    if e1 > e2 {
-                        e1 = e2;
-                    }
-                    decay = celt_sqrt(frac_div32(shr32(e1, 1), e2)) as OpusVal16;
-                }
+                decay = celt_sqrt(frac_div32(shr32(e1, 1), e2)) as OpusVal16;
+            }
 
-                // Copy excitation, taking decay into account
-                for i in 0..len + (*st).mode.overlap {
-                    if offset + i >= MAX_PERIOD {
-                        offset -= pitch_index;
-                        decay = mult16_16_q15(decay, decay) as OpusVal16;
-                    }
-                    e[i as usize] = shl32(extend32(mult16_16_q15(decay, exc[(offset + i) as usize]) as OpusVal16), SIG_SHIFT);
-                    let tmp: OpusVal16 = round16(*out_mem[c as usize].add((offset + i) as usize), SIG_SHIFT);
-                    s1 += shr32(mult16_16(tmp, tmp), 8);
+            // Copy excitation, taking decay into account
+            for i in 0..len + mode.overlap {
+                if offset + i >= MAX_PERIOD {
+                    offset -= pitch_index;
+                    decay = mult16_16_q15(decay, decay) as OpusVal16;
                 }
-                for i in 0..LPC_ORDER as usize {
-                    mem[i] = round16(*out_mem[c as usize].add(MAX_PERIOD as usize - 1 - i), SIG_SHIFT);
-                }
-                for i in 0..(len + (*st).mode.overlap) as usize {
-                    e[i] = mult16_32_q15(fade, e[i]);
-                }
-                celt_iir(
-                    &mut e,
-                    core::slice::from_raw_parts(lpc.add((c * LPC_ORDER) as usize), LPC_ORDER as usize),
-                    len + (*st).mode.overlap,
-                    LPC_ORDER,
-                    &mut mem,
-                );
+                e[i as usize] = shl32(extend32(mult16_16_q15(decay, exc[(offset + i) as usize]) as OpusVal16), SIG_SHIFT);
+                let tmp: OpusVal16 = round16(chans[cu][OM + (offset + i) as usize], SIG_SHIFT);
+                s1 += shr32(mult16_16(tmp, tmp), 8);
+            }
+            for i in 0..LPC_ORDER as usize {
+                mem[i] = round16(chans[cu][OM + MAX_PERIOD as usize - 1 - i], SIG_SHIFT);
+            }
+            for i in 0..(len + mode.overlap) as usize {
+                e[i] = mult16_32_q15(fade, e[i]);
+            }
+            {
+                let lpc_off = (c * LPC_ORDER) as usize;
+                celt_iir(&mut e, &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], len + mode.overlap, LPC_ORDER, &mut mem);
+            }
 
-                {
-                    let mut s2: OpusVal32 = 0 as OpusVal32;
+            {
+                let mut s2: OpusVal32 = 0 as OpusVal32;
+                for i in 0..(len + overlap) as usize {
+                    let tmp: OpusVal16 = round16(e[i], SIG_SHIFT);
+                    s2 += shr32(mult16_16(tmp, tmp), 8);
+                }
+                // This checks for an "explosion" in the synthesis
+                #[cfg(feature = "fixed-point")]
+                let explosion = !(s1 > shr32(s2, 2));
+                #[cfg(not(feature = "fixed-point"))]
+                let explosion = !(s1 > 0.2 * s2);
+
+                if explosion {
                     for i in 0..(len + overlap) as usize {
-                        let tmp: OpusVal16 = round16(e[i], SIG_SHIFT);
-                        s2 += shr32(mult16_16(tmp, tmp), 8);
+                        e[i] = 0 as OpusVal32;
                     }
-                    // This checks for an "explosion" in the synthesis
-                    #[cfg(feature = "fixed-point")]
-                    let explosion = !(s1 > shr32(s2, 2));
-                    #[cfg(not(feature = "fixed-point"))]
-                    let explosion = !(s1 > 0.2 * s2);
-
-                    if explosion {
-                        for i in 0..(len + overlap) as usize {
-                            e[i] = 0 as OpusVal32;
-                        }
-                    } else if s1 < s2 {
-                        let ratio: OpusVal16 =
-                            celt_sqrt(frac_div32(shr32(s1, 1) + 1 as OpusVal32, s2 + 1 as OpusVal32)) as OpusVal16;
-                        for i in 0..(len + overlap) as usize {
-                            e[i] = mult16_32_q15(ratio, e[i]);
-                        }
+                } else if s1 < s2 {
+                    let ratio: OpusVal16 =
+                        celt_sqrt(frac_div32(shr32(s1, 1) + 1 as OpusVal32, s2 + 1 as OpusVal32)) as OpusVal16;
+                    for i in 0..(len + overlap) as usize {
+                        e[i] = mult16_32_q15(ratio, e[i]);
                     }
                 }
+            }
 
-                // Apply post-filter to the MDCT overlap of the previous frame
-                comb_filter(
-                    None,
-                    core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
-                    DECODE_BUFFER_SIZE as usize,
-                    (*st).postfilter_period,
-                    (*st).postfilter_period,
-                    (*st).overlap,
-                    (*st).postfilter_gain,
-                    (*st).postfilter_gain,
-                    (*st).postfilter_tapset,
-                    (*st).postfilter_tapset,
-                    &[],
-                    0,
-                );
+            // Apply post-filter to the MDCT overlap of the previous frame
+            comb_filter(
+                None,
+                &mut chans[cu][..],
+                DECODE_BUFFER_SIZE as usize,
+                st.postfilter_period,
+                st.postfilter_period,
+                st.overlap,
+                st.postfilter_gain,
+                st.postfilter_gain,
+                st.postfilter_tapset,
+                st.postfilter_tapset,
+                &[],
+                0,
+            );
 
-                for i in 0..(MAX_PERIOD + (*st).mode.overlap - n) as usize {
-                    *out_mem[c as usize].add(i) = *out_mem[c as usize].add(n as usize + i);
-                }
+            // Move the decoded audio back by N samples
+            let mv_len = (MAX_PERIOD + mode.overlap - n) as usize;
+            chans[cu].copy_within(OM + n as usize..OM + n as usize + mv_len, OM);
 
-                // Apply TDAC to the concealed audio so that it blends with the
-                // previous and next frames
-                for i in 0..overlap / 2 {
-                    let tmp: OpusVal32 = mult16_32_q15((*st).mode.window[i as usize], e[(n + overlap - 1 - i) as usize])
-                        + mult16_32_q15((*st).mode.window[(overlap - i - 1) as usize], e[(n + i) as usize]);
-                    *out_mem[c as usize].add((MAX_PERIOD + i) as usize) =
-                        mult16_32_q15((*st).mode.window[(overlap - i - 1) as usize], tmp);
-                    *out_mem[c as usize].add((MAX_PERIOD + overlap - i - 1) as usize) =
-                        mult16_32_q15((*st).mode.window[i as usize], tmp);
-                }
-                for i in 0..n {
-                    *out_mem[c as usize].add((MAX_PERIOD - n + i) as usize) = e[i as usize];
-                }
+            // Apply TDAC to the concealed audio so that it blends with the
+            // previous and next frames
+            for i in 0..overlap / 2 {
+                let tmp: OpusVal32 = mult16_32_q15(mode.window[i as usize], e[(n + overlap - 1 - i) as usize])
+                    + mult16_32_q15(mode.window[(overlap - i - 1) as usize], e[(n + i) as usize]);
+                chans[cu][OM + (MAX_PERIOD + i) as usize] = mult16_32_q15(mode.window[(overlap - i - 1) as usize], tmp);
+                chans[cu][OM + (MAX_PERIOD + overlap - i - 1) as usize] = mult16_32_q15(mode.window[i as usize], tmp);
+            }
+            for i in 0..n {
+                chans[cu][OM + (MAX_PERIOD - n + i) as usize] = e[i as usize];
+            }
 
-                // Apply pre-filter to the MDCT overlap for the next frame
-                comb_filter(
-                    Some(&mut e),
-                    core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
-                    DECODE_BUFFER_SIZE as usize,
-                    (*st).postfilter_period,
-                    (*st).postfilter_period,
-                    (*st).overlap,
-                    -(*st).postfilter_gain,
-                    -(*st).postfilter_gain,
-                    (*st).postfilter_tapset,
-                    (*st).postfilter_tapset,
-                    &[],
-                    0,
-                );
-                for i in 0..overlap as usize {
-                    *out_mem[c as usize].add(MAX_PERIOD as usize + i) = e[i];
-                }
+            // Apply pre-filter to the MDCT overlap for the next frame
+            comb_filter(
+                Some(&mut e),
+                &mut chans[cu][..],
+                DECODE_BUFFER_SIZE as usize,
+                st.postfilter_period,
+                st.postfilter_period,
+                st.overlap,
+                -st.postfilter_gain,
+                -st.postfilter_gain,
+                st.postfilter_tapset,
+                st.postfilter_tapset,
+                &[],
+                0,
+            );
+            for i in 0..overlap as usize {
+                chans[cu][OM + MAX_PERIOD as usize + i] = e[i];
+            }
 
-                c += 1;
-                if c >= cc {
-                    break;
-                }
+            c += 1;
+            if c >= cc {
+                break;
             }
         }
-
-        {
-            let pcm_len = (n / (*st).downsample * cc) as usize;
-            let ch0 = core::slice::from_raw_parts(out_syn[0] as *const CeltSig, n as usize);
-            if cc == 2 {
-                let ch1 = core::slice::from_raw_parts(out_syn[1] as *const CeltSig, n as usize);
-                deemphasis(
-                    &[ch0, ch1],
-                    core::slice::from_raw_parts_mut(pcm, pcm_len),
-                    n,
-                    cc,
-                    (*st).downsample,
-                    &(*st).mode.preemph,
-                    &mut (*st).preemph_mem_d,
-                );
-            } else {
-                deemphasis(
-                    &[ch0],
-                    core::slice::from_raw_parts_mut(pcm, pcm_len),
-                    n,
-                    cc,
-                    (*st).downsample,
-                    &(*st).mode.preemph,
-                    &mut (*st).preemph_mem_d,
-                );
-            }
-        }
-
-        (*st).loss_count += 1;
     }
+
+    {
+        let ch0 = &chans[0][os..os + n as usize];
+        if cc == 2 {
+            let ch1 = &chans[1][os..os + n as usize];
+            deemphasis(&[ch0, ch1], pcm, n, cc, st.downsample, &mode.preemph, &mut st.preemph_mem_d);
+        } else {
+            deemphasis(&[ch0], pcm, n, cc, st.downsample, &mode.preemph, &mut st.preemph_mem_d);
+        }
+    }
+
+    st.loss_count += 1;
 }
 
 // -- ICDFs (used by celt_decode_with_ec) --
@@ -714,7 +651,8 @@ pub unsafe fn celt_decode_with_ec(
         }
 
         if data.is_null() || len <= 1 {
-            celt_decode_lost(st, pcm, n, lm);
+            let pcm_len = (n / (*st).downsample * cc) as usize;
+            celt_decode_lost(&mut *st, core::slice::from_raw_parts_mut(pcm, pcm_len), n, lm);
             return frame_size / (*st).downsample;
         }
 
