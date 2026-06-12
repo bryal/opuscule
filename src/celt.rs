@@ -330,15 +330,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             }
             (*st).rng = seed;
 
-            denormalise_bands(
-                (*st).mode,
-                x.as_mut_ptr(),
-                freq.as_mut_ptr(),
-                band_e.as_mut_ptr(),
-                (*st).mode.eff_ebands,
-                cc,
-                1 << lm,
-            );
+            denormalise_bands((*st).mode, &x, &mut freq, &band_e, (*st).mode.eff_ebands, cc, 1 << lm);
 
             c = 0;
             loop {
@@ -895,17 +887,17 @@ pub unsafe fn celt_decode_with_ec(
         if anti_collapse_on != 0 {
             anti_collapse(
                 (*st).mode,
-                x.as_mut_ptr(),
-                collapse_masks.as_mut_ptr(),
+                &mut x,
+                &collapse_masks,
                 lm,
                 c_channels,
                 n,
                 (*st).start,
                 (*st).end,
-                old_band_e,
-                old_log_e,
-                old_log_e2,
-                pulses.as_mut_ptr(),
+                core::slice::from_raw_parts(old_band_e, BAND_E_SIZE),
+                core::slice::from_raw_parts(old_log_e, BAND_E_SIZE),
+                core::slice::from_raw_parts(old_log_e2, BAND_E_SIZE),
+                &pulses,
                 (*st).rng,
             );
         }
@@ -926,7 +918,7 @@ pub unsafe fn celt_decode_with_ec(
             }
         }
         // Synthesis
-        denormalise_bands((*st).mode, x.as_mut_ptr(), freq.as_mut_ptr(), band_e.as_mut_ptr(), eff_end, c_channels, m);
+        denormalise_bands((*st).mode, &x, &mut freq, &band_e, eff_end, c_channels, m);
 
         // OPUS_MOVE: memmove decode_mem forward by N
         std::ptr::copy(decode_mem[0].add(n as usize), decode_mem[0], (DECODE_BUFFER_SIZE - n) as usize);

@@ -151,19 +151,7 @@ fn extract_collapse_mask(iy: &[c_int], n: usize, b: usize) -> u32 {
 
 /// Decode pulse vector and combine with normalisation to produce the
 /// final normalised signal coefficients for one band.
-///
-/// # Safety
-/// `x` must point to N writable celt_norm elements.
-/// `dec` must be a valid entropy decoder context.
-pub unsafe fn alg_unquant(
-    x: *mut CeltNorm,
-    n: c_int,
-    k: c_int,
-    spread: c_int,
-    b: c_int,
-    dec: &mut ec_dec,
-    gain: OpusVal16,
-) -> u32 {
+pub fn alg_unquant(x: &mut [CeltNorm], n: c_int, k: c_int, spread: c_int, b: c_int, dec: &mut ec_dec, gain: OpusVal16) -> u32 {
     debug_assert!(k > 0, "alg_unquant() needs at least one pulse");
     debug_assert!(n > 1, "alg_unquant() needs at least two dimensions");
 
@@ -179,11 +167,8 @@ pub unsafe fn alg_unquant(
         ryy = mac16_16(ryy, iy[i] as OpusVal16, iy[i] as OpusVal16);
     }
 
-    // SAFETY: caller guarantees x points to n elements
-    let x_slice = unsafe { std::slice::from_raw_parts_mut(x, n) };
-
-    normalise_residual(&iy, x_slice, n, ryy, gain);
-    exp_rotation(x_slice, n, -1, b as usize, k, spread);
+    normalise_residual(&iy, &mut x[..n], n, ryy, gain);
+    exp_rotation(&mut x[..n], n, -1, b as usize, k, spread);
     extract_collapse_mask(&iy, n, b as usize)
 }
 

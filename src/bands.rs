@@ -35,42 +35,39 @@ pub fn celt_lcg_rand(seed: u32) -> u32 {
 /// Scales each unit-energy band by its decoded energy envelope, producing
 /// the frequency-domain signal that feeds into the inverse MDCT.
 /// Bands beyond `end` are zeroed (above the Nyquist for the coded bandwidth).
-pub unsafe fn denormalise_bands(
+pub fn denormalise_bands(
     m: &CELTMode,
-    x: *const CeltNorm,
-    freq: *mut CeltSig,
-    band_e: *const CeltEner,
+    x: &[CeltNorm],
+    freq: &mut [CeltSig],
+    band_e: &[CeltEner],
     end: c_int,
     c_channels: c_int,
     m_factor: c_int,
 ) {
-    unsafe {
-        let ebands = m.ebands;
-        let n = m_factor * m.short_mdct_size;
+    let ebands = m.ebands;
+    let n = m_factor * m.short_mdct_size;
 
-        let mut c = 0;
-        loop {
-            let f_base = freq.add((c * n) as usize);
-            let x_base = x.add((c * n) as usize);
-            for i in 0..end as usize {
-                let g = shr32(*band_e.add(i + (c as usize) * m.nb_ebands as usize), 1);
-                let j_start = (m_factor * (ebands[i] as c_int)) as usize;
-                let band_end = (m_factor * (ebands[i + 1] as c_int)) as usize;
-                for j in j_start..band_end {
-                    *f_base.add(j) = shl32(mult16_32_q15(*x_base.add(j), g), 2);
-                }
+    let mut c = 0;
+    loop {
+        let ch_off = (c * n) as usize;
+        for i in 0..end as usize {
+            let g = shr32(band_e[i + (c as usize) * m.nb_ebands as usize], 1);
+            let j_start = (m_factor * (ebands[i] as c_int)) as usize;
+            let band_end = (m_factor * (ebands[i + 1] as c_int)) as usize;
+            for j in j_start..band_end {
+                freq[ch_off + j] = shl32(mult16_32_q15(x[ch_off + j], g), 2);
             }
+        }
 
-            // Zero above the coded bandwidth
-            let zero_start = (m_factor * (ebands[end as usize] as c_int)) as usize;
-            for i in zero_start..n as usize {
-                *f_base.add(i) = 0 as CeltSig;
-            }
+        // Zero above the coded bandwidth
+        let zero_start = (m_factor * (ebands[end as usize] as c_int)) as usize;
+        for i in zero_start..n as usize {
+            freq[ch_off + i] = 0 as CeltSig;
+        }
 
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
+        c += 1;
+        if c >= c_channels {
+            break;
         }
     }
 }
@@ -100,36 +97,27 @@ pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
 /// Computes the left/right energy ratio for the band, derives mixing
 /// coefficients a1 and a2, and replaces X with the intensity-coded
 /// mono signal. Y is not updated (side is discarded at this point).
-pub unsafe fn intensity_stereo(
-    m: &CELTMode,
-    x: *mut CeltNorm,
-    y: *const CeltNorm,
-    band_e: *const CeltEner,
-    band_id: c_int,
-    n: c_int,
-) {
-    unsafe {
-        let i = band_id as usize;
-        let nb = m.nb_ebands as usize;
+pub fn intensity_stereo(m: &CELTMode, x: &mut [CeltNorm], y: &[CeltNorm], band_e: &[CeltEner], band_id: c_int, n: c_int) {
+    let i = band_id as usize;
+    let nb = m.nb_ebands as usize;
 
-        #[cfg(feature = "fixed-point")]
-        let shift = (celt_zlog2((*band_e.add(i)).max(*band_e.add(i + nb))) - 13) as i32;
-        #[cfg(not(feature = "fixed-point"))]
-        let shift: i32 = 0;
+    #[cfg(feature = "fixed-point")]
+    let shift = (celt_zlog2(band_e[i].max(band_e[i + nb])) - 13) as i32;
+    #[cfg(not(feature = "fixed-point"))]
+    let shift: i32 = 0;
 
-        let left = vshr32(*band_e.add(i), shift);
-        let right = vshr32(*band_e.add(i + nb), shift);
-        let norm = EPSILON
-            + celt_sqrt(
-                EPSILON + mult16_16(left as OpusVal16, left as OpusVal16) + mult16_16(right as OpusVal16, right as OpusVal16),
-            );
-        let a1 = div32_16(shl32(extend32(left as OpusVal16), 14), norm as OpusVal16);
-        let a2 = div32_16(shl32(extend32(right as OpusVal16), 14), norm as OpusVal16);
-        for j in 0..n as usize {
-            let l = *x.add(j);
-            let r = *y.add(j);
-            *x.add(j) = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
-        }
+    let left = vshr32(band_e[i], shift);
+    let right = vshr32(band_e[i + nb], shift);
+    let norm = EPSILON
+        + celt_sqrt(
+            EPSILON + mult16_16(left as OpusVal16, left as OpusVal16) + mult16_16(right as OpusVal16, right as OpusVal16),
+        );
+    let a1 = div32_16(shl32(extend32(left as OpusVal16), 14), norm as OpusVal16);
+    let a2 = div32_16(shl32(extend32(right as OpusVal16), 14), norm as OpusVal16);
+    for j in 0..n as usize {
+        let l = x[j];
+        let r = y[j];
+        x[j] = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
     }
 }
 
@@ -291,29 +279,29 @@ fn bitexact_log2tan(isin: c_int, icos: c_int) -> c_int {
 /// it with shaped pseudo-random noise at a level derived from the energy
 /// difference between the current and previous frames, then renormalises.
 /// This avoids audible "holes" in transient signals decoded at low bitrate.
-pub unsafe fn anti_collapse(
+pub fn anti_collapse(
     m: &CELTMode,
-    x_: *mut CeltNorm,
-    collapse_masks: *const u8,
+    x_: &mut [CeltNorm],
+    collapse_masks: &[u8],
     lm: c_int,
     c_channels: c_int,
     size: c_int,
     start: c_int,
     end: c_int,
-    log_e: *const OpusVal16,
-    prev1log_e: *const OpusVal16,
-    prev2log_e: *const OpusVal16,
-    pulses: *const c_int,
+    log_e: &[OpusVal16],
+    prev1log_e: &[OpusVal16],
+    prev2log_e: &[OpusVal16],
+    pulses: &[c_int],
     seed: u32,
 ) {
-    unsafe {
+    {
         let mut seed = seed;
 
         for i in start..end {
             let i = i as usize;
             let n0 = (m.ebands[i + 1] - m.ebands[i]) as c_int;
             // depth in 1/8 bits
-            let depth = (1 + *pulses.add(i)) / (((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm);
+            let depth = (1 + pulses[i]) / (((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm);
 
             #[cfg(feature = "fixed-point")]
             let (thresh, sqrt_1, shift): (OpusVal16, OpusVal16, i32);
@@ -341,13 +329,13 @@ pub unsafe fn anti_collapse(
             let mut c = 0;
             loop {
                 let nb_ebands = m.nb_ebands as usize;
-                let mut prev1 = *prev1log_e.add(c as usize * nb_ebands + i);
-                let mut prev2 = *prev2log_e.add(c as usize * nb_ebands + i);
+                let mut prev1 = prev1log_e[c as usize * nb_ebands + i];
+                let mut prev2 = prev2log_e[c as usize * nb_ebands + i];
                 if c_channels == 1 {
-                    prev1 = prev1.max(*prev1log_e.add(nb_ebands + i));
-                    prev2 = prev2.max(*prev2log_e.add(nb_ebands + i));
+                    prev1 = prev1.max(prev1log_e[nb_ebands + i]);
+                    prev2 = prev2.max(prev2log_e[nb_ebands + i]);
                 }
-                let ediff = extend32(*log_e.add(c as usize * nb_ebands + i)) - extend32(min16(prev1, prev2));
+                let ediff = extend32(log_e[c as usize * nb_ebands + i]) - extend32(min16(prev1, prev2));
                 let ediff = ediff.max(0 as OpusVal32);
 
                 #[cfg(feature = "fixed-point")]
@@ -379,22 +367,22 @@ pub unsafe fn anti_collapse(
                     r = rv * sqrt_1;
                 }
 
-                let x_ptr = x_.add(c as usize * size as usize + ((m.ebands[i] as c_int) << lm) as usize);
+                let x_off = c as usize * size as usize + ((m.ebands[i] as c_int) << lm) as usize;
                 let mut renormalize = 0;
                 for k in 0..1 << lm {
                     // Detect collapse
-                    if (*collapse_masks.add(i * c_channels as usize + c as usize) & (1 << k)) == 0 {
+                    if (collapse_masks[i * c_channels as usize + c as usize] & (1 << k)) == 0 {
                         // Fill with noise
                         for j in 0..n0 {
                             seed = celt_lcg_rand(seed);
-                            *x_ptr.add(((j << lm) + k) as usize) = if seed & 0x8000 != 0 { r } else { -r };
+                            x_[x_off + ((j << lm) + k) as usize] = if seed & 0x8000 != 0 { r } else { -r };
                         }
                         renormalize = 1;
                     }
                 }
                 // We just added some energy, so we need to renormalise
                 if renormalize != 0 {
-                    renormalise_vector(core::slice::from_raw_parts_mut(x_ptr, (n0 << lm) as usize), Q15ONE);
+                    renormalise_vector(&mut x_[x_off..x_off + ((n0 << lm) as usize)], Q15ONE);
                 }
 
                 c += 1;
@@ -859,7 +847,7 @@ pub unsafe fn quant_band(
 
             if q != 0 {
                 let k = get_pulses(q);
-                cm = alg_unquant(x, n, k, spread, b_blocks, ec, gain);
+                cm = alg_unquant(core::slice::from_raw_parts_mut(x, n as usize), n, k, spread, b_blocks, ec, gain);
             } else {
                 // If there's no pulse, fill the band anyway
                 if resynth {
