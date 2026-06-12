@@ -518,8 +518,9 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
 
                 // Apply post-filter to the MDCT overlap of the previous frame
                 comb_filter(
-                    out_mem[c as usize].add(MAX_PERIOD as usize),
-                    out_mem[c as usize].add(MAX_PERIOD as usize),
+                    None,
+                    core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
+                    DECODE_BUFFER_SIZE as usize,
                     (*st).postfilter_period,
                     (*st).postfilter_period,
                     (*st).overlap,
@@ -527,7 +528,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     (*st).postfilter_gain,
                     (*st).postfilter_tapset,
                     (*st).postfilter_tapset,
-                    std::ptr::null(),
+                    &[],
                     0,
                 );
 
@@ -551,8 +552,9 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
 
                 // Apply pre-filter to the MDCT overlap for the next frame
                 comb_filter(
-                    e.as_mut_ptr(),
-                    out_mem[c as usize].add(MAX_PERIOD as usize),
+                    Some(&mut e),
+                    core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
+                    DECODE_BUFFER_SIZE as usize,
                     (*st).postfilter_period,
                     (*st).postfilter_period,
                     (*st).overlap,
@@ -560,7 +562,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     -(*st).postfilter_gain,
                     (*st).postfilter_tapset,
                     (*st).postfilter_tapset,
-                    std::ptr::null(),
+                    &[],
                     0,
                 );
                 for i in 0..overlap as usize {
@@ -574,15 +576,32 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             }
         }
 
-        deemphasis(
-            out_syn.as_mut_ptr(),
-            pcm,
-            n,
-            cc,
-            (*st).downsample,
-            (*st).mode.preemph.as_ptr(),
-            (*st).preemph_mem_d.as_mut_ptr(),
-        );
+        {
+            let pcm_len = (n / (*st).downsample * cc) as usize;
+            let ch0 = core::slice::from_raw_parts(out_syn[0] as *const CeltSig, n as usize);
+            if cc == 2 {
+                let ch1 = core::slice::from_raw_parts(out_syn[1] as *const CeltSig, n as usize);
+                deemphasis(
+                    &[ch0, ch1],
+                    core::slice::from_raw_parts_mut(pcm, pcm_len),
+                    n,
+                    cc,
+                    (*st).downsample,
+                    &(*st).mode.preemph,
+                    &mut (*st).preemph_mem_d,
+                );
+            } else {
+                deemphasis(
+                    &[ch0],
+                    core::slice::from_raw_parts_mut(pcm, pcm_len),
+                    n,
+                    cc,
+                    (*st).downsample,
+                    &(*st).mode.preemph,
+                    &mut (*st).preemph_mem_d,
+                );
+            }
+        }
 
         (*st).loss_count += 1;
     }
@@ -975,8 +994,9 @@ pub unsafe fn celt_decode_with_ec(
             (*st).postfilter_period = (*st).postfilter_period.max(COMBFILTER_MINPERIOD);
             (*st).postfilter_period_old = (*st).postfilter_period_old.max(COMBFILTER_MINPERIOD);
             comb_filter(
-                out_syn[c as usize],
-                out_syn[c as usize],
+                None,
+                core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
+                (DECODE_BUFFER_SIZE - n) as usize,
                 (*st).postfilter_period_old,
                 (*st).postfilter_period,
                 (*st).mode.short_mdct_size,
@@ -984,13 +1004,14 @@ pub unsafe fn celt_decode_with_ec(
                 (*st).postfilter_gain,
                 (*st).postfilter_tapset_old,
                 (*st).postfilter_tapset,
-                (*st).mode.window.as_ptr(),
+                (*st).mode.window,
                 (*st).overlap,
             );
             if lm != 0 {
                 comb_filter(
-                    out_syn[c as usize].add((*st).mode.short_mdct_size as usize),
-                    out_syn[c as usize].add((*st).mode.short_mdct_size as usize),
+                    None,
+                    core::slice::from_raw_parts_mut(decode_mem[c as usize], (DECODE_BUFFER_SIZE + (*st).overlap) as usize),
+                    (DECODE_BUFFER_SIZE - n + (*st).mode.short_mdct_size) as usize,
                     (*st).postfilter_period,
                     postfilter_pitch,
                     n - (*st).mode.short_mdct_size,
@@ -998,7 +1019,7 @@ pub unsafe fn celt_decode_with_ec(
                     postfilter_gain,
                     (*st).postfilter_tapset,
                     postfilter_tapset,
-                    (*st).mode.window.as_ptr(),
+                    (*st).mode.window,
                     (*st).mode.overlap,
                 );
             }
@@ -1063,15 +1084,32 @@ pub unsafe fn celt_decode_with_ec(
         }
         (*st).rng = (*dec).rng;
 
-        deemphasis(
-            out_syn.as_mut_ptr(),
-            pcm,
-            n,
-            cc,
-            (*st).downsample,
-            (*st).mode.preemph.as_ptr(),
-            (*st).preemph_mem_d.as_mut_ptr(),
-        );
+        {
+            let pcm_len = (n / (*st).downsample * cc) as usize;
+            let ch0 = core::slice::from_raw_parts(out_syn[0] as *const CeltSig, n as usize);
+            if cc == 2 {
+                let ch1 = core::slice::from_raw_parts(out_syn[1] as *const CeltSig, n as usize);
+                deemphasis(
+                    &[ch0, ch1],
+                    core::slice::from_raw_parts_mut(pcm, pcm_len),
+                    n,
+                    cc,
+                    (*st).downsample,
+                    &(*st).mode.preemph,
+                    &mut (*st).preemph_mem_d,
+                );
+            } else {
+                deemphasis(
+                    &[ch0],
+                    core::slice::from_raw_parts_mut(pcm, pcm_len),
+                    n,
+                    cc,
+                    (*st).downsample,
+                    &(*st).mode.preemph,
+                    &mut (*st).preemph_mem_d,
+                );
+            }
+        }
         (*st).loss_count = 0;
         if ec_tell(&*dec) as c_int > 8 * len {
             return OPUS_INTERNAL_ERROR;
@@ -1262,42 +1300,40 @@ pub unsafe fn compute_inv_mdcts(
 /// The de-emphasis is a first-order IIR filter that undoes the pre-emphasis
 /// applied before encoding. Also handles downsampling (e.g. 48→8 kHz)
 /// by writing only every `downsample`-th sample.
-pub unsafe fn deemphasis(
-    in_: *mut *mut CeltSig,
-    pcm: *mut OpusVal16,
+pub fn deemphasis(
+    in_: &[&[CeltSig]],
+    pcm: &mut [OpusVal16],
     n: c_int,
     c_channels: c_int,
     downsample: c_int,
-    coef: *const OpusVal16,
-    mem: *mut CeltSig,
+    coef: &[OpusVal16],
+    mem: &mut [CeltSig],
 ) {
-    unsafe {
-        let mut count: c_int = 0;
-        let mut c = 0;
-        loop {
-            let x = *in_.add(c as usize);
-            let mut y = pcm.add(c as usize);
-            let mut m = *mem.add(c as usize);
-            for j in 0..n {
-                let xj = *x.add(j as usize);
-                let tmp = xj + m;
-                m = mult16_32_q15(*coef.add(0), tmp) - mult16_32_q15(*coef.add(1), xj);
-                let tmp = shl32(mult16_32_q15(*coef.add(3), tmp), 2);
-                if count == 0 {
-                    *y = scaleout(sig2word16(tmp));
-                }
-                count += 1;
-                if count == downsample {
-                    y = y.add(c_channels as usize);
-                    count = 0;
-                }
+    let mut count: c_int = 0;
+    let mut c = 0;
+    loop {
+        let x = in_[c as usize];
+        let mut y = c as usize; // interleaved index into pcm
+        let mut m = mem[c as usize];
+        for j in 0..n as usize {
+            let xj = x[j];
+            let tmp = xj + m;
+            m = mult16_32_q15(coef[0], tmp) - mult16_32_q15(coef[1], xj);
+            let tmp = shl32(mult16_32_q15(coef[3], tmp), 2);
+            if count == 0 {
+                pcm[y] = scaleout(sig2word16(tmp));
             }
-            *mem.add(c as usize) = m;
+            count += 1;
+            if count == downsample {
+                y += c_channels as usize;
+                count = 0;
+            }
+        }
+        mem[c as usize] = m;
 
-            c += 1;
-            if c >= c_channels {
-                break;
-            }
+        c += 1;
+        if c >= c_channels {
+            break;
         }
     }
 }
@@ -1309,9 +1345,18 @@ pub unsafe fn deemphasis(
 /// Applies a 3-tap comb filter at pitch lag T1 for the steady-state portion,
 /// and crossfades from the old pitch T0 to T1 over the overlap region using
 /// a squared-window interpolation.
-pub unsafe fn comb_filter(
-    y: *mut OpusVal32,
-    x: *mut OpusVal32,
+///
+/// The C takes x/y pointers where x is read at negative offsets (pitch
+/// history before the start) and y usually aliases x (in-place, with the
+/// filter feeding back through its own output once i > T). The Rust
+/// version takes the whole backing buffer `x` plus `x_off` (the position
+/// the C pointer would have had), and `y: None` for the in-place case or
+/// `y: Some(out)` for a separate output (used by the PLC pre-filter).
+#[allow(clippy::too_many_arguments)]
+pub fn comb_filter(
+    y: Option<&mut [OpusVal32]>,
+    x: &mut [OpusVal32],
+    x_off: usize,
     t0: c_int,
     t1: c_int,
     n: c_int,
@@ -1319,49 +1364,61 @@ pub unsafe fn comb_filter(
     g1: OpusVal16,
     tapset0: c_int,
     tapset1: c_int,
-    window: *const OpusVal16,
+    window: &[OpusVal16],
     overlap: c_int,
 ) {
-    unsafe {
-        #[cfg(not(feature = "fixed-point"))]
-        let gains: [[OpusVal16; 3]; 3] =
-            [[0.3066406250, 0.2170410156, 0.1296386719], [0.4638671875, 0.2680664062, 0.0], [0.7998046875, 0.1000976562, 0.0]];
-        #[cfg(feature = "fixed-point")]
-        let gains: [[OpusVal16; 3]; 3] = [
-            [qconst16(0.3066406250, 15), qconst16(0.2170410156, 15), qconst16(0.1296386719, 15)],
-            [qconst16(0.4638671875, 15), qconst16(0.2680664062, 15), qconst16(0.0, 15)],
-            [qconst16(0.7998046875, 15), qconst16(0.1000976562, 15), qconst16(0.0, 15)],
-        ];
+    #[cfg(not(feature = "fixed-point"))]
+    let gains: [[OpusVal16; 3]; 3] =
+        [[0.3066406250, 0.2170410156, 0.1296386719], [0.4638671875, 0.2680664062, 0.0], [0.7998046875, 0.1000976562, 0.0]];
+    #[cfg(feature = "fixed-point")]
+    let gains: [[OpusVal16; 3]; 3] = [
+        [qconst16(0.3066406250, 15), qconst16(0.2170410156, 15), qconst16(0.1296386719, 15)],
+        [qconst16(0.4638671875, 15), qconst16(0.2680664062, 15), qconst16(0.0, 15)],
+        [qconst16(0.7998046875, 15), qconst16(0.1000976562, 15), qconst16(0.0, 15)],
+    ];
 
-        let g00 = mult16_16_q15(g0, gains[tapset0 as usize][0]) as OpusVal16;
-        let g01 = mult16_16_q15(g0, gains[tapset0 as usize][1]) as OpusVal16;
-        let g02 = mult16_16_q15(g0, gains[tapset0 as usize][2]) as OpusVal16;
-        let g10 = mult16_16_q15(g1, gains[tapset1 as usize][0]) as OpusVal16;
-        let g11 = mult16_16_q15(g1, gains[tapset1 as usize][1]) as OpusVal16;
-        let g12 = mult16_16_q15(g1, gains[tapset1 as usize][2]) as OpusVal16;
+    let g00 = mult16_16_q15(g0, gains[tapset0 as usize][0]) as OpusVal16;
+    let g01 = mult16_16_q15(g0, gains[tapset0 as usize][1]) as OpusVal16;
+    let g02 = mult16_16_q15(g0, gains[tapset0 as usize][2]) as OpusVal16;
+    let g10 = mult16_16_q15(g1, gains[tapset1 as usize][0]) as OpusVal16;
+    let g11 = mult16_16_q15(g1, gains[tapset1 as usize][1]) as OpusVal16;
+    let g12 = mult16_16_q15(g1, gains[tapset1 as usize][2]) as OpusVal16;
 
-        for i in 0..overlap as isize {
-            let f = mult16_16_q15(*window.offset(i), *window.offset(i)) as OpusVal16;
-            let one_minus_f = (Q15ONE - f) as OpusVal16;
-            *y.offset(i) = *x.offset(i)
-                + mult16_32_q15(mult16_16_q15(one_minus_f, g00) as OpusVal16, *x.offset(i - t0 as isize))
-                + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as OpusVal16, *x.offset(i - t0 as isize - 1))
-                + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as OpusVal16, *x.offset(i - t0 as isize + 1))
-                + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as OpusVal16, *x.offset(i - t0 as isize - 2))
-                + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as OpusVal16, *x.offset(i - t0 as isize + 2))
-                + mult16_32_q15(mult16_16_q15(f, g10) as OpusVal16, *x.offset(i - t1 as isize))
-                + mult16_32_q15(mult16_16_q15(f, g11) as OpusVal16, *x.offset(i - t1 as isize - 1))
-                + mult16_32_q15(mult16_16_q15(f, g11) as OpusVal16, *x.offset(i - t1 as isize + 1))
-                + mult16_32_q15(mult16_16_q15(f, g12) as OpusVal16, *x.offset(i - t1 as isize - 2))
-                + mult16_32_q15(mult16_16_q15(f, g12) as OpusVal16, *x.offset(i - t1 as isize + 2));
+    let t0 = t0 as usize;
+    let t1 = t1 as usize;
+    let mut y = y;
+
+    for i in 0..overlap as usize {
+        let f = mult16_16_q15(window[i], window[i]) as OpusVal16;
+        let one_minus_f = (Q15ONE - f) as OpusVal16;
+        let xi = x_off + i;
+        let val = x[xi]
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g00) as OpusVal16, x[xi - t0])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as OpusVal16, x[xi - t0 - 1])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as OpusVal16, x[xi - t0 + 1])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as OpusVal16, x[xi - t0 - 2])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as OpusVal16, x[xi - t0 + 2])
+            + mult16_32_q15(mult16_16_q15(f, g10) as OpusVal16, x[xi - t1])
+            + mult16_32_q15(mult16_16_q15(f, g11) as OpusVal16, x[xi - t1 - 1])
+            + mult16_32_q15(mult16_16_q15(f, g11) as OpusVal16, x[xi - t1 + 1])
+            + mult16_32_q15(mult16_16_q15(f, g12) as OpusVal16, x[xi - t1 - 2])
+            + mult16_32_q15(mult16_16_q15(f, g12) as OpusVal16, x[xi - t1 + 2]);
+        match y {
+            Some(ref mut out) => out[i] = val,
+            None => x[xi] = val,
         }
-        for i in overlap as isize..n as isize {
-            *y.offset(i) = *x.offset(i)
-                + mult16_32_q15(g10, *x.offset(i - t1 as isize))
-                + mult16_32_q15(g11, *x.offset(i - t1 as isize - 1))
-                + mult16_32_q15(g11, *x.offset(i - t1 as isize + 1))
-                + mult16_32_q15(g12, *x.offset(i - t1 as isize - 2))
-                + mult16_32_q15(g12, *x.offset(i - t1 as isize + 2));
+    }
+    for i in overlap as usize..n as usize {
+        let xi = x_off + i;
+        let val = x[xi]
+            + mult16_32_q15(g10, x[xi - t1])
+            + mult16_32_q15(g11, x[xi - t1 - 1])
+            + mult16_32_q15(g11, x[xi - t1 + 1])
+            + mult16_32_q15(g12, x[xi - t1 - 2])
+            + mult16_32_q15(g12, x[xi - t1 + 2]);
+        match y {
+            Some(ref mut out) => out[i] = val,
+            None => x[xi] = val,
         }
     }
 }
