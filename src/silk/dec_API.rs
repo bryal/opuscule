@@ -404,41 +404,37 @@ pub unsafe fn silk_decode(
 }
 
 /// `silk_get_TOC` — extract per-packet VAD / inband-FEC flags.
-pub unsafe fn silk_get_toc(
-    payload: *const u8,
-    n_bytes_in: i32,
-    n_frames_per_payload: i32,
-    silk_toc: *mut SilkTocStruct,
-) -> i32 {
-    unsafe {
-        let ret = SILK_NO_ERROR;
-        if n_bytes_in < 1 {
-            return -1;
-        }
-        if !(0..=3).contains(&n_frames_per_payload) {
-            return -1;
-        }
-
-        /* C: silk_memset( Silk_TOC, 0, sizeof( Silk_TOC ) )
-         * — this is an RFC bug: Silk_TOC is a pointer, so sizeof yields
-         * the pointer size (typically 8), not the struct size. We mirror
-         * the bug byte-for-byte for binary compatibility. */
-        core::ptr::write_bytes(silk_toc as *mut u8, 0, core::mem::size_of::<*const SilkTocStruct>());
-
-        /* For stereo, extract the flags for the mid channel */
-        let mut flags = (*payload as i32 >> (7 - n_frames_per_payload)) & (silk_lshift(1, n_frames_per_payload + 1) - 1);
-
-        (*silk_toc).inband_fec_flag = flags & 1;
-        let mut i = n_frames_per_payload - 1;
-        while i >= 0 {
-            flags >>= 1;
-            (*silk_toc).vad_flags[i as usize] = flags & 1;
-            (*silk_toc).vad_flag |= flags & 1;
-            i -= 1;
-        }
-
-        ret
+pub fn silk_get_toc(payload: &[u8], n_bytes_in: i32, n_frames_per_payload: i32, silk_toc: &mut SilkTocStruct) -> i32 {
+    let ret = SILK_NO_ERROR;
+    if n_bytes_in < 1 {
+        return -1;
     }
+    if !(0..=3).contains(&n_frames_per_payload) {
+        return -1;
+    }
+
+    /* C: silk_memset( Silk_TOC, 0, sizeof( Silk_TOC ) )
+     * — this is an RFC bug: Silk_TOC is a pointer, so sizeof yields the
+     * pointer size (typically 8), not the struct size. Only the first 8
+     * bytes — vad_flag and vad_flags[0] in the C layout — get cleared;
+     * the rest of the struct keeps whatever the caller had in it. We
+     * mirror that field-for-field. */
+    silk_toc.vad_flag = 0;
+    silk_toc.vad_flags[0] = 0;
+
+    /* For stereo, extract the flags for the mid channel */
+    let mut flags = (payload[0] as i32 >> (7 - n_frames_per_payload)) & (silk_lshift(1, n_frames_per_payload + 1) - 1);
+
+    silk_toc.inband_fec_flag = flags & 1;
+    let mut i = n_frames_per_payload - 1;
+    while i >= 0 {
+        flags >>= 1;
+        silk_toc.vad_flags[i as usize] = flags & 1;
+        silk_toc.vad_flag |= flags & 1;
+        i -= 1;
+    }
+
+    ret
 }
 
 const _: () = {

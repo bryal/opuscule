@@ -682,8 +682,15 @@ pub unsafe fn opus_decode_native(
         (*st).frame_size = opus_packet_get_samples_per_frame(data, (*st).fs);
         (*st).stream_channels = opus_packet_get_nb_channels(data);
 
-        count =
-            opus_packet_parse_impl(data, len, self_delimited, &mut toc, std::ptr::null_mut(), size.as_mut_ptr(), &mut offset);
+        count = opus_packet_parse_impl(
+            core::slice::from_raw_parts(data, len as usize),
+            len,
+            self_delimited,
+            Some(&mut toc),
+            None,
+            &mut size,
+            Some(&mut offset),
+        );
         if count < 0 {
             return count;
         }

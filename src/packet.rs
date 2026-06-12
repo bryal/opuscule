@@ -53,10 +53,8 @@ pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
 }
 
 /// Return the number of samples per frame from the TOC byte and sample rate.
-/// RFC 6716 Section 3.1.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: i32) -> c_int {
-    let toc = unsafe { *data };
+/// RFC 6716 Section 3.1. (Safe core of [`opus_packet_get_samples_per_frame`].)
+pub fn packet_get_samples_per_frame(toc: u8, fs: i32) -> c_int {
     if toc & 0x80 != 0 {
         let audiosize = ((toc >> 3) & 0x3) as i32;
         (fs << audiosize) / 400
@@ -66,6 +64,13 @@ pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: 
         let audiosize = ((toc >> 3) & 0x3) as i32;
         if audiosize == 3 { fs * 60 / 1000 } else { (fs << audiosize) / 100 }
     }
+}
+
+/// Return the number of samples per frame from the TOC byte and sample rate.
+/// RFC 6716 Section 3.1.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: i32) -> c_int {
+    packet_get_samples_per_frame(unsafe { *data }, fs)
 }
 
 /// Return the number of channels encoded in a packet (1 or 2).
@@ -98,202 +103,201 @@ pub unsafe extern "C" fn opus_packet_get_nb_frames(packet: *const u8, len: c_int
 /// Parse a frame size from a VBR packet header.
 /// Returns bytes consumed (1 or 2), or -1 on error.
 /// Writes frame size to `*size` (-1 on error).
-fn parse_size(data: *const u8, len: c_int, size: *mut i16) -> c_int {
-    unsafe {
-        if len < 1 {
-            *size = -1;
-            return -1;
-        } else if (*data) < 252 {
-            *size = (*data) as i16;
-            return 1;
-        } else if len < 2 {
-            *size = -1;
-            return -1;
-        } else {
-            *size = 4 * (*data.add(1)) as i16 + (*data) as i16;
-            return 2;
-        }
+fn parse_size(data: &[u8], len: c_int, size: &mut i16) -> c_int {
+    if len < 1 {
+        *size = -1;
+        -1
+    } else if data[0] < 252 {
+        *size = data[0] as i16;
+        1
+    } else if len < 2 {
+        *size = -1;
+        -1
+    } else {
+        *size = 4 * data[1] as i16 + data[0] as i16;
+        2
     }
 }
 
-/// Parse an Opus packet into TOC byte, frame pointers, sizes, and payload offset.
+/// Parse an Opus packet into TOC byte, frame offsets, sizes, and payload offset.
 /// RFC 6716 Section 3.2.
 ///
 /// This handles all four code types (0-3) including CBR/VBR multi-frame packets,
 /// self-delimited framing, and padding. Called by both `opus_packet_parse`
 /// (self_delimited=0) and `opus_decode_native` (self_delimited from packet).
-pub unsafe fn opus_packet_parse_impl(
-    data: *const u8,
+///
+/// Unlike the C, `frames` (when given) receives byte *offsets* into `data`
+/// rather than pointers; the extern "C" wrapper [`opus_packet_parse`]
+/// converts back to pointers for ABI compatibility. As in the C, the data
+/// cursor only advances through the frame payloads when `frames` is
+/// requested, which `payload_offset` reflects.
+pub fn opus_packet_parse_impl(
+    data: &[u8],
     len: c_int,
     self_delimited: c_int,
-    out_toc: *mut u8,
-    frames: *mut *const u8,
-    size: *mut i16,
-    payload_offset: *mut c_int,
+    out_toc: Option<&mut u8>,
+    frames: Option<&mut [c_int]>,
+    size: &mut [i16],
+    payload_offset: Option<&mut c_int>,
 ) -> c_int {
-    unsafe {
-        if size.is_null() {
-            return OPUS_BAD_ARG;
+    let mut len = len;
+
+    let framesize = packet_get_samples_per_frame(data[0], 48000);
+
+    let mut cbr: c_int = 0;
+    let toc = data[0];
+    let mut off = 1usize;
+    len -= 1;
+    let mut last_size = len;
+    let count: c_int;
+
+    match toc & 0x3 {
+        // One frame
+        0 => {
+            count = 1;
         }
-
-        let data0 = data;
-        let mut data = data;
-        let mut len = len;
-
-        let framesize = opus_packet_get_samples_per_frame(data, 48000);
-
-        let mut cbr: c_int = 0;
-        let toc = *data;
-        data = data.add(1);
-        len -= 1;
-        let mut last_size = len;
-        let count: c_int;
-
-        match toc & 0x3 {
-            // One frame
-            0 => {
-                count = 1;
-            }
-            // Two CBR frames
-            1 => {
-                count = 2;
-                cbr = 1;
-                if self_delimited == 0 {
-                    if len & 0x1 != 0 {
-                        return OPUS_INVALID_PACKET;
-                    }
-                    last_size = len / 2;
-                    *size.add(0) = last_size as i16;
-                }
-            }
-            // Two VBR frames
-            2 => {
-                count = 2;
-                let bytes = parse_size(data, len, size);
-                len -= bytes;
-                if *size < 0 || (*size) as c_int > len {
+        // Two CBR frames
+        1 => {
+            count = 2;
+            cbr = 1;
+            if self_delimited == 0 {
+                if len & 0x1 != 0 {
                     return OPUS_INVALID_PACKET;
                 }
-                data = data.add(bytes as usize);
-                last_size = len - (*size) as c_int;
-            }
-            // Multiple CBR/VBR frames (from 0 to 120 ms)
-            _ => {
-                if len < 1 {
-                    return OPUS_INVALID_PACKET;
-                }
-                // Number of frames encoded in bits 0 to 5
-                let ch = *data;
-                data = data.add(1);
-                count = (ch & 0x3F) as c_int;
-                if count <= 0 || framesize * count > 5760 {
-                    return OPUS_INVALID_PACKET;
-                }
-                len -= 1;
-                // Padding flag is bit 6
-                if ch & 0x40 != 0 {
-                    let mut padding: c_int = 0;
-                    let mut p: c_int;
-                    loop {
-                        if len <= 0 {
-                            return OPUS_INVALID_PACKET;
-                        }
-                        p = (*data) as c_int;
-                        data = data.add(1);
-                        len -= 1;
-                        padding += if p == 255 { 254 } else { p };
-                        if p != 255 {
-                            break;
-                        }
-                    }
-                    len -= padding;
-                }
-                if len < 0 {
-                    return OPUS_INVALID_PACKET;
-                }
-                // VBR flag is bit 7
-                cbr = (ch & 0x80 == 0) as c_int;
-                if cbr == 0 {
-                    // VBR case
-                    last_size = len;
-                    for i in 0..count - 1 {
-                        let bytes = parse_size(data, len, size.add(i as usize));
-                        len -= bytes;
-                        if *size.add(i as usize) < 0 || (*size.add(i as usize)) as c_int > len {
-                            return OPUS_INVALID_PACKET;
-                        }
-                        data = data.add(bytes as usize);
-                        last_size -= bytes + (*size.add(i as usize)) as c_int;
-                    }
-                    if last_size < 0 {
-                        return OPUS_INVALID_PACKET;
-                    }
-                } else if self_delimited == 0 {
-                    // CBR case
-                    last_size = len / count;
-                    if last_size * count != len {
-                        return OPUS_INVALID_PACKET;
-                    }
-                    for i in 0..count - 1 {
-                        *size.add(i as usize) = last_size as i16;
-                    }
-                }
+                last_size = len / 2;
+                size[0] = last_size as i16;
             }
         }
-
-        // Self-delimited framing has an extra size for the last frame.
-        if self_delimited != 0 {
-            let bytes = parse_size(data, len, size.add(count as usize - 1));
+        // Two VBR frames
+        2 => {
+            count = 2;
+            let bytes = parse_size(&data[off..], len, &mut size[0]);
             len -= bytes;
-            if *size.add(count as usize - 1) < 0 || (*size.add(count as usize - 1)) as c_int > len {
+            if size[0] < 0 || size[0] as c_int > len {
                 return OPUS_INVALID_PACKET;
             }
-            data = data.add(bytes as usize);
-            // For CBR packets, apply the size to all the frames.
-            if cbr != 0 {
-                if (*size.add(count as usize - 1)) as c_int * count > len {
+            off += bytes as usize;
+            last_size = len - size[0] as c_int;
+        }
+        // Multiple CBR/VBR frames (from 0 to 120 ms)
+        _ => {
+            if len < 1 {
+                return OPUS_INVALID_PACKET;
+            }
+            // Number of frames encoded in bits 0 to 5
+            let ch = data[off];
+            off += 1;
+            count = (ch & 0x3F) as c_int;
+            if count <= 0 || framesize * count > 5760 {
+                return OPUS_INVALID_PACKET;
+            }
+            len -= 1;
+            // Padding flag is bit 6
+            if ch & 0x40 != 0 {
+                let mut padding: c_int = 0;
+                let mut p: c_int;
+                loop {
+                    if len <= 0 {
+                        return OPUS_INVALID_PACKET;
+                    }
+                    p = data[off] as c_int;
+                    off += 1;
+                    len -= 1;
+                    padding += if p == 255 { 254 } else { p };
+                    if p != 255 {
+                        break;
+                    }
+                }
+                len -= padding;
+            }
+            if len < 0 {
+                return OPUS_INVALID_PACKET;
+            }
+            // VBR flag is bit 7
+            cbr = (ch & 0x80 == 0) as c_int;
+            if cbr == 0 {
+                // VBR case
+                last_size = len;
+                for i in 0..count - 1 {
+                    let bytes = parse_size(&data[off..], len, &mut size[i as usize]);
+                    len -= bytes;
+                    if size[i as usize] < 0 || size[i as usize] as c_int > len {
+                        return OPUS_INVALID_PACKET;
+                    }
+                    off += bytes as usize;
+                    last_size -= bytes + size[i as usize] as c_int;
+                }
+                if last_size < 0 {
+                    return OPUS_INVALID_PACKET;
+                }
+            } else if self_delimited == 0 {
+                // CBR case
+                last_size = len / count;
+                if last_size * count != len {
                     return OPUS_INVALID_PACKET;
                 }
                 for i in 0..count - 1 {
-                    *size.add(i as usize) = *size.add(count as usize - 1);
+                    size[i as usize] = last_size as i16;
                 }
-            } else if (*size.add(count as usize - 1)) as c_int > last_size {
-                return OPUS_INVALID_PACKET;
-            }
-        } else {
-            // Because it's not encoded explicitly, it's possible the size of the
-            // last packet (or all the packets, for the CBR case) is larger than
-            // 1275. Reject them here.
-            if last_size > 1275 {
-                return OPUS_INVALID_PACKET;
-            }
-            *size.add(count as usize - 1) = last_size as i16;
-        }
-
-        if !frames.is_null() {
-            for i in 0..count {
-                *frames.add(i as usize) = data;
-                data = data.add((*size.add(i as usize)) as usize);
             }
         }
-
-        if !out_toc.is_null() {
-            *out_toc = toc;
-        }
-
-        if !payload_offset.is_null() {
-            *payload_offset = data.offset_from(data0) as c_int;
-        }
-
-        count
     }
+
+    // Self-delimited framing has an extra size for the last frame.
+    if self_delimited != 0 {
+        let mut last = 0i16;
+        let bytes = parse_size(&data[off..], len, &mut last);
+        size[count as usize - 1] = last;
+        len -= bytes;
+        if size[count as usize - 1] < 0 || size[count as usize - 1] as c_int > len {
+            return OPUS_INVALID_PACKET;
+        }
+        off += bytes as usize;
+        // For CBR packets, apply the size to all the frames.
+        if cbr != 0 {
+            if size[count as usize - 1] as c_int * count > len {
+                return OPUS_INVALID_PACKET;
+            }
+            for i in 0..count - 1 {
+                size[i as usize] = size[count as usize - 1];
+            }
+        } else if size[count as usize - 1] as c_int > last_size {
+            return OPUS_INVALID_PACKET;
+        }
+    } else {
+        // Because it's not encoded explicitly, it's possible the size of the
+        // last packet (or all the packets, for the CBR case) is larger than
+        // 1275. Reject them here.
+        if last_size > 1275 {
+            return OPUS_INVALID_PACKET;
+        }
+        size[count as usize - 1] = last_size as i16;
+    }
+
+    if let Some(frames) = frames {
+        for i in 0..count as usize {
+            frames[i] = off as c_int;
+            off += size[i] as usize;
+        }
+    }
+
+    if let Some(out_toc) = out_toc {
+        *out_toc = toc;
+    }
+
+    if let Some(payload_offset) = payload_offset {
+        *payload_offset = off as c_int;
+    }
+
+    count
 }
 
 /// Parse an Opus packet (non-self-delimited).
 /// RFC 6716 Section 3.2.
 ///
 /// Public entry point that wraps `opus_packet_parse_impl` with
-/// `self_delimited = 0`.
+/// `self_delimited = 0`, keeping the C pointer ABI (the impl works
+/// with frame offsets; this converts them back to pointers).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_parse(
     data: *const u8,
@@ -303,7 +307,29 @@ pub unsafe extern "C" fn opus_packet_parse(
     size: *mut i16,
     payload_offset: *mut c_int,
 ) -> c_int {
-    unsafe { opus_packet_parse_impl(data, len, 0, out_toc, frames, size, payload_offset) }
+    unsafe {
+        if size.is_null() {
+            return OPUS_BAD_ARG;
+        }
+        let data_slice = core::slice::from_raw_parts(data, len.max(0) as usize);
+        let size_slice = core::slice::from_raw_parts_mut(size, 48);
+        let mut frame_offsets = [0 as c_int; 48];
+        let count = opus_packet_parse_impl(
+            data_slice,
+            len,
+            0,
+            if out_toc.is_null() { None } else { Some(&mut *out_toc) },
+            if frames.is_null() { None } else { Some(&mut frame_offsets[..]) },
+            size_slice,
+            if payload_offset.is_null() { None } else { Some(&mut *payload_offset) },
+        );
+        if count > 0 && !frames.is_null() {
+            for i in 0..count as usize {
+                *frames.add(i) = data.add(frame_offsets[i] as usize);
+            }
+        }
+        count
+    }
 }
 
 #[cfg(test)]
@@ -390,20 +416,20 @@ mod tests {
         let mut size: i16 = 0;
 
         // Single-byte size (< 252)
-        assert_eq!(parse_size([100u8].as_ptr(), 1, &mut size), 1);
+        assert_eq!(parse_size(&[100u8], 1, &mut size), 1);
         assert_eq!(size, 100);
 
         // Two-byte size (>= 252): 4 * data[1] + data[0]
-        assert_eq!(parse_size([252u8, 10].as_ptr(), 2, &mut size), 2);
+        assert_eq!(parse_size(&[252u8, 10], 2, &mut size), 2);
         assert_eq!(size, 4 * 10 + 252);
 
         // Empty input
-        assert_eq!(parse_size([0u8].as_ptr(), 0, &mut size), -1);
+        assert_eq!(parse_size(&[0u8], 0, &mut size), -1);
         assert_eq!(size, -1);
 
         // >= 252 but only 1 byte available
         size = 0;
-        assert_eq!(parse_size([252u8].as_ptr(), 1, &mut size), -1);
+        assert_eq!(parse_size(&[252u8], 1, &mut size), -1);
         assert_eq!(size, -1);
     }
 
