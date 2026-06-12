@@ -347,8 +347,8 @@ pub unsafe fn silk_decode(
             /* Resample decoded signal to API_sampleRate */
             ret += silk_resampler(
                 &mut (*cs).resampler_state,
-                resample_out_ptr,
-                samples_out1_tmp[n].as_ptr().add(1),
+                core::slice::from_raw_parts_mut(resample_out_ptr, *n_samples_out as usize),
+                &samples_out1_tmp[n][1..],
                 n_samples_out_dec,
             );
 
@@ -367,8 +367,8 @@ pub unsafe fn silk_decode(
                 we weren't doing collapsing when switching to mono */
                 ret += silk_resampler(
                     &mut (*channel_state.add(1)).resampler_state,
-                    resample_out_ptr,
-                    samples_out1_tmp[0].as_ptr().add(1),
+                    core::slice::from_raw_parts_mut(resample_out_ptr, *n_samples_out as usize),
+                    &samples_out1_tmp[0][1..],
                     n_samples_out_dec,
                 );
                 for i in 0..*n_samples_out as usize {

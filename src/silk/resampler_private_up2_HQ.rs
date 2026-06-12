@@ -10,77 +10,68 @@ use super::structs::SilkResamplerStateStruct;
 
 /// `silk_resampler_private_up2_HQ` — high-quality 2× upsampler.
 ///
-/// `S` is a 6-element resampler state vector (Q10).
-pub unsafe fn silk_resampler_private_up2_hq(s: *mut i32, out: *mut i16, in_: *const i16, len: i32) {
-    unsafe {
-        /* silk_assert(silk_resampler_up2_hq_0[0] > 0); */
-        /* silk_assert(silk_resampler_up2_hq_0[1] > 0); */
-        /* silk_assert(silk_resampler_up2_hq_0[2] < 0); */
-        /* silk_assert(silk_resampler_up2_hq_1[0] > 0); */
-        /* silk_assert(silk_resampler_up2_hq_1[1] > 0); */
-        /* silk_assert(silk_resampler_up2_hq_1[2] < 0); */
+/// `s` is a 6-element resampler state vector (Q10).
+pub fn silk_resampler_private_up2_hq(s: &mut [i32], out: &mut [i16], in_: &[i16], len: i32) {
+    /* silk_assert(silk_resampler_up2_hq_0[0] > 0); */
+    /* silk_assert(silk_resampler_up2_hq_0[1] > 0); */
+    /* silk_assert(silk_resampler_up2_hq_0[2] < 0); */
+    /* silk_assert(silk_resampler_up2_hq_1[0] > 0); */
+    /* silk_assert(silk_resampler_up2_hq_1[1] > 0); */
+    /* silk_assert(silk_resampler_up2_hq_1[2] < 0); */
 
-        /* Internal variables and state are in Q10 format */
-        let mut k = 0;
-        while k < len {
-            /* Convert to Q10 */
-            let in32 = silk_lshift(*in_.offset(k as isize) as i32, 10);
+    /* Internal variables and state are in Q10 format */
+    let mut k = 0;
+    while k < len as usize {
+        /* Convert to Q10 */
+        let in32 = silk_lshift(in_[k] as i32, 10);
 
-            /* First all-pass section for even output sample */
-            let y = in32 - *s.offset(0);
-            let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_0[0] as i32);
-            let mut out32_1 = *s.offset(0) + x;
-            *s.offset(0) = in32 + x;
+        /* First all-pass section for even output sample */
+        let y = in32 - s[0];
+        let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_0[0] as i32);
+        let mut out32_1 = s[0] + x;
+        s[0] = in32 + x;
 
-            /* Second all-pass section for even output sample */
-            let y = out32_1 - *s.offset(1);
-            let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_0[1] as i32);
-            let out32_2 = *s.offset(1) + x;
-            *s.offset(1) = out32_1 + x;
+        /* Second all-pass section for even output sample */
+        let y = out32_1 - s[1];
+        let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_0[1] as i32);
+        let out32_2 = s[1] + x;
+        s[1] = out32_1 + x;
 
-            /* Third all-pass section for even output sample */
-            let y = out32_2 - *s.offset(2);
-            let x = silk_smlawb(y, y, SILK_RESAMPLER_UP2_HQ_0[2] as i32);
-            out32_1 = *s.offset(2) + x;
-            *s.offset(2) = out32_2 + x;
+        /* Third all-pass section for even output sample */
+        let y = out32_2 - s[2];
+        let x = silk_smlawb(y, y, SILK_RESAMPLER_UP2_HQ_0[2] as i32);
+        out32_1 = s[2] + x;
+        s[2] = out32_2 + x;
 
-            /* Apply gain in Q15, convert back to int16 and store to output */
-            *out.offset((2 * k) as isize) = silk_sat16(silk_rshift_round(out32_1, 10)) as i16;
+        /* Apply gain in Q15, convert back to int16 and store to output */
+        out[2 * k] = silk_sat16(silk_rshift_round(out32_1, 10)) as i16;
 
-            /* First all-pass section for odd output sample */
-            let y = in32 - *s.offset(3);
-            let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_1[0] as i32);
-            let mut out32_1 = *s.offset(3) + x;
-            *s.offset(3) = in32 + x;
+        /* First all-pass section for odd output sample */
+        let y = in32 - s[3];
+        let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_1[0] as i32);
+        let mut out32_1 = s[3] + x;
+        s[3] = in32 + x;
 
-            /* Second all-pass section for odd output sample */
-            let y = out32_1 - *s.offset(4);
-            let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_1[1] as i32);
-            let out32_2 = *s.offset(4) + x;
-            *s.offset(4) = out32_1 + x;
+        /* Second all-pass section for odd output sample */
+        let y = out32_1 - s[4];
+        let x = silk_smulwb(y, SILK_RESAMPLER_UP2_HQ_1[1] as i32);
+        let out32_2 = s[4] + x;
+        s[4] = out32_1 + x;
 
-            /* Third all-pass section for odd output sample */
-            let y = out32_2 - *s.offset(5);
-            let x = silk_smlawb(y, y, SILK_RESAMPLER_UP2_HQ_1[2] as i32);
-            out32_1 = *s.offset(5) + x;
-            *s.offset(5) = out32_2 + x;
+        /* Third all-pass section for odd output sample */
+        let y = out32_2 - s[5];
+        let x = silk_smlawb(y, y, SILK_RESAMPLER_UP2_HQ_1[2] as i32);
+        out32_1 = s[5] + x;
+        s[5] = out32_2 + x;
 
-            /* Apply gain in Q15, convert back to int16 and store to output */
-            *out.offset((2 * k + 1) as isize) = silk_sat16(silk_rshift_round(out32_1, 10)) as i16;
-            k += 1;
-        }
+        /* Apply gain in Q15, convert back to int16 and store to output */
+        out[2 * k + 1] = silk_sat16(silk_rshift_round(out32_1, 10)) as i16;
+        k += 1;
     }
 }
 
 /// `silk_resampler_private_up2_HQ_wrapper` — adapts the resampler dispatch
 /// signature to the typed entry above.
-pub unsafe fn silk_resampler_private_up2_hq_wrapper(
-    s: *mut SilkResamplerStateStruct,
-    out: *mut i16,
-    in_: *const i16,
-    len: i32,
-) {
-    unsafe {
-        silk_resampler_private_up2_hq((*s).s_iir.as_mut_ptr(), out, in_, len);
-    }
+pub fn silk_resampler_private_up2_hq_wrapper(s: &mut SilkResamplerStateStruct, out: &mut [i16], in_: &[i16], len: i32) {
+    silk_resampler_private_up2_hq(&mut s.s_iir, out, in_, len);
 }

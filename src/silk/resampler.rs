@@ -148,49 +148,46 @@ pub fn silk_resampler_init(s: &mut SilkResamplerStateStruct, fs_hz_in: i32, fs_h
 
 /// `silk_resampler` — convert from one sampling rate to another.
 /// Input and output sampling rates are at most 48000 Hz.
-pub unsafe fn silk_resampler(s: &mut SilkResamplerStateStruct, out: *mut i16, in_: *const i16, in_len: i32) -> i32 {
-    unsafe {
-        let n_samples = s.fs_in_khz - s.input_delay;
-        let input_delay = s.input_delay;
-        let fs_in_khz = s.fs_in_khz;
-        let fs_out_khz = s.fs_out_khz;
-        let resampler_function = s.resampler_function;
-        let s_ptr: *mut SilkResamplerStateStruct = s;
+pub fn silk_resampler(s: &mut SilkResamplerStateStruct, out: &mut [i16], in_: &[i16], in_len: i32) -> i32 {
+    let n_samples = (s.fs_in_khz - s.input_delay) as usize;
+    let input_delay = s.input_delay as usize;
+    let fs_in_khz = s.fs_in_khz;
+    let fs_out_khz = s.fs_out_khz;
 
-        /* Copy to delay buffer */
-        core::ptr::copy_nonoverlapping(in_, (*s_ptr).delay_buf.as_mut_ptr().offset(input_delay as isize), n_samples as usize);
+    /* Copy to delay buffer */
+    s.delay_buf[input_delay..input_delay + n_samples].copy_from_slice(&in_[..n_samples]);
 
-        let delay_buf_ptr = (*s_ptr).delay_buf.as_ptr();
-        let out_tail = out.offset(fs_out_khz as isize);
-        let in_tail = in_.offset(n_samples as isize);
-        let tail_len = in_len - fs_in_khz;
+    /* Snapshot the delay buffer ([i16; 48], a cheap copy): the C passes a
+     * pointer into the state struct it also hands to the sub-resamplers,
+     * which never touch delay_buf — but the borrow checker can't see that
+     * through &mut SilkResamplerStateStruct. */
+    let delay_buf = s.delay_buf;
 
-        match resampler_function {
-            x if x == USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER => {
-                silk_resampler_private_up2_hq_wrapper(s_ptr, out, delay_buf_ptr, fs_in_khz);
-                silk_resampler_private_up2_hq_wrapper(s_ptr, out_tail, in_tail, tail_len);
-            }
-            x if x == USE_SILK_RESAMPLER_PRIVATE_IIR_FIR => {
-                silk_resampler_private_iir_fir(s_ptr, out, delay_buf_ptr, fs_in_khz);
-                silk_resampler_private_iir_fir(s_ptr, out_tail, in_tail, tail_len);
-            }
-            x if x == USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR => {
-                silk_resampler_private_down_fir(s_ptr, out, delay_buf_ptr, fs_in_khz);
-                silk_resampler_private_down_fir(s_ptr, out_tail, in_tail, tail_len);
-            }
-            _ => {
-                core::ptr::copy_nonoverlapping(delay_buf_ptr, out, fs_in_khz as usize);
-                core::ptr::copy_nonoverlapping(in_tail, out_tail, tail_len as usize);
-            }
+    let out_tail = fs_out_khz as usize;
+    let in_tail = n_samples;
+    let tail_len = in_len - fs_in_khz;
+
+    match s.resampler_function {
+        USE_SILK_RESAMPLER_PRIVATE_UP2_HQ_WRAPPER => {
+            silk_resampler_private_up2_hq_wrapper(s, out, &delay_buf, fs_in_khz);
+            silk_resampler_private_up2_hq_wrapper(s, &mut out[out_tail..], &in_[in_tail..], tail_len);
         }
-
-        /* Copy to delay buffer */
-        core::ptr::copy_nonoverlapping(
-            in_.offset((in_len - input_delay) as isize),
-            (*s_ptr).delay_buf.as_mut_ptr(),
-            input_delay as usize,
-        );
-
-        0
+        USE_SILK_RESAMPLER_PRIVATE_IIR_FIR => {
+            silk_resampler_private_iir_fir(s, out, &delay_buf, fs_in_khz);
+            silk_resampler_private_iir_fir(s, &mut out[out_tail..], &in_[in_tail..], tail_len);
+        }
+        USE_SILK_RESAMPLER_PRIVATE_DOWN_FIR => {
+            silk_resampler_private_down_fir(s, out, &delay_buf, fs_in_khz);
+            silk_resampler_private_down_fir(s, &mut out[out_tail..], &in_[in_tail..], tail_len);
+        }
+        _ => {
+            out[..fs_in_khz as usize].copy_from_slice(&delay_buf[..fs_in_khz as usize]);
+            out[out_tail..out_tail + tail_len as usize].copy_from_slice(&in_[in_tail..in_tail + tail_len as usize]);
+        }
     }
+
+    /* Copy to delay buffer */
+    s.delay_buf[..input_delay].copy_from_slice(&in_[in_len as usize - input_delay..in_len as usize]);
+
+    0
 }

@@ -13,182 +13,164 @@ use super::structs::{SILK_RESAMPLER_MAX_FIR_ORDER, SilkResamplerStateStruct};
 const RESAMPLER_MAX_BATCH_SIZE_IN: usize = 10 * 48;
 
 /// Inner interpolation loop — switches on the FIR order to let the
-/// compiler unroll the inner dot product.
+/// compiler unroll the inner dot product. Returns the number of output
+/// samples written.
 #[inline]
-unsafe fn silk_resampler_private_down_fir_interpol(
-    mut out: *mut i16,
-    buf: *mut i32,
-    fir_coefs: *const i16,
+fn silk_resampler_private_down_fir_interpol(
+    out: &mut [i16],
+    buf: &[i32],
+    fir_coefs: &[i16],
     fir_order: i32,
     fir_fracs: i32,
     max_index_q16: i32,
     index_increment_q16: i32,
-) -> *mut i16 {
-    unsafe {
-        match fir_order as usize {
-            RESAMPLER_DOWN_ORDER_FIR0 => {
-                let mut index_q16 = 0i32;
-                while index_q16 < max_index_q16 {
-                    /* Integer part gives pointer to buffered input */
-                    let buf_ptr = buf.offset((index_q16 >> 16) as isize);
+) -> usize {
+    let mut n = 0usize;
+    match fir_order as usize {
+        RESAMPLER_DOWN_ORDER_FIR0 => {
+            let mut index_q16 = 0i32;
+            while index_q16 < max_index_q16 {
+                /* Integer part gives pointer to buffered input */
+                let b = (index_q16 >> 16) as usize;
 
-                    /* Fractional part gives interpolation coefficients */
-                    let interpol_ind = silk_smulwb(index_q16 & 0xFFFF, fir_fracs);
+                /* Fractional part gives interpolation coefficients */
+                let interpol_ind = silk_smulwb(index_q16 & 0xFFFF, fir_fracs);
 
-                    /* Inner product */
-                    let mut interpol_ptr = fir_coefs.offset((RESAMPLER_DOWN_ORDER_FIR0 as i32 / 2 * interpol_ind) as isize);
-                    let mut res_q6 = silk_smulwb(*buf_ptr.offset(0), *interpol_ptr.offset(0) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(1), *interpol_ptr.offset(1) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2), *interpol_ptr.offset(2) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3), *interpol_ptr.offset(3) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(4), *interpol_ptr.offset(4) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(5), *interpol_ptr.offset(5) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(6), *interpol_ptr.offset(6) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(7), *interpol_ptr.offset(7) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(8), *interpol_ptr.offset(8) as i32);
-                    interpol_ptr =
-                        fir_coefs.offset((RESAMPLER_DOWN_ORDER_FIR0 as i32 / 2 * (fir_fracs - 1 - interpol_ind)) as isize);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(17), *interpol_ptr.offset(0) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(16), *interpol_ptr.offset(1) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(15), *interpol_ptr.offset(2) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(14), *interpol_ptr.offset(3) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(13), *interpol_ptr.offset(4) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(12), *interpol_ptr.offset(5) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(11), *interpol_ptr.offset(6) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(10), *interpol_ptr.offset(7) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(9), *interpol_ptr.offset(8) as i32);
+                /* Inner product */
+                let ip = &fir_coefs[(RESAMPLER_DOWN_ORDER_FIR0 as i32 / 2 * interpol_ind) as usize..];
+                let mut res_q6 = silk_smulwb(buf[b], ip[0] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 1], ip[1] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 2], ip[2] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 3], ip[3] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 4], ip[4] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 5], ip[5] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 6], ip[6] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 7], ip[7] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 8], ip[8] as i32);
+                let ip = &fir_coefs[(RESAMPLER_DOWN_ORDER_FIR0 as i32 / 2 * (fir_fracs - 1 - interpol_ind)) as usize..];
+                res_q6 = silk_smlawb(res_q6, buf[b + 17], ip[0] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 16], ip[1] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 15], ip[2] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 14], ip[3] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 13], ip[4] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 12], ip[5] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 11], ip[6] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 10], ip[7] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 9], ip[8] as i32);
 
-                    /* Scale down, saturate and store in output array */
-                    *out = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
-                    out = out.offset(1);
+                /* Scale down, saturate and store in output array */
+                out[n] = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
+                n += 1;
 
-                    index_q16 += index_increment_q16;
-                }
+                index_q16 += index_increment_q16;
             }
-            RESAMPLER_DOWN_ORDER_FIR1 => {
-                let mut index_q16 = 0i32;
-                while index_q16 < max_index_q16 {
-                    let buf_ptr = buf.offset((index_q16 >> 16) as isize);
-
-                    /* Inner product */
-                    let mut res_q6 = silk_smulwb(*buf_ptr.offset(0) + *buf_ptr.offset(23), *fir_coefs.offset(0) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(1) + *buf_ptr.offset(22), *fir_coefs.offset(1) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2) + *buf_ptr.offset(21), *fir_coefs.offset(2) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3) + *buf_ptr.offset(20), *fir_coefs.offset(3) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(4) + *buf_ptr.offset(19), *fir_coefs.offset(4) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(5) + *buf_ptr.offset(18), *fir_coefs.offset(5) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(6) + *buf_ptr.offset(17), *fir_coefs.offset(6) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(7) + *buf_ptr.offset(16), *fir_coefs.offset(7) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(8) + *buf_ptr.offset(15), *fir_coefs.offset(8) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(9) + *buf_ptr.offset(14), *fir_coefs.offset(9) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(10) + *buf_ptr.offset(13), *fir_coefs.offset(10) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(11) + *buf_ptr.offset(12), *fir_coefs.offset(11) as i32);
-
-                    *out = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
-                    out = out.offset(1);
-
-                    index_q16 += index_increment_q16;
-                }
-            }
-            RESAMPLER_DOWN_ORDER_FIR2 => {
-                let mut index_q16 = 0i32;
-                while index_q16 < max_index_q16 {
-                    let buf_ptr = buf.offset((index_q16 >> 16) as isize);
-
-                    let mut res_q6 = silk_smulwb(*buf_ptr.offset(0) + *buf_ptr.offset(35), *fir_coefs.offset(0) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(1) + *buf_ptr.offset(34), *fir_coefs.offset(1) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(2) + *buf_ptr.offset(33), *fir_coefs.offset(2) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(3) + *buf_ptr.offset(32), *fir_coefs.offset(3) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(4) + *buf_ptr.offset(31), *fir_coefs.offset(4) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(5) + *buf_ptr.offset(30), *fir_coefs.offset(5) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(6) + *buf_ptr.offset(29), *fir_coefs.offset(6) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(7) + *buf_ptr.offset(28), *fir_coefs.offset(7) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(8) + *buf_ptr.offset(27), *fir_coefs.offset(8) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(9) + *buf_ptr.offset(26), *fir_coefs.offset(9) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(10) + *buf_ptr.offset(25), *fir_coefs.offset(10) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(11) + *buf_ptr.offset(24), *fir_coefs.offset(11) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(12) + *buf_ptr.offset(23), *fir_coefs.offset(12) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(13) + *buf_ptr.offset(22), *fir_coefs.offset(13) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(14) + *buf_ptr.offset(21), *fir_coefs.offset(14) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(15) + *buf_ptr.offset(20), *fir_coefs.offset(15) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(16) + *buf_ptr.offset(19), *fir_coefs.offset(16) as i32);
-                    res_q6 = silk_smlawb(res_q6, *buf_ptr.offset(17) + *buf_ptr.offset(18), *fir_coefs.offset(17) as i32);
-
-                    *out = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
-                    out = out.offset(1);
-
-                    index_q16 += index_increment_q16;
-                }
-            }
-            _ => { /* silk_assert(0); */ }
         }
-        out
+        RESAMPLER_DOWN_ORDER_FIR1 => {
+            let mut index_q16 = 0i32;
+            while index_q16 < max_index_q16 {
+                let b = (index_q16 >> 16) as usize;
+
+                /* Inner product */
+                let mut res_q6 = silk_smulwb(buf[b] + buf[b + 23], fir_coefs[0] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 1] + buf[b + 22], fir_coefs[1] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 2] + buf[b + 21], fir_coefs[2] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 3] + buf[b + 20], fir_coefs[3] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 4] + buf[b + 19], fir_coefs[4] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 5] + buf[b + 18], fir_coefs[5] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 6] + buf[b + 17], fir_coefs[6] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 7] + buf[b + 16], fir_coefs[7] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 8] + buf[b + 15], fir_coefs[8] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 9] + buf[b + 14], fir_coefs[9] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 10] + buf[b + 13], fir_coefs[10] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 11] + buf[b + 12], fir_coefs[11] as i32);
+
+                out[n] = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
+                n += 1;
+
+                index_q16 += index_increment_q16;
+            }
+        }
+        RESAMPLER_DOWN_ORDER_FIR2 => {
+            let mut index_q16 = 0i32;
+            while index_q16 < max_index_q16 {
+                let b = (index_q16 >> 16) as usize;
+
+                let mut res_q6 = silk_smulwb(buf[b] + buf[b + 35], fir_coefs[0] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 1] + buf[b + 34], fir_coefs[1] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 2] + buf[b + 33], fir_coefs[2] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 3] + buf[b + 32], fir_coefs[3] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 4] + buf[b + 31], fir_coefs[4] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 5] + buf[b + 30], fir_coefs[5] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 6] + buf[b + 29], fir_coefs[6] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 7] + buf[b + 28], fir_coefs[7] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 8] + buf[b + 27], fir_coefs[8] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 9] + buf[b + 26], fir_coefs[9] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 10] + buf[b + 25], fir_coefs[10] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 11] + buf[b + 24], fir_coefs[11] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 12] + buf[b + 23], fir_coefs[12] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 13] + buf[b + 22], fir_coefs[13] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 14] + buf[b + 21], fir_coefs[14] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 15] + buf[b + 20], fir_coefs[15] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 16] + buf[b + 19], fir_coefs[16] as i32);
+                res_q6 = silk_smlawb(res_q6, buf[b + 17] + buf[b + 18], fir_coefs[17] as i32);
+
+                out[n] = silk_sat16(silk_rshift_round(res_q6, 6)) as i16;
+                n += 1;
+
+                index_q16 += index_increment_q16;
+            }
+        }
+        _ => { /* silk_assert(0); */ }
     }
+    n
 }
 
 /// `silk_resampler_private_down_FIR` — downsampler (rational ratios).
-pub unsafe fn silk_resampler_private_down_fir(
-    s: *mut SilkResamplerStateStruct,
-    mut out: *mut i16,
-    mut in_: *const i16,
-    mut in_len: i32,
-) {
-    unsafe {
-        let mut buf = [0i32; RESAMPLER_MAX_BATCH_SIZE_IN + SILK_RESAMPLER_MAX_FIR_ORDER];
+pub fn silk_resampler_private_down_fir(s: &mut SilkResamplerStateStruct, out: &mut [i16], in_: &[i16], mut in_len: i32) {
+    let mut buf = [0i32; RESAMPLER_MAX_BATCH_SIZE_IN + SILK_RESAMPLER_MAX_FIR_ORDER];
 
-        /* Copy buffered samples to start of buffer */
-        core::ptr::copy_nonoverlapping((*s).s_fir.as_ptr(), buf.as_mut_ptr(), (*s).fir_order as usize);
+    /* Copy buffered samples to start of buffer */
+    let fir_order = s.fir_order as usize;
+    buf[..fir_order].copy_from_slice(&s.s_fir[..fir_order]);
 
-        let fir_coefs = (*s).coefs.unwrap()[2..].as_ptr();
+    let coefs = s.coefs.unwrap();
+    let fir_coefs = &coefs[2..];
 
-        /* Iterate over blocks of frameSizeIn input samples */
-        let index_increment_q16 = (*s).inv_ratio_q16;
-        let mut n_samples_in;
-        loop {
-            n_samples_in = in_len.min((*s).batch_size);
+    /* Iterate over blocks of frameSizeIn input samples */
+    let index_increment_q16 = s.inv_ratio_q16;
+    let mut out_off = 0usize;
+    let mut in_off = 0usize;
+    let mut n_samples_in;
+    loop {
+        n_samples_in = in_len.min(s.batch_size);
 
-            /* Second-order AR filter (output in Q8) */
-            silk_resampler_private_ar2(
-                (*s).s_iir.as_mut_ptr(),
-                buf.as_mut_ptr().offset((*s).fir_order as isize),
-                in_,
-                (*s).coefs.unwrap().as_ptr(),
-                n_samples_in,
-            );
+        /* Second-order AR filter (output in Q8) */
+        silk_resampler_private_ar2(&mut s.s_iir, &mut buf[fir_order..], &in_[in_off..], coefs, n_samples_in);
 
-            let max_index_q16 = silk_lshift(n_samples_in, 16);
+        let max_index_q16 = silk_lshift(n_samples_in, 16);
 
-            /* Interpolate filtered signal */
-            out = silk_resampler_private_down_fir_interpol(
-                out,
-                buf.as_mut_ptr(),
-                fir_coefs,
-                (*s).fir_order,
-                (*s).fir_fracs,
-                max_index_q16,
-                index_increment_q16,
-            );
-
-            in_ = in_.offset(n_samples_in as isize);
-            in_len -= n_samples_in;
-
-            if in_len > 1 {
-                /* More iterations to do; copy last part of filtered signal to beginning of buffer */
-                core::ptr::copy_nonoverlapping(
-                    buf.as_ptr().offset(n_samples_in as isize),
-                    buf.as_mut_ptr(),
-                    (*s).fir_order as usize,
-                );
-            } else {
-                break;
-            }
-        }
-
-        /* Copy last part of filtered signal to the state for the next call */
-        core::ptr::copy_nonoverlapping(
-            buf.as_ptr().offset(n_samples_in as isize),
-            (*s).s_fir.as_mut_ptr(),
-            (*s).fir_order as usize,
+        /* Interpolate filtered signal */
+        out_off += silk_resampler_private_down_fir_interpol(
+            &mut out[out_off..],
+            &buf,
+            fir_coefs,
+            s.fir_order,
+            s.fir_fracs,
+            max_index_q16,
+            index_increment_q16,
         );
+
+        in_off += n_samples_in as usize;
+        in_len -= n_samples_in;
+
+        if in_len > 1 {
+            /* More iterations to do; copy last part of filtered signal to beginning of buffer */
+            buf.copy_within(n_samples_in as usize..n_samples_in as usize + fir_order, 0);
+        } else {
+            break;
+        }
     }
+
+    /* Copy last part of filtered signal to the state for the next call */
+    s.s_fir[..fir_order].copy_from_slice(&buf[n_samples_in as usize..n_samples_in as usize + fir_order]);
 }
