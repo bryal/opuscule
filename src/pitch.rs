@@ -24,7 +24,7 @@ const SIG_SHIFT: i32 = 12;
 ///
 /// C implementation: pitch.c lines 53-106.
 #[cfg(not(feature = "fixed-point"))]
-fn find_best_pitch(xcorr: &[OpusVal32], y: *const OpusVal16, len: i32, max_pitch: i32, best_pitch: &mut [i32; 2]) {
+fn find_best_pitch(xcorr: &[OpusVal32], y: &[OpusVal16], len: i32, max_pitch: i32, best_pitch: &mut [i32; 2]) {
     let mut syy: OpusVal32 = 1.0;
     let mut best_num: [OpusVal16; 2] = [-1.0; 2];
     let mut best_den: [OpusVal32; 2] = [0.0; 2];
@@ -33,7 +33,7 @@ fn find_best_pitch(xcorr: &[OpusVal32], y: *const OpusVal16, len: i32, max_pitch
 
     // Initial energy of y[0..len]
     for j in 0..len as usize {
-        syy = mac16_16(syy, unsafe { *y.add(j) }, unsafe { *y.add(j) });
+        syy = mac16_16(syy, y[j], y[j]);
     }
 
     for i in 0..max_pitch as usize {
@@ -56,8 +56,8 @@ fn find_best_pitch(xcorr: &[OpusVal32], y: *const OpusVal16, len: i32, max_pitch
             }
         }
         // Slide energy window: add y[i+len]^2, remove y[i]^2
-        let yi_add = unsafe { *y.add(i + len as usize) };
-        let yi_rem = unsafe { *y.add(i) };
+        let yi_add = y[i + len as usize];
+        let yi_rem = y[i];
         syy += shr32(mult16_16(yi_add, yi_add), 0) - shr32(mult16_16(yi_rem, yi_rem), 0);
         syy = max32(1.0, syy);
     }
@@ -66,7 +66,7 @@ fn find_best_pitch(xcorr: &[OpusVal32], y: *const OpusVal16, len: i32, max_pitch
 #[cfg(feature = "fixed-point")]
 fn find_best_pitch(
     xcorr: &[OpusVal32],
-    y: *const OpusVal16,
+    y: &[OpusVal16],
     len: i32,
     max_pitch: i32,
     best_pitch: &mut [i32; 2],
@@ -83,7 +83,7 @@ fn find_best_pitch(
 
     // Initial energy of y[0..len]
     for j in 0..len as usize {
-        syy = mac16_16(syy, unsafe { *y.add(j) }, unsafe { *y.add(j) });
+        syy = mac16_16(syy, y[j], y[j]);
     }
 
     for i in 0..max_pitch as usize {
@@ -106,8 +106,8 @@ fn find_best_pitch(
             }
         }
         // Slide energy window: add y[i+len]^2, remove y[i]^2
-        let yi_add = unsafe { *y.add(i + len as usize) };
-        let yi_rem = unsafe { *y.add(i) };
+        let yi_add = y[i + len as usize];
+        let yi_rem = y[i];
         syy += shr32(mult16_16(yi_add, yi_add), yshift) - shr32(mult16_16(yi_rem, yi_rem), yshift);
         syy = max32(1, syy);
     }
@@ -116,10 +116,10 @@ fn find_best_pitch(
 /// Maximum absolute value of a val16 array (fixed-point only).
 /// Matches the static inline celt_maxabs16() in mathops.h.
 #[cfg(feature = "fixed-point")]
-unsafe fn celt_maxabs16(x: *const OpusVal16, len: i32) -> OpusVal16 {
+fn celt_maxabs16(x: &[OpusVal16], len: i32) -> OpusVal16 {
     let mut maxval: OpusVal16 = 0;
     for i in 0..len as usize {
-        let v = unsafe { *x.add(i) };
+        let v = x[i];
         let abs_v = if v < 0 { -v } else { v };
         maxval = max16(maxval, abs_v);
     }
@@ -134,12 +134,12 @@ unsafe fn celt_maxabs16(x: *const OpusVal16, len: i32) -> OpusVal16 {
 /// has produced the half-rate LP-filtered signal.
 ///
 /// C implementation: pitch.c lines 159-265.
-pub unsafe fn pitch_search(
-    x_lp: *const OpusVal16, // LP-filtered signal (len/2 samples from pitch_downsample)
-    y: *mut OpusVal16,      // decode memory buffer (lag = len + max_pitch samples)
+pub fn pitch_search(
+    x_lp: &[OpusVal16], // LP-filtered signal (len/2 samples from pitch_downsample)
+    y: &[OpusVal16],    // decode memory buffer (lag = len + max_pitch samples)
     len: i32,
     max_pitch: i32,
-    pitch: *mut i32,
+    pitch: &mut i32,
 ) {
     debug_assert!(len > 0);
     debug_assert!(max_pitch > 0);
@@ -152,17 +152,17 @@ pub unsafe fn pitch_search(
 
     // Downsample by 2 again (from half-rate to quarter-rate)
     for j in 0..(len >> 2) as usize {
-        x_lp4[j] = unsafe { *x_lp.add(2 * j) };
+        x_lp4[j] = x_lp[2 * j];
     }
     for j in 0..(lag >> 2) as usize {
-        y_lp4[j] = unsafe { *y.add(2 * j) };
+        y_lp4[j] = y[2 * j];
     }
 
     // Fixed-point: normalize to prevent overflow in MAC
     #[cfg(feature = "fixed-point")]
     let shift = {
-        let max_x = unsafe { celt_maxabs16(x_lp4.as_ptr(), len >> 2) };
-        let max_y = unsafe { celt_maxabs16(y_lp4.as_ptr(), lag >> 2) };
+        let max_x = celt_maxabs16(&x_lp4, len >> 2);
+        let max_y = celt_maxabs16(&y_lp4, lag >> 2);
         let max_val = max16(1, max16(max_x, max_y));
         let s = celt_ilog2(max_val as i32) as i32 - 11;
         if s > 0 {
@@ -202,9 +202,9 @@ pub unsafe fn pitch_search(
     }
 
     #[cfg(not(feature = "fixed-point"))]
-    find_best_pitch(&xcorr[..xcorr_len], y_lp4.as_ptr(), len >> 2, max_pitch >> 2, &mut best_pitch);
+    find_best_pitch(&xcorr[..xcorr_len], &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch);
     #[cfg(feature = "fixed-point")]
-    find_best_pitch(&xcorr[..xcorr_len], y_lp4.as_ptr(), len >> 2, max_pitch >> 2, &mut best_pitch, 0, maxcorr);
+    find_best_pitch(&xcorr[..xcorr_len], &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch, 0, maxcorr);
 
     // --- Pass 2: finer search with 2x decimation ---
 
@@ -222,7 +222,7 @@ pub unsafe fn pitch_search(
             continue;
         }
         for j in 0..(len >> 1) as usize {
-            sum += shr32(mult16_16(unsafe { *x_lp.add(j) }, unsafe { *y.add(i + j) }), shift);
+            sum += shr32(mult16_16(x_lp[j], y[i + j]), shift);
         }
         xcorr[i] = max32(-1 as OpusVal32, sum);
         #[cfg(feature = "fixed-point")]
@@ -232,9 +232,9 @@ pub unsafe fn pitch_search(
     }
 
     #[cfg(not(feature = "fixed-point"))]
-    find_best_pitch(&xcorr[..half_max_pitch], y as *const OpusVal16, len >> 1, max_pitch >> 1, &mut best_pitch);
+    find_best_pitch(&xcorr[..half_max_pitch], y, len >> 1, max_pitch >> 1, &mut best_pitch);
     #[cfg(feature = "fixed-point")]
-    find_best_pitch(&xcorr[..half_max_pitch], y as *const OpusVal16, len >> 1, max_pitch >> 1, &mut best_pitch, shift, maxcorr);
+    find_best_pitch(&xcorr[..half_max_pitch], y, len >> 1, max_pitch >> 1, &mut best_pitch, shift, maxcorr);
 
     // --- Refine by pseudo-interpolation ---
 
@@ -253,22 +253,22 @@ pub unsafe fn pitch_search(
     } else {
         offset = 0;
     }
-    unsafe { *pitch = 2 * best_pitch[0] - offset };
+    *pitch = 2 * best_pitch[0] - offset;
 }
 
 /// Downsample and LP-filter a signal for pitch analysis.
 ///
-/// Takes one or two channels of celt_sig samples (C channels, `len` samples
-/// each) and produces a half-rate, LP-filtered output in `x_lp`.
+/// Takes one or two channels of celt_sig samples (`len` samples each) and
+/// produces a half-rate, LP-filtered output in `x_lp`.
 ///
 /// The LP filter is a 4th-order all-pole filter (Levinson-Durbin from a
 /// short autocorrelation) with exponential coefficient decay (0.9^k),
 /// followed by a 1st-order highpass-ish pre-emphasis filter (0.8 at Q12).
 ///
 /// C implementation: pitch.c lines 108-157.
-pub unsafe fn pitch_downsample(
-    x: *const *const OpusVal32, // C channel pointers, each `len` samples
-    x_lp: *mut OpusVal16,       // output: len/2 samples
+pub fn pitch_downsample(
+    x: &[&[OpusVal32]],     // channel slices, each `len` samples
+    x_lp: &mut [OpusVal16], // output: len/2 samples
     len: i32,
     c_channels: i32,
 ) {
@@ -277,35 +277,33 @@ pub unsafe fn pitch_downsample(
 
     // Downsample channel 0 with a 3-tap averaging filter:
     //   x_lp[i] = (x[0][2i-1] + 2*x[0][2i] + x[0][2i+1]) / 4, then >> (SIG_SHIFT+3)
-    let x0 = *x;
+    let x0 = x[0];
     for i in 1..half {
-        let val = half32(half32(*x0.add(2 * i - 1) + *x0.add(2 * i + 1)) + *x0.add(2 * i));
-        *x_lp.add(i) = shr32(val, SIG_SHIFT + 3) as OpusVal16;
+        let val = half32(half32(x0[2 * i - 1] + x0[2 * i + 1]) + x0[2 * i]);
+        x_lp[i] = shr32(val, SIG_SHIFT + 3) as OpusVal16;
     }
     // Edge case: i=0 — no x[0][-1], so use (x[0][1]/2 + x[0][0]) / 2
-    *x_lp = shr32(half32(half32(*x0.add(1)) + *x0), SIG_SHIFT + 3) as OpusVal16;
+    x_lp[0] = shr32(half32(half32(x0[1]) + x0[0]), SIG_SHIFT + 3) as OpusVal16;
 
     // If stereo, add channel 1's contribution
     if c_channels == 2 {
-        let x1 = *x.add(1);
+        let x1 = x[1];
         for i in 1..half {
-            let val = half32(half32(*x1.add(2 * i - 1) + *x1.add(2 * i + 1)) + *x1.add(2 * i));
-            let prev = *x_lp.add(i);
-            *x_lp.add(i) = prev + shr32(val, SIG_SHIFT + 3) as OpusVal16;
+            let val = half32(half32(x1[2 * i - 1] + x1[2 * i + 1]) + x1[2 * i]);
+            x_lp[i] += shr32(val, SIG_SHIFT + 3) as OpusVal16;
         }
-        let prev = *x_lp;
-        *x_lp = prev + shr32(half32(half32(*x1.add(1)) + *x1), SIG_SHIFT + 3) as OpusVal16;
+        x_lp[0] += shr32(half32(half32(x1[1]) + x1[0]), SIG_SHIFT + 3) as OpusVal16;
     }
 
     // Compute 4th-order autocorrelation of the downsampled signal
     let mut ac = [0 as OpusVal32; 5];
     _celt_autocorr(
-        x_lp,
-        ac.as_mut_ptr(),
-        core::ptr::null(), // no window
-        0,                 // overlap = 0
-        4,                 // order
-        half as i32,       // n
+        &x_lp[..half],
+        &mut ac,
+        &[], // no window
+        0,   // overlap = 0
+        4,   // order
+        half as i32,
     );
 
     // Noise floor: -40 dB
@@ -341,12 +339,12 @@ pub unsafe fn pitch_downsample(
         lpc[i] = mult16_16_q15(lpc[i], tmp) as OpusVal16;
     }
 
-    // Apply the LP filter (all-pole → FIR with these coefficients)
+    // Apply the LP filter (all-pole → FIR with these coefficients), in place
     let mut mem = [0 as OpusVal16; 4];
-    celt_fir(x_lp, lpc.as_ptr(), x_lp, half as i32, 4, mem.as_mut_ptr());
+    celt_fir(&mut x_lp[..half], &lpc, half as i32, 4, &mut mem);
 
     // Second pass: 1st-order high-pass-ish filter at 0.8 (Q12)
     mem[0] = 0 as OpusVal16;
     let lpc_hp: [OpusVal16; 1] = [qconst16(0.8, 12)];
-    celt_fir(x_lp, lpc_hp.as_ptr(), x_lp, half as i32, 1, mem.as_mut_ptr());
+    celt_fir(&mut x_lp[..half], &lpc_hp, half as i32, 1, &mut mem);
 }

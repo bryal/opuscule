@@ -370,11 +370,19 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
             if (*st).loss_count == 0 {
                 let mut pitch_buf = vec![0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
                 let poffset: c_int = 720;
-                pitch_downsample(decode_mem.as_ptr() as *const *const CeltSig, pitch_buf.as_mut_ptr(), DECODE_BUFFER_SIZE, cc);
+                {
+                    let ch0 = core::slice::from_raw_parts(decode_mem[0] as *const CeltSig, DECODE_BUFFER_SIZE as usize);
+                    if cc == 2 {
+                        let ch1 = core::slice::from_raw_parts(decode_mem[1] as *const CeltSig, DECODE_BUFFER_SIZE as usize);
+                        pitch_downsample(&[ch0, ch1], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
+                    } else {
+                        pitch_downsample(&[ch0], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
+                    }
+                }
                 let mut pi: c_int = 0;
                 pitch_search(
-                    pitch_buf.as_mut_ptr().add((poffset >> 1) as usize),
-                    pitch_buf.as_mut_ptr(),
+                    &pitch_buf[(poffset >> 1) as usize..],
+                    &pitch_buf,
                     DECODE_BUFFER_SIZE - poffset,
                     poffset - 100,
                     &mut pi,
@@ -402,14 +410,7 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                 }
 
                 if (*st).loss_count == 0 {
-                    _celt_autocorr(
-                        exc.as_ptr(),
-                        ac.as_mut_ptr(),
-                        (*st).mode.window.as_ptr(),
-                        (*st).mode.overlap,
-                        LPC_ORDER,
-                        MAX_PERIOD,
-                    );
+                    _celt_autocorr(&exc, &mut ac, (*st).mode.window, (*st).mode.overlap, LPC_ORDER, MAX_PERIOD);
 
                     // Noise floor -40 dB
                     #[cfg(feature = "fixed-point")]
@@ -442,12 +443,11 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     mem[i] = round16(*out_mem[c as usize].add(MAX_PERIOD as usize - 1 - i), SIG_SHIFT);
                 }
                 celt_fir(
-                    exc.as_mut_ptr() as *mut OpusVal16,
-                    lpc.add((c * LPC_ORDER) as usize),
-                    exc.as_mut_ptr() as *mut OpusVal16,
+                    &mut exc,
+                    core::slice::from_raw_parts(lpc.add((c * LPC_ORDER) as usize), LPC_ORDER as usize),
                     MAX_PERIOD,
                     LPC_ORDER,
-                    mem.as_mut_ptr(),
+                    &mut mem,
                 );
                 // Check if the waveform is decaying (and if so how fast)
                 {
@@ -492,12 +492,11 @@ pub unsafe fn celt_decode_lost(st: *mut CELTDecoder, pcm: *mut OpusVal16, n: c_i
                     e[i] = mult16_32_q15(fade, e[i]);
                 }
                 celt_iir(
-                    e.as_mut_ptr(),
-                    lpc.add((c * LPC_ORDER) as usize),
-                    e.as_mut_ptr(),
+                    &mut e,
+                    core::slice::from_raw_parts(lpc.add((c * LPC_ORDER) as usize), LPC_ORDER as usize),
                     len + (*st).mode.overlap,
                     LPC_ORDER,
-                    mem.as_mut_ptr(),
+                    &mut mem,
                 );
 
                 {

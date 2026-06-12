@@ -79,128 +79,109 @@ pub fn _celt_lpc(_lpc: &mut [OpusVal16], ac: &[OpusVal32], p: c_int) {
     }
 }
 
-/// FIR filter with memory.
+/// FIR filter with memory, in place.
 ///
-/// Applies an `ord`-tap FIR filter to `N` input samples, writing to `y`.
-/// `mem` holds `ord` state samples, updated in-place (shift register).
-pub unsafe fn celt_fir(
-    x: *const OpusVal16,
-    num: *const OpusVal16,
-    y: *mut OpusVal16,
-    n: c_int,
-    ord: c_int,
-    mem: *mut OpusVal16,
-) {
-    unsafe {
-        let n = n as usize;
-        let ord = ord as usize;
-        for i in 0..n {
-            let mut sum: OpusVal32 = shl32(extend32(*x.add(i)), SIG_SHIFT);
-            for j in 0..ord {
-                sum = sum + mult16_16(*num.add(j), *mem.add(j));
-            }
-            for j in (1..ord).rev() {
-                *mem.add(j) = *mem.add(j - 1);
-            }
-            *mem = *x.add(i);
-            *y.add(i) = round16(sum, SIG_SHIFT);
+/// Applies an `ord`-tap FIR filter to `n` input samples, writing the
+/// result back into `x`. `mem` holds `ord` state samples, updated
+/// in-place (shift register).
+///
+/// The C version takes separate input/output pointers, but every caller
+/// passes the same buffer for both; each iteration reads `x[i]` before
+/// writing it and the history comes from `mem`, so in-place is exactly
+/// equivalent and the Rust version makes the aliasing explicit.
+pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], n: c_int, ord: c_int, mem: &mut [OpusVal16]) {
+    let n = n as usize;
+    let ord = ord as usize;
+    for i in 0..n {
+        let mut sum: OpusVal32 = shl32(extend32(x[i]), SIG_SHIFT);
+        for j in 0..ord {
+            sum = sum + mult16_16(num[j], mem[j]);
         }
+        for j in (1..ord).rev() {
+            mem[j] = mem[j - 1];
+        }
+        mem[0] = x[i];
+        x[i] = round16(sum, SIG_SHIFT);
     }
 }
 
-/// IIR filter with memory.
+/// IIR filter with memory, in place.
 ///
-/// Applies an `ord`-tap IIR filter to `N` input samples, writing to `y`.
-/// `mem` holds `ord` state samples, updated in-place (shift register).
-/// Used in the PLC path to resynthesize audio from LPC coefficients.
-pub unsafe fn celt_iir(
-    x: *const OpusVal32,
-    den: *const OpusVal16,
-    y: *mut OpusVal32,
-    n: c_int,
-    ord: c_int,
-    mem: *mut OpusVal16,
-) {
-    unsafe {
-        let n = n as usize;
-        let ord = ord as usize;
-        for i in 0..n {
-            let mut sum: OpusVal32 = *x.add(i);
-            for j in 0..ord {
-                sum = sum - mult16_16(*den.add(j), *mem.add(j));
-            }
-            for j in (1..ord).rev() {
-                *mem.add(j) = *mem.add(j - 1);
-            }
-            *mem = round16(sum, SIG_SHIFT);
-            *y.add(i) = sum;
+/// Applies an `ord`-tap IIR filter to `n` input samples, writing the
+/// result back into `x`. `mem` holds `ord` state samples, updated
+/// in-place (shift register). Used in the PLC path to resynthesize audio
+/// from LPC coefficients.
+///
+/// In-place for the same reason as [`celt_fir`].
+pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], n: c_int, ord: c_int, mem: &mut [OpusVal16]) {
+    let n = n as usize;
+    let ord = ord as usize;
+    for i in 0..n {
+        let mut sum: OpusVal32 = x[i];
+        for j in 0..ord {
+            sum = sum - mult16_16(den[j], mem[j]);
         }
+        for j in (1..ord).rev() {
+            mem[j] = mem[j - 1];
+        }
+        mem[0] = round16(sum, SIG_SHIFT);
+        x[i] = sum;
     }
 }
 
 /// Windowed autocorrelation.
 ///
 /// Computes autocorrelation of `x[0..n-1]` for lags 0 through `lag`,
-/// applying `window[0..overlap-1]` symmetrically to the edges.
+/// applying `window[0..overlap-1]` symmetrically to the edges
+/// (`window` may be empty when `overlap` is 0).
 /// In fixed-point mode, normalizes to prevent overflow.
 /// Adds a small bias (+10) to ac[0] to avoid division by zero.
-pub unsafe fn _celt_autocorr(
-    x: *const OpusVal16,
-    ac: *mut OpusVal32,
-    window: *const OpusVal16,
-    overlap: c_int,
-    lag: c_int,
-    n: c_int,
-) {
-    unsafe {
-        let n = n as usize;
-        let overlap = overlap as usize;
-        let mut lag = lag as usize;
+pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16], overlap: c_int, lag: c_int, n: c_int) {
+    let n = n as usize;
+    let overlap = overlap as usize;
+    let mut lag = lag as usize;
 
-        debug_assert!(n > 0);
-        debug_assert!(n <= MAX_PERIOD);
+    debug_assert!(n > 0);
+    debug_assert!(n <= MAX_PERIOD);
 
-        // Copy x into local buffer, apply window to edges
-        let mut xx = [0 as OpusVal16; MAX_PERIOD];
-        for i in 0..n {
-            xx[i] = *x.add(i);
-        }
-        for i in 0..overlap {
-            xx[i] = mult16_16_q15(*x.add(i), *window.add(i)) as OpusVal16;
-            xx[n - i - 1] = mult16_16_q15(*x.add(n - i - 1), *window.add(i)) as OpusVal16;
-        }
-
-        // Fixed-point normalization to prevent overflow in the dot products
-        #[cfg(feature = "fixed-point")]
-        {
-            let mut ac0: i32 = 0;
-            for i in 0..n {
-                ac0 += shr32(mult16_16(xx[i], xx[i]), 9);
-            }
-            ac0 += 1 + n as i32;
-
-            let shift = (celt_ilog2(ac0) as i32 - 30 + 10 + 1) / 2;
-            for i in 0..n {
-                xx[i] = vshr32(xx[i] as i32, shift) as i16;
-            }
-        }
-
-        // Compute autocorrelation for each lag (lag down to 0)
-        loop {
-            let mut d: OpusVal32 = 0 as OpusVal32;
-            for i in lag..n {
-                d = d + mult16_16(xx[i], xx[i - lag]);
-            }
-            *ac.add(lag) = d;
-            if lag == 0 {
-                break;
-            }
-            lag -= 1;
-        }
-
-        // Bias to avoid division by zero
-        *ac = *ac + 10 as OpusVal32;
+    // Copy x into local buffer, apply window to edges
+    let mut xx = [0 as OpusVal16; MAX_PERIOD];
+    xx[..n].copy_from_slice(&x[..n]);
+    for i in 0..overlap {
+        xx[i] = mult16_16_q15(x[i], window[i]) as OpusVal16;
+        xx[n - i - 1] = mult16_16_q15(x[n - i - 1], window[i]) as OpusVal16;
     }
+
+    // Fixed-point normalization to prevent overflow in the dot products
+    #[cfg(feature = "fixed-point")]
+    {
+        let mut ac0: i32 = 0;
+        for i in 0..n {
+            ac0 += shr32(mult16_16(xx[i], xx[i]), 9);
+        }
+        ac0 += 1 + n as i32;
+
+        let shift = (celt_ilog2(ac0) as i32 - 30 + 10 + 1) / 2;
+        for i in 0..n {
+            xx[i] = vshr32(xx[i] as i32, shift) as i16;
+        }
+    }
+
+    // Compute autocorrelation for each lag (lag down to 0)
+    loop {
+        let mut d: OpusVal32 = 0 as OpusVal32;
+        for i in lag..n {
+            d = d + mult16_16(xx[i], xx[i - lag]);
+        }
+        ac[lag] = d;
+        if lag == 0 {
+            break;
+        }
+        lag -= 1;
+    }
+
+    // Bias to avoid division by zero
+    ac[0] = ac[0] + 10 as OpusVal32;
 }
 
 /// SIG_SHIFT constant from arch.h — controls the Q format for signals.
@@ -216,35 +197,29 @@ mod tests {
     #[test]
     fn test_celt_fir_identity() {
         // Single-tap FIR with coefficient 1.0 should pass input through
-        let x: [OpusVal16; 4] = [1.0, 2.0, 3.0, 4.0];
+        let mut x: [OpusVal16; 4] = [1.0, 2.0, 3.0, 4.0];
         let num: [OpusVal16; 1] = [1.0];
-        let mut y: [OpusVal16; 4] = [0.0; 4];
         let mut mem: [OpusVal16; 1] = [0.0];
 
-        unsafe {
-            celt_fir(x.as_ptr(), num.as_ptr(), y.as_mut_ptr(), 4, 1, mem.as_mut_ptr());
-        }
-        // FIR output is: y[i] = x[i] + num[0]*mem[0], where mem shifts
-        // y[0] = 1.0 + 1.0*0.0 = 1.0  (mem was 0)
-        // y[1] = 2.0 + 1.0*1.0 = 3.0  (mem = x[0] = 1.0)
-        // y[2] = 3.0 + 1.0*2.0 = 5.0  (mem = x[1] = 2.0)
-        // y[3] = 4.0 + 1.0*3.0 = 7.0  (mem = x[2] = 3.0)
-        assert_eq!(y, [1.0, 3.0, 5.0, 7.0]);
+        celt_fir(&mut x, &num, 4, 1, &mut mem);
+        // FIR output is: x[i] = x[i] + num[0]*mem[0], where mem shifts
+        // x[0] = 1.0 + 1.0*0.0 = 1.0  (mem was 0)
+        // x[1] = 2.0 + 1.0*1.0 = 3.0  (mem = old x[0] = 1.0)
+        // x[2] = 3.0 + 1.0*2.0 = 5.0  (mem = old x[1] = 2.0)
+        // x[3] = 4.0 + 1.0*3.0 = 7.0  (mem = old x[2] = 3.0)
+        assert_eq!(x, [1.0, 3.0, 5.0, 7.0]);
     }
 
     #[cfg(not(feature = "fixed-point"))]
     #[test]
     fn test_celt_iir_dc() {
         // DC input with zero denominator → output equals input
-        let x: [OpusVal32; 4] = [1.0, 1.0, 1.0, 1.0];
+        let mut x: [OpusVal32; 4] = [1.0, 1.0, 1.0, 1.0];
         let den: [OpusVal16; 1] = [0.0];
-        let mut y: [OpusVal32; 4] = [0.0; 4];
         let mut mem: [OpusVal16; 1] = [0.0];
 
-        unsafe {
-            celt_iir(x.as_ptr(), den.as_ptr(), y.as_mut_ptr(), 4, 1, mem.as_mut_ptr());
-        }
-        assert_eq!(y, [1.0, 1.0, 1.0, 1.0]);
+        celt_iir(&mut x, &den, 4, 1, &mut mem);
+        assert_eq!(x, [1.0, 1.0, 1.0, 1.0]);
     }
 
     #[cfg(not(feature = "fixed-point"))]
@@ -255,9 +230,7 @@ mod tests {
         x[0] = 1.0;
         let mut ac = [0.0 as OpusVal32; 5];
 
-        unsafe {
-            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 4, 64);
-        }
+        _celt_autocorr(&x, &mut ac, &[], 0, 4, 64);
         // ac[0] = 1.0 + 10 (bias), ac[1..4] = 0.0
         assert!((ac[0] - 11.0).abs() < 1e-6);
         for i in 1..5 {
@@ -274,9 +247,7 @@ mod tests {
         let x = [1.0 as OpusVal16; 16];
         let mut ac = [0.0 as OpusVal32; 3];
 
-        unsafe {
-            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 2, n);
-        }
+        _celt_autocorr(&x, &mut ac, &[], 0, 2, n);
         // ac[0] = 16 + 10 (bias) = 26, ac[1] = 15, ac[2] = 14
         assert!((ac[0] - 26.0).abs() < 1e-6);
         assert!((ac[1] - 15.0).abs() < 1e-6);
@@ -291,9 +262,7 @@ mod tests {
         ac[0] = 1.0;
         let mut lpc = [0.0 as OpusVal16; 4];
 
-        unsafe {
-            _celt_lpc(&mut lpc, &ac, 4);
-        }
+        _celt_lpc(&mut lpc, &ac, 4);
         for i in 0..4 {
             assert!((lpc[i]).abs() < 1e-6, "lpc[{}] = {} should be ~0 for white noise", i, lpc[i]);
         }
@@ -308,31 +277,25 @@ mod tests {
     #[cfg(feature = "fixed-point")]
     #[test]
     fn test_celt_fir_zero_coeff() {
-        // FIR with zero coefficient: y[i] = round16(x[i] << 12, 12) = x[i]
-        let x: [OpusVal16; 4] = [10, 20, 30, 40];
+        // FIR with zero coefficient: x[i] = round16(x[i] << 12, 12) = x[i]
+        let mut x: [OpusVal16; 4] = [10, 20, 30, 40];
         let num: [OpusVal16; 1] = [0];
-        let mut y: [OpusVal16; 4] = [0; 4];
         let mut mem: [OpusVal16; 1] = [0];
 
-        unsafe {
-            celt_fir(x.as_ptr(), num.as_ptr(), y.as_mut_ptr(), 4, 1, mem.as_mut_ptr());
-        }
-        assert_eq!(y, [10, 20, 30, 40]);
+        celt_fir(&mut x, &num, 4, 1, &mut mem);
+        assert_eq!(x, [10, 20, 30, 40]);
     }
 
     #[cfg(feature = "fixed-point")]
     #[test]
     fn test_celt_iir_zero_denom() {
-        // IIR with zero denominator: sum = x[i], y[i] = x[i]
-        let x: [OpusVal32; 4] = [1000, 2000, 3000, 4000];
+        // IIR with zero denominator: sum = x[i], output = x[i]
+        let mut x: [OpusVal32; 4] = [1000, 2000, 3000, 4000];
         let den: [OpusVal16; 1] = [0];
-        let mut y: [OpusVal32; 4] = [0; 4];
         let mut mem: [OpusVal16; 1] = [0];
 
-        unsafe {
-            celt_iir(x.as_ptr(), den.as_ptr(), y.as_mut_ptr(), 4, 1, mem.as_mut_ptr());
-        }
-        assert_eq!(y, [1000, 2000, 3000, 4000]);
+        celt_iir(&mut x, &den, 4, 1, &mut mem);
+        assert_eq!(x, [1000, 2000, 3000, 4000]);
     }
 
     #[cfg(feature = "fixed-point")]
@@ -342,9 +305,7 @@ mod tests {
         let x = [0i16; 64];
         let mut ac = [0i32; 5];
 
-        unsafe {
-            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 4, 64);
-        }
+        _celt_autocorr(&x, &mut ac, &[], 0, 4, 64);
         assert_eq!(ac[0], 10);
         for i in 1..5 {
             assert_eq!(ac[i], 0, "ac[{}] = {} should be 0", i, ac[i]);
@@ -358,9 +319,7 @@ mod tests {
         let x = [100i16; 16];
         let mut ac = [0i32; 3];
 
-        unsafe {
-            _celt_autocorr(x.as_ptr(), ac.as_mut_ptr(), std::ptr::null(), 0, 2, 16);
-        }
+        _celt_autocorr(&x, &mut ac, &[], 0, 2, 16);
         assert!(ac[0] > ac[1], "ac[0]={} should exceed ac[1]={}", ac[0], ac[1]);
         assert!(ac[1] > ac[2], "ac[1]={} should exceed ac[2]={}", ac[1], ac[2]);
         assert!(ac[2] > 0, "ac[2]={} should be positive", ac[2]);
@@ -374,9 +333,7 @@ mod tests {
         ac[0] = 32767;
         let mut lpc = [0i16; 4];
 
-        unsafe {
-            _celt_lpc(&mut lpc, &ac, 4);
-        }
+        _celt_lpc(&mut lpc, &ac, 4);
         for i in 0..4 {
             assert_eq!(lpc[i], 0, "lpc[{}] = {} should be 0 for white noise", i, lpc[i]);
         }
