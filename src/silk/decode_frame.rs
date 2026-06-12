@@ -57,7 +57,12 @@ pub unsafe fn silk_decode_frame(
             l = (*ps_dec).frame_length;
 
             /* Run inverse NSQ */
-            silk_decode_core(ps_dec, &mut s_dec_ctrl, p_out, pulses.as_ptr());
+            silk_decode_core(
+                &mut *ps_dec,
+                &mut s_dec_ctrl,
+                core::slice::from_raw_parts_mut(p_out, (*ps_dec).frame_length as usize),
+                &pulses,
+            );
 
             /* Update PLC state */
             silk_plc(&mut *ps_dec, &mut s_dec_ctrl, core::slice::from_raw_parts_mut(p_out, (*ps_dec).frame_length as usize), 0);
