@@ -24,10 +24,8 @@ const OPUS_BAD_ARG: c_int = -1;
 const OPUS_INVALID_PACKET: c_int = -4;
 
 /// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
-/// RFC 6716 Section 3.1, Table 2.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_mode(data: *const u8) -> c_int {
-    let toc = unsafe { *data };
+/// RFC 6716 Section 3.1, Table 2. (Safe core of [`opus_packet_get_mode`].)
+pub fn packet_get_mode(toc: u8) -> c_int {
     if toc & 0x80 != 0 {
         MODE_CELT_ONLY
     } else if toc & 0x60 == 0x60 {
@@ -37,11 +35,16 @@ pub unsafe extern "C" fn opus_packet_get_mode(data: *const u8) -> c_int {
     }
 }
 
-/// Return the bandwidth of an Opus packet from its TOC byte.
+/// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
 /// RFC 6716 Section 3.1, Table 2.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
-    let toc = unsafe { *data };
+pub unsafe extern "C" fn opus_packet_get_mode(data: *const u8) -> c_int {
+    packet_get_mode(unsafe { *data })
+}
+
+/// Return the bandwidth of an Opus packet from its TOC byte.
+/// RFC 6716 Section 3.1, Table 2. (Safe core of [`opus_packet_get_bandwidth`].)
+pub fn packet_get_bandwidth(toc: u8) -> c_int {
     if toc & 0x80 != 0 {
         let bandwidth = OPUS_BANDWIDTH_MEDIUMBAND + ((toc >> 5) & 0x3) as c_int;
         if bandwidth == OPUS_BANDWIDTH_MEDIUMBAND { OPUS_BANDWIDTH_NARROWBAND } else { bandwidth }
@@ -50,6 +53,13 @@ pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
     } else {
         OPUS_BANDWIDTH_NARROWBAND + ((toc >> 5) & 0x3) as c_int
     }
+}
+
+/// Return the bandwidth of an Opus packet from its TOC byte.
+/// RFC 6716 Section 3.1, Table 2.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
+    packet_get_bandwidth(unsafe { *data })
 }
 
 /// Return the number of samples per frame from the TOC byte and sample rate.
@@ -75,9 +85,16 @@ pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: 
 
 /// Return the number of channels encoded in a packet (1 or 2).
 /// RFC 6716 Section 3.1 (stereo bit = bit 2 of TOC).
+/// (Safe core of [`opus_packet_get_nb_channels`].)
+pub fn packet_get_nb_channels(toc: u8) -> c_int {
+    if toc & 0x4 != 0 { 2 } else { 1 }
+}
+
+/// Return the number of channels encoded in a packet (1 or 2).
+/// RFC 6716 Section 3.1 (stereo bit = bit 2 of TOC).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_nb_channels(data: *const u8) -> c_int {
-    if unsafe { *data } & 0x4 != 0 { 2 } else { 1 }
+    packet_get_nb_channels(unsafe { *data })
 }
 
 /// Return the number of frames in an Opus packet.

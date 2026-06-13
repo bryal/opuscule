@@ -255,15 +255,16 @@ unsafe fn opus_multistream_decode_native(
                 return OPUS_INVALID_PACKET;
             }
             let mut packet_offset: c_int = 0;
+            let data_view = if data.is_null() { None } else { Some(core::slice::from_raw_parts(data, len.max(0) as usize)) };
             let ret = opus_decode_native(
-                dec,
-                data,
+                &mut *dec,
+                data_view,
                 len,
-                buf.as_mut_ptr(),
+                &mut buf,
                 frame_size,
                 decode_fec,
                 if s != (*st).layout.nb_streams - 1 { 1 } else { 0 },
-                &mut packet_offset,
+                Some(&mut packet_offset),
             );
             data = data.offset(packet_offset as isize);
             len -= packet_offset;
