@@ -140,6 +140,8 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
     let el = mult16_16(mid2, mid2) + side - (2 as OpusVal32) * xp;
     let er = mult16_16(mid2, mid2) + side + (2 as OpusVal32) * xp;
     if er < qconst32(6e-4, 28) || el < qconst32(6e-4, 28) {
+        // x and y are one band's two channels, equal length by construction
+        // (the loop above already indexes both), so this cannot length-mismatch.
         y.copy_from_slice(x);
         return;
     }
