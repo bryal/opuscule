@@ -449,19 +449,19 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             for i in 0..LPC_ORDER as usize {
                 mem[i] = round16(chans[cu][OM + MAX_PERIOD as usize - 1 - i], SIG_SHIFT);
             }
-            for i in 0..(len + mode.overlap) as usize {
-                e[i] = mult16_32_q15(fade, e[i]);
+            let e_len = (len + mode.overlap) as usize;
+            for x in &mut e[..e_len] {
+                *x = mult16_32_q15(fade, *x);
             }
             {
                 let lpc_off = (c * LPC_ORDER) as usize;
-                let e_len = (len + mode.overlap) as usize;
                 celt_iir(&mut e[..e_len], &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], LPC_ORDER, &mut mem);
             }
 
             {
                 let mut s2: OpusVal32 = 0 as OpusVal32;
-                for i in 0..(len + overlap) as usize {
-                    let tmp: OpusVal16 = round16(e[i], SIG_SHIFT);
+                for &x in &e[..e_len] {
+                    let tmp: OpusVal16 = round16(x, SIG_SHIFT);
                     s2 += shr32(mult16_16(tmp, tmp), 8);
                 }
                 // This checks for an "explosion" in the synthesis
@@ -471,14 +471,12 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
                 let explosion = !(s1 > 0.2 * s2);
 
                 if explosion {
-                    for i in 0..(len + overlap) as usize {
-                        e[i] = 0 as OpusVal32;
-                    }
+                    e[..e_len].fill(0 as OpusVal32);
                 } else if s1 < s2 {
                     let ratio: OpusVal16 =
                         celt_sqrt(frac_div32(shr32(s1, 1) + 1 as OpusVal32, s2 + 1 as OpusVal32)) as OpusVal16;
-                    for i in 0..(len + overlap) as usize {
-                        e[i] = mult16_32_q15(ratio, e[i]);
+                    for x in &mut e[..e_len] {
+                        *x = mult16_32_q15(ratio, *x);
                     }
                 }
             }
