@@ -494,7 +494,7 @@ pub fn quant_band(
                 }
             }
             c += 1;
-            if c >= 1 + stereo {
+            if c > stereo {
                 break;
             }
         }
@@ -1056,7 +1056,7 @@ pub fn quant_all_bands(
         }
         remaining_bits = total_bits - tell - 1;
         let b_val;
-        if i <= coded_bands - 1 {
+        if i < coded_bands {
             let curr_balance = balance / 3.min(coded_bands - i);
             b_val = 0.max(16383.min(remaining_bits + 1).min(pulses[i_u] + curr_balance));
         } else {

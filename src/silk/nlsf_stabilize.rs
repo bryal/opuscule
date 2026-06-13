@@ -22,7 +22,7 @@ pub fn silk_nlsf_stabilize(nlsf_q15: &mut [i16], n_delta_min_q15: &[i16], l: i32
         i_ = 0;
         /* Middle elements */
         let mut i = 1;
-        while i <= l - 1 {
+        while i < l {
             let diff_q15 =
                 nlsf_q15[i as usize] as i32 - (nlsf_q15[(i - 1) as usize] as i32 + n_delta_min_q15[i as usize] as i32);
             if diff_q15 < min_diff_q15 {

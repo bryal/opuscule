@@ -84,7 +84,7 @@ pub struct OpusDecoder {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
-    if channels < 1 || channels > 2 {
+    if !(1..=2).contains(&channels) {
         return 0;
     }
     std::mem::size_of::<OpusDecoder>() as c_int
@@ -601,7 +601,7 @@ pub fn opus_decode_native(
     let mut toc: u8 = 0;
     let mut size: [i16; 48] = [0i16; 48];
 
-    if decode_fec < 0 || decode_fec > 1 {
+    if !(0..=1).contains(&decode_fec) {
         return OPUS_BAD_ARG;
     }
     let data = match data {

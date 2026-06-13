@@ -128,7 +128,7 @@ pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_i
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *const CELTMode, channels: c_int) -> c_int {
     unsafe {
-        if channels < 0 || channels > 2 {
+        if !(0..=2).contains(&channels) {
             return OPUS_BAD_ARG;
         }
         if st.is_null() {
@@ -596,7 +596,7 @@ pub fn celt_decode_with_ec<'a>(
     let m: c_int = 1 << lm;
 
     let len = len;
-    if len < 0 || len > 1275 {
+    if !(0..=1275).contains(&len) {
         return OPUS_BAD_ARG;
     }
 
@@ -1088,7 +1088,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
     let budget = dec.storage as u32 * 8;
     let mut tell = ec_tell(dec) as u32;
     let mut logp: u32 = if is_transient != 0 { 2 } else { 4 };
-    let tf_select_rsv = (lm > 0 && tell + logp + 1 <= budget) as c_int;
+    let tf_select_rsv = (lm > 0 && tell + logp < budget) as c_int;
     let budget = budget - tf_select_rsv as u32;
     let mut tf_changed = 0;
     let mut curr = 0;
@@ -1372,7 +1372,7 @@ pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: 
                 (*st).end = value;
             }
             CeltDecCtl::SetChannels(value) => {
-                if value < 1 || value > 2 {
+                if !(1..=2).contains(&value) {
                     return OPUS_BAD_ARG;
                 }
                 (*st).stream_channels = value;
@@ -1445,7 +1445,7 @@ static UNKNOWN_ERROR: &[u8] = b"unknown error\0";
 
 #[unsafe(no_mangle)]
 pub extern "C" fn opus_strerror(error: c_int) -> *const std::os::raw::c_char {
-    if error > 0 || error < -7 {
+    if !(-7..=0).contains(&error) {
         UNKNOWN_ERROR.as_ptr() as *const std::os::raw::c_char
     } else {
         ERROR_STRINGS[(-error) as usize].as_ptr() as *const std::os::raw::c_char
