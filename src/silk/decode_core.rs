@@ -230,6 +230,8 @@ pub fn silk_decode_core(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut SilkDec
         }
 
         /* Update LPC filter state */
+        // In bounds: subfr_length <= MAX_SUB_FRAME_LENGTH, so subfr_length + MAX_LPC_ORDER
+        // <= s_lpc_q14.len() (MAX_SUB_FRAME_LENGTH + MAX_LPC_ORDER).
         s_lpc_q14.copy_within(ps_dec.subfr_length as usize..ps_dec.subfr_length as usize + MAX_LPC_ORDER, 0);
         pexc_off += ps_dec.subfr_length;
         pxq_off += ps_dec.subfr_length;

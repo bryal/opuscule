@@ -78,6 +78,8 @@ pub fn silk_cng(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &SilkDecoderControl,
         /* Update CNG excitation buffer with excitation from this subframe */
         let subfr_len = ps_dec.subfr_length as usize;
         let nb = ps_dec.nb_subfr as usize;
+        // In bounds: dest end subfr_len + (nb - 1)*subfr_len == nb*subfr_len == frame_length
+        // <= MAX_FRAME_LENGTH == cng_exc_buf_q14.len().
         ps_dec.s_cng.cng_exc_buf_q14.copy_within(0..(nb - 1) * subfr_len, subfr_len);
         ps_dec.s_cng.cng_exc_buf_q14[..subfr_len].copy_from_slice(&ps_dec.exc_q14[subfr * subfr_len..(subfr + 1) * subfr_len]);
 

@@ -165,6 +165,8 @@ pub fn silk_resampler_private_down_fir(s: &mut SilkResamplerStateStruct, out: &m
 
         if in_len > 1 {
             /* More iterations to do; copy last part of filtered signal to beginning of buffer */
+            // In bounds: n_samples_in <= batch_size <= RESAMPLER_MAX_BATCH_SIZE_IN and
+            // fir_order <= SILK_RESAMPLER_MAX_FIR_ORDER, so the source end fits buf.
             buf.copy_within(n_samples_in as usize..n_samples_in as usize + fir_order, 0);
         } else {
             break;

@@ -500,6 +500,8 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
 
             // Move the decoded audio back by N samples
             let mv_len = (MAX_PERIOD + mode.overlap - n) as usize;
+            // In bounds: src end OM + n + mv_len == OM + MAX_PERIOD + overlap == ch_size
+            // (the channel length), so the copy stays within chans[cu].
             chans[cu].copy_within(OM + n as usize..OM + n as usize + mv_len, OM);
 
             // Apply TDAC to the concealed audio so that it blends with the
@@ -847,6 +849,7 @@ pub fn celt_decode_with_ec<'a>(
     // OPUS_MOVE: memmove decode_mem forward by N
     for ci in 0..cc as usize {
         let base = ci * ch_size;
+        // In bounds: base + DECODE_BUFFER_SIZE < base + ch_size <= cc*ch_size <= decode_mem.len().
         st.decode_mem.copy_within(base + n as usize..base + DECODE_BUFFER_SIZE as usize, base);
     }
 

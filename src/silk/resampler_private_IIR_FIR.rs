@@ -88,6 +88,10 @@ pub fn silk_resampler_private_iir_fir(s: &mut SilkResamplerStateStruct, out: &mu
         if in_len > 0 {
             /* More iterations to do; copy last part of filtered signal to beginning of buffer */
             let tail = (n_samples_in << 1) as usize;
+            // In bounds: this upsampler runs on SILK-internal input (fs_in_khz <= 16), so
+            // n_samples_in <= batch_size = fs_in_khz*10 <= 160; the saved tail
+            // 2*n_samples_in .. +2*RESAMPLER_ORDER_FIR_12 stays well within buf
+            // (RESAMPLER_MAX_BATCH_SIZE_IN + RESAMPLER_ORDER_FIR_12).
             buf.copy_within(tail..tail + 2 * RESAMPLER_ORDER_FIR_12, 0);
         } else {
             break;

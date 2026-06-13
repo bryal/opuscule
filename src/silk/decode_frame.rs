@@ -83,6 +83,8 @@ pub fn silk_decode_frame(
     /* Update output buffer. */
     let mv_len = (ps_dec.ltp_mem_length - ps_dec.frame_length) as usize;
     let frame_length = ps_dec.frame_length as usize;
+    // In bounds: src end frame_length + mv_len == ltp_mem_length, which silk_decoder_set_fs
+    // keeps within out_buf (MAX_FRAME_LENGTH + 2*MAX_SUB_FRAME_LENGTH).
     ps_dec.out_buf.copy_within(frame_length..frame_length + mv_len, 0);
     ps_dec.out_buf[mv_len..mv_len + frame_length].copy_from_slice(&p_out[..frame_length]);
 

@@ -71,6 +71,8 @@ pub fn silk_resampler_down2_3(s: &mut [i32], out: &mut [i16], in_: &[i16], mut i
 
         if in_len > 0 {
             /* More iterations to do; copy last part of filtered signal to beginning of buffer */
+            // In bounds: n_samples_in <= RESAMPLER_MAX_BATCH_SIZE_IN, so the source end
+            // n_samples_in + ORDER_FIR <= buf.len().
             buf.copy_within(n_samples_in as usize..n_samples_in as usize + ORDER_FIR, 0);
         } else {
             break;
