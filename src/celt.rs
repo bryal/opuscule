@@ -889,11 +889,14 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
 
-    // Compute inverse MDCTs. decode_mem is exactly two channel regions of
-    // ch_size, so split_at_mut hands out channel 0 / channel 1 directly.
+    // Compute inverse MDCTs, one channel region per channel.
     {
         let ch_len = (n + st.overlap) as usize;
-        let (c0, c1) = st.decode_mem.split_at_mut(ch_size);
+        // decode_mem is MAX_CHANNELS regions of ch_size (DECODE_BUFFER_SIZE +
+        // overlap) each, so the split at ch_size always lands on the channel-1
+        // boundary; the checked split documents that and reports if it ever
+        // doesn't, rather than panicking bare like split_at_mut would.
+        let (c0, c1) = st.decode_mem.split_at_mut_checked(ch_size).expect("decode_mem holds MAX_CHANNELS regions of ch_size");
         if cc == 2 {
             compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len], &mut c1[os..os + ch_len]], cc, lm);
         } else {
