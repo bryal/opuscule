@@ -836,10 +836,9 @@ pub fn celt_decode_with_ec<'a>(
     log2amp(mode, st.start, st.end, &mut band_e, &st.old_band_e, c_channels);
 
     if silence != 0 {
-        for ii in 0..(c_channels * mode.nb_ebands) as usize {
-            band_e[ii] = 0 as CeltEner;
-            st.old_band_e[ii] = -qconst16(28.0, DB_SHIFT);
-        }
+        let n_bands = (c_channels * mode.nb_ebands) as usize;
+        band_e.fill(0 as CeltEner);
+        st.old_band_e[..n_bands].fill(-qconst16(28.0, DB_SHIFT));
     }
     // Synthesis
     denormalise_bands(mode, &x, &mut freq, &band_e, eff_end, c_channels, m);
@@ -1116,9 +1115,9 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
 
 /// Initialise the per-band bit allocation caps from the mode's cache.
 pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
-    for i in 0..m.nb_ebands as usize {
+    for (i, capi) in cap.iter_mut().enumerate() {
         let n = ((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm;
-        cap[i] = (m.cache.caps[m.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n >> 2;
+        *capi = (m.cache.caps[m.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n >> 2;
     }
 }
 

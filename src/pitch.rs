@@ -317,6 +317,8 @@ pub fn pitch_downsample(
     }
 
     // Lag windowing: ac[i] -= ac[i] * (0.008*i)^2
+    // i is the lag number, used in the window weight, not just an index.
+    #[allow(clippy::needless_range_loop)]
     for i in 1..=4 {
         #[cfg(not(feature = "fixed-point"))]
         {
