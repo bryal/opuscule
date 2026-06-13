@@ -92,16 +92,17 @@ pub fn _celt_lpc(_lpc: &mut [OpusVal16], ac: &[OpusVal32], p: c_int) {
 pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], n: c_int, ord: c_int, mem: &mut [OpusVal16]) {
     let n = n as usize;
     let ord = ord as usize;
-    for i in 0..n {
-        let mut sum: OpusVal32 = shl32(extend32(x[i]), SIG_SHIFT);
+    for xi in x.iter_mut().take(n) {
+        let input = *xi;
+        let mut sum: OpusVal32 = shl32(extend32(input), SIG_SHIFT);
         for j in 0..ord {
             sum = sum + mult16_16(num[j], mem[j]);
         }
         for j in (1..ord).rev() {
             mem[j] = mem[j - 1];
         }
-        mem[0] = x[i];
-        x[i] = round16(sum, SIG_SHIFT);
+        mem[0] = input;
+        *xi = round16(sum, SIG_SHIFT);
     }
 }
 
@@ -116,8 +117,8 @@ pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], n: c_int, ord: c_int, me
 pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], n: c_int, ord: c_int, mem: &mut [OpusVal16]) {
     let n = n as usize;
     let ord = ord as usize;
-    for i in 0..n {
-        let mut sum: OpusVal32 = x[i];
+    for xi in x.iter_mut().take(n) {
+        let mut sum: OpusVal32 = *xi;
         for j in 0..ord {
             sum = sum - mult16_16(den[j], mem[j]);
         }
@@ -125,7 +126,7 @@ pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], n: c_int, ord: c_int, me
             mem[j] = mem[j - 1];
         }
         mem[0] = round16(sum, SIG_SHIFT);
-        x[i] = sum;
+        *xi = sum;
     }
 }
 
