@@ -251,11 +251,11 @@ fn cwrsi4(k: i32, i: u32, y: &mut [c_int]) {
 
 /// General N-element decode: given index i and row U(n, 0..=k+1),
 /// recover the pulse vector y[0..n].
-fn cwrsi(n: usize, k: i32, i: u32, y: &mut [c_int], u: &mut [u32]) {
-    debug_assert!(n > 0);
+fn cwrsi(k: i32, i: u32, y: &mut [c_int], u: &mut [u32]) {
+    debug_assert!(!y.is_empty());
     let mut i = i;
     let mut k = k;
-    for slot in y.iter_mut().take(n as usize) {
+    for slot in y.iter_mut() {
         let p_hi = u[k as usize + 1];
         let s = if i >= p_hi { -1i32 } else { 0 };
         i -= p_hi & (s as u32);
@@ -305,7 +305,7 @@ pub fn decode_pulses(y: &mut [c_int], k: c_int, dec: &mut ec_dec) {
             let mut u = vec![0u32; k as usize + 2];
             let nc = ncwrs_urow(n, k as usize, &mut u);
             let i = ec_dec_uint(dec, nc);
-            cwrsi(n, k, i, y, &mut u);
+            cwrsi(k, i, y, &mut u);
         }
     }
 }

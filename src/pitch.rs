@@ -341,10 +341,10 @@ pub fn pitch_downsample(
 
     // Apply the LP filter (all-pole → FIR with these coefficients), in place
     let mut mem = [0 as OpusVal16; 4];
-    celt_fir(&mut x_lp[..half], &lpc, half as i32, 4, &mut mem);
+    celt_fir(&mut x_lp[..half], &lpc, 4, &mut mem);
 
     // Second pass: 1st-order high-pass-ish filter at 0.8 (Q12)
     mem[0] = 0 as OpusVal16;
     let lpc_hp: [OpusVal16; 1] = [qconst16(0.8, 12)];
-    celt_fir(&mut x_lp[..half], &lpc_hp, half as i32, 1, &mut mem);
+    celt_fir(&mut x_lp[..half], &lpc_hp, 1, &mut mem);
 }

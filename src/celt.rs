@@ -411,7 +411,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             }
             {
                 let lpc_off = (c * LPC_ORDER) as usize;
-                celt_fir(&mut exc, &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], MAX_PERIOD, LPC_ORDER, &mut mem);
+                celt_fir(&mut exc, &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], LPC_ORDER, &mut mem);
             }
             // Check if the waveform is decaying (and if so how fast)
             {
@@ -454,7 +454,8 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             }
             {
                 let lpc_off = (c * LPC_ORDER) as usize;
-                celt_iir(&mut e, &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], len + mode.overlap, LPC_ORDER, &mut mem);
+                let e_len = (len + mode.overlap) as usize;
+                celt_iir(&mut e[..e_len], &st.lpc[lpc_off..lpc_off + LPC_ORDER as usize], LPC_ORDER, &mut mem);
             }
 
             {

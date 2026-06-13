@@ -81,18 +81,18 @@ pub fn _celt_lpc(_lpc: &mut [OpusVal16], ac: &[OpusVal32], p: c_int) {
 
 /// FIR filter with memory, in place.
 ///
-/// Applies an `ord`-tap FIR filter to `n` input samples, writing the
+/// Applies an `ord`-tap FIR filter over the whole of `x`, writing the
 /// result back into `x`. `mem` holds `ord` state samples, updated
 /// in-place (shift register).
 ///
-/// The C version takes separate input/output pointers, but every caller
-/// passes the same buffer for both; each iteration reads `x[i]` before
-/// writing it and the history comes from `mem`, so in-place is exactly
+/// The C version takes separate input/output pointers plus a length, but
+/// every caller passes the same buffer for both and the length is just
+/// its length; each iteration reads its sample before writing it and the
+/// history comes from `mem`, so in-place over the slice is exactly
 /// equivalent and the Rust version makes the aliasing explicit.
-pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], n: c_int, ord: c_int, mem: &mut [OpusVal16]) {
-    let n = n as usize;
+pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], ord: c_int, mem: &mut [OpusVal16]) {
     let ord = ord as usize;
-    for xi in x.iter_mut().take(n) {
+    for xi in x.iter_mut() {
         let input = *xi;
         let mut sum: OpusVal32 = shl32(extend32(input), SIG_SHIFT);
         for j in 0..ord {
@@ -108,16 +108,16 @@ pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], n: c_int, ord: c_int, me
 
 /// IIR filter with memory, in place.
 ///
-/// Applies an `ord`-tap IIR filter to `n` input samples, writing the
+/// Applies an `ord`-tap IIR filter over the whole of `x`, writing the
 /// result back into `x`. `mem` holds `ord` state samples, updated
 /// in-place (shift register). Used in the PLC path to resynthesize audio
-/// from LPC coefficients.
+/// from LPC coefficients. Callers that work on a prefix of a larger
+/// buffer slice it at the call.
 ///
 /// In-place for the same reason as [`celt_fir`].
-pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], n: c_int, ord: c_int, mem: &mut [OpusVal16]) {
-    let n = n as usize;
+pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], ord: c_int, mem: &mut [OpusVal16]) {
     let ord = ord as usize;
-    for xi in x.iter_mut().take(n) {
+    for xi in x.iter_mut() {
         let mut sum: OpusVal32 = *xi;
         for j in 0..ord {
             sum = sum - mult16_16(den[j], mem[j]);
@@ -202,7 +202,7 @@ mod tests {
         let num: [OpusVal16; 1] = [1.0];
         let mut mem: [OpusVal16; 1] = [0.0];
 
-        celt_fir(&mut x, &num, 4, 1, &mut mem);
+        celt_fir(&mut x, &num, 1, &mut mem);
         // FIR output is: x[i] = x[i] + num[0]*mem[0], where mem shifts
         // x[0] = 1.0 + 1.0*0.0 = 1.0  (mem was 0)
         // x[1] = 2.0 + 1.0*1.0 = 3.0  (mem = old x[0] = 1.0)
@@ -219,7 +219,7 @@ mod tests {
         let den: [OpusVal16; 1] = [0.0];
         let mut mem: [OpusVal16; 1] = [0.0];
 
-        celt_iir(&mut x, &den, 4, 1, &mut mem);
+        celt_iir(&mut x, &den, 1, &mut mem);
         assert_eq!(x, [1.0, 1.0, 1.0, 1.0]);
     }
 
@@ -283,7 +283,7 @@ mod tests {
         let num: [OpusVal16; 1] = [0];
         let mut mem: [OpusVal16; 1] = [0];
 
-        celt_fir(&mut x, &num, 4, 1, &mut mem);
+        celt_fir(&mut x, &num, 1, &mut mem);
         assert_eq!(x, [10, 20, 30, 40]);
     }
 
@@ -295,7 +295,7 @@ mod tests {
         let den: [OpusVal16; 1] = [0];
         let mut mem: [OpusVal16; 1] = [0];
 
-        celt_iir(&mut x, &den, 4, 1, &mut mem);
+        celt_iir(&mut x, &den, 1, &mut mem);
         assert_eq!(x, [1000, 2000, 3000, 4000]);
     }
 
