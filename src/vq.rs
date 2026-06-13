@@ -163,8 +163,8 @@ pub fn alg_unquant(x: &mut [CeltNorm], n: c_int, k: c_int, spread: c_int, b: c_i
 
     // Compute sum of squares: Ryy = sum(iy[i]^2)
     let mut ryy: OpusVal32 = 0 as OpusVal32;
-    for i in 0..n {
-        ryy = mac16_16(ryy, iy[i] as OpusVal16, iy[i] as OpusVal16);
+    for &v in &iy {
+        ryy = mac16_16(ryy, v as OpusVal16, v as OpusVal16);
     }
 
     normalise_residual(&iy, &mut x[..n], n, ryy, gain);

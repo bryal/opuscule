@@ -9,12 +9,12 @@ use super::macros::{silk_rshift_round, silk_smulww};
 
 /// `silk_bwexpander_32` — bandwidth-expand an AR filter (32-bit coefficients).
 pub fn silk_bwexpander_32(ar: &mut [i32], mut chirp_q16: i32) {
-    let chirp_minus_one_q16 = chirp_q16 - 65536;
-    let d = ar.len();
-
-    for i in 0..d - 1 {
-        ar[i] = silk_smulww(chirp_q16, ar[i]);
-        chirp_q16 += silk_rshift_round(chirp_q16 * chirp_minus_one_q16, 16);
+    let chirp_minus_one_q16 = chirp_q16 - (1i32 << 16);
+    if let Some((last, init)) = ar.split_last_mut() {
+        for coeff in init {
+            *coeff = silk_smulww(chirp_q16, *coeff);
+            chirp_q16 += silk_rshift_round(chirp_q16 * chirp_minus_one_q16, 16);
+        }
+        *last = silk_smulww(chirp_q16, *last);
     }
-    ar[d - 1] = silk_smulww(chirp_q16, ar[d - 1]);
 }

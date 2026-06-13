@@ -251,9 +251,7 @@ pub fn silk_decode(
                 decode_only_middle = 0;
             }
         } else {
-            for n in 0..2 {
-                ms_pred_q13[n] = ps_dec.s_stereo.pred_prev_q13[n] as i32;
-            }
+            ms_pred_q13 = ps_dec.s_stereo.pred_prev_q13.map(i32::from);
         }
     }
 
@@ -278,6 +276,9 @@ pub fn silk_decode(
     };
 
     /* Call decoder for one frame */
+    // n is used arithmetically (frame_index, n == 0, channel_state[n]) over the
+    // channel count, not as a pure index, so an iterator wouldn't fit here.
+    #[allow(clippy::needless_range_loop)]
     for n in 0..dec_control.n_channels_internal as usize {
         if n == 0 || has_side != 0 {
             let frame_index = ps_dec.channel_state[0].n_frames_decoded - n as i32;

@@ -32,8 +32,8 @@ fn find_best_pitch(xcorr: &[OpusVal32], y: &[OpusVal16], len: i32, max_pitch: i3
     best_pitch[1] = 1;
 
     // Initial energy of y[0..len]
-    for j in 0..len as usize {
-        syy = mac16_16(syy, y[j], y[j]);
+    for &sample in &y[..len as usize] {
+        syy = mac16_16(syy, sample, sample);
     }
 
     for i in 0..max_pitch as usize {
@@ -82,8 +82,8 @@ fn find_best_pitch(
     let xshift = celt_ilog2(maxcorr) as i32 - 14;
 
     // Initial energy of y[0..len]
-    for j in 0..len as usize {
-        syy = mac16_16(syy, y[j], y[j]);
+    for &sample in &y[..len as usize] {
+        syy = mac16_16(syy, sample, sample);
     }
 
     for i in 0..max_pitch as usize {
