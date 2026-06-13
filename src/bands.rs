@@ -261,8 +261,7 @@ const QTHETA_OFFSET_TWOPHASE: c_int = 16;
 fn bitexact_cos(x: i16) -> i16 {
     let tmp = (4096 + (x as i32) * (x as i32)) >> 13;
     let x2 = tmp as i16;
-    let x2 =
-        (32767 - x2 as i32 + frac_mul16(x2, -7651 + frac_mul16(x2, 8277 + frac_mul16(-626, x2) as i16) as i16) as i32) as i16;
+    let x2 = (32767 - x2 as i32 + frac_mul16(x2, -7651 + frac_mul16(x2, 8277 + frac_mul16(-626, x2) as i16) as i16)) as i16;
     1 + x2
 }
 

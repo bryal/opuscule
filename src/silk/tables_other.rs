@@ -41,7 +41,7 @@ pub static SILK_LBRR_FLAGS_2_ICDF: [u8; 3] = [203, 150, 0];
 pub static SILK_LBRR_FLAGS_3_ICDF: [u8; 7] = [215, 195, 166, 125, 110, 82, 0];
 
 /// `silk_LBRR_flags_iCDF_ptr`
-pub static SILK_LBRR_FLAGS_ICDF_PTR: [&'static [u8]; 2] = [&SILK_LBRR_FLAGS_2_ICDF, &SILK_LBRR_FLAGS_3_ICDF];
+pub static SILK_LBRR_FLAGS_ICDF_PTR: [&[u8]; 2] = [&SILK_LBRR_FLAGS_2_ICDF, &SILK_LBRR_FLAGS_3_ICDF];
 
 /// `silk_lsb_iCDF`
 pub static SILK_LSB_ICDF: [u8; 2] = [120, 0];

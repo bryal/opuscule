@@ -595,7 +595,6 @@ pub fn celt_decode_with_ec<'a>(
     }
     let m: c_int = 1 << lm;
 
-    let len = len;
     if !(0..=1275).contains(&len) {
         return OPUS_BAD_ARG;
     }
@@ -744,7 +743,7 @@ pub fn celt_decode_with_ec<'a>(
     let mut fine_quant = vec![0i32; mode.nb_ebands as usize];
     let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
 
-    let mut bits: i32 = ((len as i32 * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
+    let mut bits: i32 = ((len * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
     let anti_collapse_rsv: c_int = if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) { 1 << BITRES } else { 0 };
     bits -= anti_collapse_rsv;
     let mut intensity: c_int = 0;
@@ -1085,7 +1084,7 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
 pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut ec_ctx) {
-    let budget = dec.storage as u32 * 8;
+    let budget = dec.storage * 8;
     let mut tell = ec_tell(dec) as u32;
     let mut logp: u32 = if is_transient != 0 { 2 } else { 4 };
     let tf_select_rsv = (lm > 0 && tell + logp < budget) as c_int;

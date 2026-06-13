@@ -23,20 +23,20 @@ pub fn silk_sigm_q15(in_q5: i32) -> i32 {
         /* Negative input */
         let in_q5 = -in_q5;
         if in_q5 >= 6 * 32 {
-            return 0; /* Clip */
+            0 /* Clip */
         } else {
             /* Linear interpolation of look up table */
             let ind = (in_q5 >> 5) as usize;
-            return SIGM_LUT_NEG_Q15[ind] - silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F);
+            SIGM_LUT_NEG_Q15[ind] - silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F)
         }
     } else {
         /* Positive input */
         if in_q5 >= 6 * 32 {
-            return 32767; /* clip */
+            32767 /* clip */
         } else {
             /* Linear interpolation of look up table */
             let ind = (in_q5 >> 5) as usize;
-            return SIGM_LUT_POS_Q15[ind] + silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F);
+            SIGM_LUT_POS_Q15[ind] + silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F)
         }
     }
 }
