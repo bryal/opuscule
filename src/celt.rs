@@ -631,17 +631,17 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
 
-    if data.is_none() || len <= 1 {
+    let Some(data) = data.filter(|_| len > 1) else {
         let pcm_len = (n / st.downsample * cc) as usize;
         celt_decode_lost(st, &mut pcm[..pcm_len], n, lm);
         return frame_size / st.downsample;
-    }
+    };
 
     let mut _dec = ec_ctx::empty();
     let dec: &mut ec_ctx = match dec {
         Some(d) => d,
         None => {
-            ec_dec_init(&mut _dec, &data.unwrap()[..len as usize], len as u32);
+            ec_dec_init(&mut _dec, &data[..len as usize], len as u32);
             &mut _dec
         }
     };
@@ -889,13 +889,12 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
 
-    // Compute inverse MDCTs
+    // Compute inverse MDCTs. decode_mem is exactly two channel regions of
+    // ch_size, so split_at_mut hands out channel 0 / channel 1 directly.
     {
         let ch_len = (n + st.overlap) as usize;
-        let mut it = st.decode_mem.chunks_mut(ch_size);
-        let c0 = it.next().unwrap();
+        let (c0, c1) = st.decode_mem.split_at_mut(ch_size);
         if cc == 2 {
-            let c1 = it.next().unwrap();
             compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len], &mut c1[os..os + ch_len]], cc, lm);
         } else {
             compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len]], cc, lm);

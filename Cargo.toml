@@ -13,9 +13,18 @@ name = "opus_demo"
 fixed-point = []
 
 [lints.clippy]
+# Exceptions: lints we find tend to make this codebase worse, not better.
 len_zero = "allow"
+len_without_is_empty = "allow"
 too-many-arguments = "allow"
-ptr-arg = "allow"
+bool_assert_comparison = "allow"
+assign_op_pattern = "allow"
+unit_arg = "allow"
+
+# Promoted to errors: a bare panic-on-failure or unchecked index hides *why*
+# it can't fail and gives no context if it ever does.
+undocumented_unsafe_blocks = "deny"
+indexing_slicing = "deny"
 unwrap_used = "deny"
 
 [dependencies]

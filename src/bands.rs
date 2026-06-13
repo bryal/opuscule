@@ -486,7 +486,8 @@ pub fn quant_band(
                 if c == 0 {
                     x_s[0] = val;
                 } else {
-                    y_s.as_mut().unwrap()[0] = val;
+                    // c reaches 1 only when 1 + stereo > 1, i.e. stereo, i.e. y_s is Some.
+                    y_s.as_mut().expect("stereo path implies y_s is Some")[0] = val;
                 }
             }
             c += 1;
@@ -508,8 +509,8 @@ pub fn quant_band(
         if lowband.is_some() && (recombine != 0 || ((n_b & 1) == 0 && tf_change < 0) || b0 > 1) {
             // Copy the fold source somewhere we can transform it in place;
             // the scratch then *becomes* the lowband for the rest of the band.
-            let lb = lowband.take().unwrap();
-            let scratch = lowband_scratch.take().unwrap();
+            let lb = lowband.take().expect("guarded by lowband.is_some() in the condition");
+            let scratch = lowband_scratch.take().expect("quant_all_bands always supplies scratch at level 0");
             scratch[..n as usize].copy_from_slice(&lb[..n as usize]);
             lowband = Some(scratch);
         }
@@ -673,7 +674,7 @@ pub fn quant_band(
             }
             sign = 1 - 2 * sign;
             {
-                let y_sl = y_s.as_deref_mut().unwrap();
+                let y_sl = y_s.as_deref_mut().expect("stereo path implies y_s is Some");
                 let (x2, y2): (&mut [CeltNorm], &mut [CeltNorm]) =
                     if c_side != 0 { (y_sl, &mut x_s[..]) } else { (&mut x_s[..], y_sl) };
                 cm = quant_band(
@@ -703,7 +704,7 @@ pub fn quant_band(
                 y2[1] = (sign as CeltNorm) * x2[0];
             }
             if resynth {
-                let y_sl = y_s.as_deref_mut().unwrap();
+                let y_sl = y_s.as_deref_mut().expect("stereo path implies y_s is Some");
                 x_s[0] = mult16_16_q15(mid, x_s[0]) as CeltNorm;
                 x_s[1] = mult16_16_q15(mid, x_s[1]) as CeltNorm;
                 y_sl[0] = mult16_16_q15(side, y_sl[0]) as CeltNorm;
@@ -757,8 +758,11 @@ pub fn quant_band(
                 // The two recursion targets: true stereo channels, or the
                 // two halves of this band (temporary reborrow so the full
                 // band is available again for the resynthesis below).
-                let (x_part, y_part): (&mut [CeltNorm], &mut [CeltNorm]) =
-                    if stereo != 0 { (&mut x_s[..], y_s.as_deref_mut().unwrap()) } else { x_s.split_at_mut(n as usize) };
+                let (x_part, y_part): (&mut [CeltNorm], &mut [CeltNorm]) = if stereo != 0 {
+                    (&mut x_s[..], y_s.as_deref_mut().expect("stereo path implies y_s is Some"))
+                } else {
+                    x_s.split_at_mut(n as usize)
+                };
 
                 let mut rebalance = *remaining_bits;
                 if mbits >= sbits {
@@ -925,11 +929,11 @@ pub fn quant_band(
     if resynth {
         if stereo != 0 {
             if n != 2 {
-                let y_sl = y_s.as_deref_mut().unwrap();
+                let y_sl = y_s.as_deref_mut().expect("stereo path implies y_s is Some");
                 stereo_merge(&mut x_s[..n as usize], &mut y_sl[..n as usize], mid);
             }
             if inv != 0 {
-                let y_sl = y_s.as_deref_mut().unwrap();
+                let y_sl = y_s.as_deref_mut().expect("stereo path implies y_s is Some");
                 for yj in y_sl[..n as usize].iter_mut() {
                     *yj = -*yj;
                 }
@@ -1159,7 +1163,10 @@ pub fn quant_all_bands(
                     let (nlo, nhi) = norm2.split_at_mut(eb_i);
                     (&mut nlo[..n as usize], &mut nhi[..n as usize])
                 } else {
-                    (&mut y_.as_deref_mut().unwrap()[eb_i..eb_i + n as usize], &mut norm2[eb_i..eb_i + n as usize])
+                    (
+                        &mut y_.as_deref_mut().expect("dual_stereo implies stereo: y_ is Some")[eb_i..eb_i + n as usize],
+                        &mut norm2[eb_i..eb_i + n as usize],
+                    )
                 };
                 quant_band(
                     encode,

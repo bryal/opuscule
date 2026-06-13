@@ -36,7 +36,11 @@ pub fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut S
     /****************/
     /* Decode NLSFs */
     /****************/
-    silk_nlsf_decode(&mut p_nlsf_q15, &ps_dec.indices.nlsf_indices, ps_dec.ps_nlsf_cb.unwrap());
+    silk_nlsf_decode(
+        &mut p_nlsf_q15,
+        &ps_dec.indices.nlsf_indices,
+        ps_dec.ps_nlsf_cb.expect("NLSF codebook is set by silk_decoder_set_fs before decoding"),
+    );
 
     /* Convert NLSF parameters to AR prediction filter coefficients */
     silk_nlsf2a(&mut ps_dec_ctrl.pred_coef_q12[1], &p_nlsf_q15, ps_dec.lpc_order);
