@@ -1211,8 +1211,7 @@ pub fn deemphasis(
         let x = in_[c as usize];
         let mut y = c as usize; // interleaved index into pcm
         let mut m = mem[c as usize];
-        for j in 0..n as usize {
-            let xj = x[j];
+        for &xj in &x[..n as usize] {
             let tmp = xj + m;
             m = mult16_32_q15(coef[0], tmp) - mult16_32_q15(coef[1], xj);
             let tmp = shl32(mult16_32_q15(coef[3], tmp), 2);

@@ -334,9 +334,9 @@ pub fn pitch_downsample(
 
     // Exponential decay of LPC coefficients: lpc[i] *= 0.9^(i+1)
     let mut tmp: OpusVal16 = Q15ONE;
-    for i in 0..4 {
+    for coef in &mut lpc {
         tmp = mult16_16_q15(qconst16(0.9, 15), tmp) as OpusVal16;
-        lpc[i] = mult16_16_q15(lpc[i], tmp) as OpusVal16;
+        *coef = mult16_16_q15(*coef, tmp) as OpusVal16;
     }
 
     // Apply the LP filter (all-pole → FIR with these coefficients), in place

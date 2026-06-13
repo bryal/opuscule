@@ -898,16 +898,14 @@ pub fn quant_band(
                 let cm_mask: u32 = (1u32 << b_blocks as u32) - 1;
                 fill &= cm_mask as c_int;
                 if fill == 0 {
-                    for j in 0..n as usize {
-                        x_s[j] = 0 as CeltNorm;
-                    }
+                    x_s[..n as usize].fill(0 as CeltNorm);
                 } else {
                     match lowband.as_ref() {
                         None => {
                             // Noise
-                            for j in 0..n as usize {
+                            for slot in &mut x_s[..n as usize] {
                                 *seed = celt_lcg_rand(*seed);
-                                x_s[j] = ((*seed as i32) >> 20) as CeltNorm;
+                                *slot = ((*seed as i32) >> 20) as CeltNorm;
                             }
                             cm = cm_mask;
                         }
