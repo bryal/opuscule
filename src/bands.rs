@@ -5,6 +5,7 @@
 //
 // Functions are translated incrementally, innermost helpers first.
 
+use std::f32::consts::FRAC_1_SQRT_2;
 use std::os::raw::c_int;
 
 use crate::arch::{CeltEner, CeltNorm, CeltSig, EPSILON, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE, qconst16, qconst32};
@@ -84,8 +85,8 @@ pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
         for j in 0..n0 {
             let idx0 = (stride * 2 * j + i) as usize;
             let idx1 = (stride * (2 * j + 1) + i) as usize;
-            let tmp1 = mult16_16_q15(qconst16(0.70710678, 15), x[idx0]) as CeltNorm;
-            let tmp2 = mult16_16_q15(qconst16(0.70710678, 15), x[idx1]) as CeltNorm;
+            let tmp1 = mult16_16_q15(qconst16(FRAC_1_SQRT_2, 15), x[idx0]) as CeltNorm;
+            let tmp2 = mult16_16_q15(qconst16(FRAC_1_SQRT_2, 15), x[idx1]) as CeltNorm;
             x[idx0] = tmp1 + tmp2;
             x[idx1] = tmp1 - tmp2;
         }
