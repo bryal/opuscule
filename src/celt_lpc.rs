@@ -92,7 +92,7 @@ pub fn _celt_lpc(_lpc: &mut [OpusVal16], ac: &[OpusVal32], p: c_int) {
 /// equivalent and the Rust version makes the aliasing explicit.
 pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], ord: c_int, mem: &mut [OpusVal16]) {
     let ord = ord as usize;
-    for xi in x.iter_mut() {
+    for xi in x {
         let input = *xi;
         let mut sum: OpusVal32 = shl32(extend32(input), SIG_SHIFT);
         for j in 0..ord {
@@ -117,7 +117,7 @@ pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], ord: c_int, mem: &mut [O
 /// In-place for the same reason as [`celt_fir`].
 pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], ord: c_int, mem: &mut [OpusVal16]) {
     let ord = ord as usize;
-    for xi in x.iter_mut() {
+    for xi in x {
         let mut sum: OpusVal32 = *xi;
         for j in 0..ord {
             sum = sum - mult16_16(den[j], mem[j]);

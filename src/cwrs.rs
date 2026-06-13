@@ -255,7 +255,7 @@ fn cwrsi(k: i32, i: u32, y: &mut [c_int], u: &mut [u32]) {
     debug_assert!(!y.is_empty());
     let mut i = i;
     let mut k = k;
-    for slot in y.iter_mut() {
+    for slot in y {
         let p_hi = u[k as usize + 1];
         let s = if i >= p_hi { -1i32 } else { 0 };
         i -= p_hi & (s as u32);

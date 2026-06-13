@@ -24,7 +24,7 @@ pub fn silk_stereo_decode_pred(ps_range_dec: &mut ec_dec, pred_q13: &mut [i32; 2
     let n = ec_dec_icdf(ps_range_dec, &SILK_STEREO_PRED_JOINT_ICDF, 8);
     ix[0][2] = n / 5;
     ix[1][2] = n - 5 * ix[0][2];
-    for row in ix.iter_mut() {
+    for row in &mut ix {
         row[0] = ec_dec_icdf(ps_range_dec, &SILK_UNIFORM3_ICDF, 8);
         row[1] = ec_dec_icdf(ps_range_dec, &SILK_UNIFORM5_ICDF, 8);
     }
