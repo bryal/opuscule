@@ -738,7 +738,8 @@ pub fn quant_band(
             let mut next_lowband2: Option<&mut [CeltNorm]> = None;
             if let Some(lb) = lowband.take() {
                 if stereo == 0 {
-                    let (a, b2) = lb.split_at_mut(n as usize);
+                    let (a, b2) =
+                        lb.split_at_mut_checked(n as usize).expect("lowband spans the full band; n is its post-split half");
                     lowband1 = Some(a);
                     next_lowband2 = Some(b2);
                 } else {
@@ -762,7 +763,7 @@ pub fn quant_band(
                 let (x_part, y_part): (&mut [CeltNorm], &mut [CeltNorm]) = if stereo != 0 {
                     (&mut x_s[..], y_s.as_deref_mut().expect("stereo path implies y_s is Some"))
                 } else {
-                    x_s.split_at_mut(n as usize)
+                    x_s.split_at_mut_checked(n as usize).expect("x_s spans the full band; n is its post-split half")
                 };
 
                 let mut rebalance = *remaining_bits;
@@ -1124,7 +1125,9 @@ pub fn quant_all_bands(
             };
             x_cm = {
                 let (x_band, lb_out) = if above_eff {
-                    let (nlo, nhi) = norm.split_at_mut(eb_i);
+                    let (nlo, nhi) = norm
+                        .split_at_mut_checked(eb_i)
+                        .expect("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
                     (&mut nlo[..n as usize], &mut nhi[..n as usize])
                 } else {
                     (&mut x_[eb_i..eb_i + n as usize], &mut norm[eb_i..eb_i + n as usize])
@@ -1161,7 +1164,9 @@ pub fn quant_all_bands(
             };
             y_cm = {
                 let (y_band, lb_out) = if above_eff {
-                    let (nlo, nhi) = norm2.split_at_mut(eb_i);
+                    let (nlo, nhi) = norm2
+                        .split_at_mut_checked(eb_i)
+                        .expect("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
                     (&mut nlo[..n as usize], &mut nhi[..n as usize])
                 } else {
                     (
@@ -1202,7 +1207,9 @@ pub fn quant_all_bands(
                 None
             };
             x_cm = if above_eff {
-                let (nlo, nhi) = norm.split_at_mut(eb_i);
+                let (nlo, nhi) = norm
+                    .split_at_mut_checked(eb_i)
+                    .expect("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
                 quant_band(
                     encode,
                     m,

@@ -328,7 +328,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
         {
             let ch_len = (n + st.overlap) as usize;
             if cc == 2 {
-                let (c0, c1) = chans.split_at_mut(1);
+                let (c0, c1) = chans.split_at_mut_checked(1).expect("cc == 2 means chans holds two channel slices");
                 compute_inv_mdcts(mode, 0, &freq, &mut [&mut c0[0][os..os + ch_len], &mut c1[0][os..os + ch_len]], cc, lm);
             } else {
                 compute_inv_mdcts(mode, 0, &freq, &mut [&mut chans[0][os..os + ch_len]], cc, lm);
@@ -774,7 +774,7 @@ pub fn celt_decode_with_ec<'a>(
     // Decode fixed codebook
     let mut collapse_masks = vec![0u8; (c_channels * mode.nb_ebands) as usize];
     {
-        let (x_ch, y_ch) = x.split_at_mut(n as usize);
+        let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).expect("x is c_channels*n long, so n <= x.len()");
         quant_all_bands(
             0,
             mode,
