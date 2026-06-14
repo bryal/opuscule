@@ -283,6 +283,12 @@ fn bitexact_log2tan(isin: c_int, icos: c_int) -> c_int {
 /// it with shaped pseudo-random noise at a level derived from the energy
 /// difference between the current and previous frames, then renormalises.
 /// This avoids audible "holes" in transient signals decoded at low bitrate.
+// Noise-fill kernel: an LCG-driven strided scatter into x_[x_off+(j<<lm)+k]
+// gated by per-(band,channel) collapse-mask bits, with many 2D band/channel
+// energy lookups (prev1/prev2/log_e at c*nb+i) and mode-table reads. Kept
+// indexed — like celt_decode_lost, the strided/gathered access has no clean
+// iterator form. Bounds: i in [start,end) <= nb_ebands, c < c_channels <= 2.
+#[allow(clippy::indexing_slicing)]
 pub fn anti_collapse(
     m: &CELTMode,
     x_: &mut [CeltNorm],
