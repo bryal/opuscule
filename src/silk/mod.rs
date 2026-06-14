@@ -6,7 +6,6 @@
 //! split in the original C only affected the SILK *encoder* (silk/float vs
 //! silk/fixed). This module is therefore feature-agnostic.
 
-pub mod NLSF2A;
 pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
@@ -29,6 +28,7 @@ pub mod lpc_inv_pred_gain;
 pub mod macros;
 pub mod nlsf_decode;
 pub mod nlsf_stabilize;
+pub mod nlsf_to_a;
 pub mod nlsf_unpack;
 pub mod nlsf_vq_weights_laroia;
 pub mod pitch_est_tables;
