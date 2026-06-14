@@ -135,14 +135,6 @@ fn celt_maxabs16(x: &[OpusVal16], len: i32) -> OpusVal16 {
 /// has produced the half-rate LP-filtered signal.
 ///
 /// C implementation: pitch.c lines 159-265.
-///
-/// Dense pitch-search DSP: strided 4x/2x decimation, two cross-correlation
-/// passes (inner dot products in increasing-j order), candidate-window
-/// gating against pass-1 bests, and neighbor pseudo-interpolation
-/// (`xcorr[best_pitch[0]-1 ..= +1]`, guarded `0 < bp < max_pitch/2 - 1`).
-/// Kept as explicit indexed DSP; the dot products could be zipped on
-/// request.
-#[allow(clippy::indexing_slicing)]
 pub fn pitch_search(
     x_lp: &[OpusVal16], // LP-filtered signal (len/2 samples from pitch_downsample)
     y: &[OpusVal16],    // decode memory buffer (lag = len + max_pitch samples)
@@ -160,11 +152,11 @@ pub fn pitch_search(
     let mut xcorr = vec![0 as OpusVal32; (max_pitch >> 1) as usize];
 
     // Downsample by 2 again (from half-rate to quarter-rate)
-    for j in 0..(len >> 2) as usize {
-        x_lp4[j] = x_lp[2 * j];
+    for (dst, &src) in x_lp4.iter_mut().zip(x_lp.iter().step_by(2)) {
+        *dst = src;
     }
-    for j in 0..(lag >> 2) as usize {
-        y_lp4[j] = y[2 * j];
+    for (dst, &src) in y_lp4.iter_mut().zip(y.iter().step_by(2)) {
+        *dst = src;
     }
 
     // Fixed-point: normalize to prevent overflow in MAC
@@ -175,11 +167,11 @@ pub fn pitch_search(
         let max_val = max16(1, max16(max_x, max_y));
         let s = celt_ilog2(max_val as i32) as i32 - 11;
         if s > 0 {
-            for j in 0..(len >> 2) as usize {
-                x_lp4[j] = shr16(x_lp4[j], s);
+            for v in x_lp4.iter_mut() {
+                *v = shr16(*v, s);
             }
-            for j in 0..(lag >> 2) as usize {
-                y_lp4[j] = shr16(y_lp4[j], s);
+            for v in y_lp4.iter_mut() {
+                *v = shr16(*v, s);
             }
             s * 2 // double the shift for MAC accumulation
         } else {
@@ -196,24 +188,24 @@ pub fn pitch_search(
     #[cfg(feature = "fixed-point")]
     let mut maxcorr: OpusVal32 = 1;
 
-    // Cross-correlate at quarter-rate
+    // Cross-correlate at quarter-rate: xcorr[i] = sum_j x_lp4[j] * y_lp4[i+j],
+    // accumulated in increasing j (same order as the C, so float is bit-exact).
     let xcorr_len = (max_pitch >> 2) as usize;
-    for i in 0..xcorr_len {
-        let mut sum: OpusVal32 = 0 as OpusVal32;
-        for j in 0..(len >> 2) as usize {
-            sum = mac16_16(sum, x_lp4[j], y_lp4[i + j]);
-        }
-        xcorr[i] = max32(-1 as OpusVal32, sum);
+    let len4 = (len >> 2) as usize;
+    for (i, xc) in xcorr.iter_mut().take(xcorr_len).enumerate() {
+        let sum = x_lp4.iter().zip(y_lp4.iter().skip(i)).take(len4).fold(0 as OpusVal32, |s, (&a, &b)| mac16_16(s, a, b));
+        *xc = max32(-1 as OpusVal32, sum);
         #[cfg(feature = "fixed-point")]
         {
             maxcorr = max32(maxcorr, sum);
         }
     }
 
+    let xcorr1 = xcorr.get(..xcorr_len).expect("xcorr holds max_pitch/2 >= max_pitch/4 entries");
     #[cfg(not(feature = "fixed-point"))]
-    find_best_pitch(&xcorr[..xcorr_len], &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch);
+    find_best_pitch(xcorr1, &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch);
     #[cfg(feature = "fixed-point")]
-    find_best_pitch(&xcorr[..xcorr_len], &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch, 0, maxcorr);
+    find_best_pitch(xcorr1, &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch, 0, maxcorr);
 
     // --- Pass 2: finer search with 2x decimation ---
 
@@ -222,47 +214,46 @@ pub fn pitch_search(
         maxcorr = 1;
     }
 
+    // Pass 2 only computes xcorr near the two pass-1 candidates.
+    let [bp0, bp1] = best_pitch;
     let half_max_pitch = (max_pitch >> 1) as usize;
-    for i in 0..half_max_pitch {
-        let mut sum: OpusVal32 = 0 as OpusVal32;
-        xcorr[i] = 0 as OpusVal32;
-        // Only compute near the two best candidates from pass 1
-        if (i as i32 - 2 * best_pitch[0]).abs() > 2 && (i as i32 - 2 * best_pitch[1]).abs() > 2 {
+    let len2 = (len >> 1) as usize;
+    for (i, xc) in xcorr.iter_mut().take(half_max_pitch).enumerate() {
+        *xc = 0 as OpusVal32;
+        if (i as i32 - 2 * bp0).abs() > 2 && (i as i32 - 2 * bp1).abs() > 2 {
             continue;
         }
-        for j in 0..(len >> 1) as usize {
-            sum += shr32(mult16_16(x_lp[j], y[i + j]), shift);
-        }
-        xcorr[i] = max32(-1 as OpusVal32, sum);
+        let sum =
+            x_lp.iter().zip(y.iter().skip(i)).take(len2).fold(0 as OpusVal32, |s, (&a, &b)| s + shr32(mult16_16(a, b), shift));
+        *xc = max32(-1 as OpusVal32, sum);
         #[cfg(feature = "fixed-point")]
         {
             maxcorr = max32(maxcorr, sum);
         }
     }
 
+    let xcorr2 = xcorr.get(..half_max_pitch).expect("xcorr holds max_pitch/2 entries");
     #[cfg(not(feature = "fixed-point"))]
-    find_best_pitch(&xcorr[..half_max_pitch], y, len >> 1, max_pitch >> 1, &mut best_pitch);
+    find_best_pitch(xcorr2, y, len >> 1, max_pitch >> 1, &mut best_pitch);
     #[cfg(feature = "fixed-point")]
-    find_best_pitch(&xcorr[..half_max_pitch], y, len >> 1, max_pitch >> 1, &mut best_pitch, shift, maxcorr);
+    find_best_pitch(xcorr2, y, len >> 1, max_pitch >> 1, &mut best_pitch, shift, maxcorr);
 
     // --- Refine by pseudo-interpolation ---
 
-    let offset;
-    if best_pitch[0] > 0 && best_pitch[0] < (max_pitch >> 1) - 1 {
-        let a = xcorr[best_pitch[0] as usize - 1];
-        let b = xcorr[best_pitch[0] as usize];
-        let c = xcorr[best_pitch[0] as usize + 1];
-        if (c - a) > mult16_32_q15(qconst16(0.7, 15), b - a) {
-            offset = 1;
-        } else if (a - c) > mult16_32_q15(qconst16(0.7, 15), b - c) {
-            offset = -1;
-        } else {
-            offset = 0;
+    let [winner, _] = best_pitch;
+    let mut offset = 0;
+    if winner > 0 && winner < (max_pitch >> 1) - 1 {
+        // The guard keeps winner-1 ..= winner+1 inside xcorr.
+        let w = winner as usize;
+        if let (Some(&a), Some(&b), Some(&c)) = (xcorr.get(w - 1), xcorr.get(w), xcorr.get(w + 1)) {
+            if (c - a) > mult16_32_q15(qconst16(0.7, 15), b - a) {
+                offset = 1;
+            } else if (a - c) > mult16_32_q15(qconst16(0.7, 15), b - c) {
+                offset = -1;
+            }
         }
-    } else {
-        offset = 0;
     }
-    *pitch = 2 * best_pitch[0] - offset;
+    *pitch = 2 * winner - offset;
 }
 
 /// Downsample and LP-filter a signal for pitch analysis.
