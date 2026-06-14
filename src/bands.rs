@@ -46,30 +46,22 @@ pub fn denormalise_bands(
     m_factor: c_int,
 ) {
     let ebands = m.ebands;
-    let n = m_factor * m.short_mdct_size;
+    let n = (m_factor * m.short_mdct_size) as usize;
+    let nb = m.nb_ebands as usize;
+    let zero_start = (m_factor * i32::from(*ebands.get(end as usize).expect("end <= nb_ebands"))) as usize;
 
-    let mut c = 0;
-    loop {
-        let ch_off = (c * n) as usize;
-        for i in 0..end as usize {
-            let g = shr32(band_e[i + (c as usize) * m.nb_ebands as usize], 1);
-            let j_start = (m_factor * (ebands[i] as c_int)) as usize;
-            let band_end = (m_factor * (ebands[i + 1] as c_int)) as usize;
-            for j in j_start..band_end {
-                freq[ch_off + j] = shl32(mult16_32_q15(x[ch_off + j], g), 2);
+    for ((freq_ch, x_ch), be_ch) in freq.chunks_mut(n).zip(x.chunks(n)).zip(band_e.chunks(nb)).take(c_channels as usize) {
+        // Each active band [eBands[i], eBands[i+1]) is scaled by its energy g.
+        for ((&be, &lo), &hi) in be_ch.iter().zip(ebands.iter()).zip(ebands.iter().skip(1)).take(end as usize) {
+            let g = shr32(be, 1);
+            let j_start = (m_factor * i32::from(lo)) as usize;
+            let band_end = (m_factor * i32::from(hi)) as usize;
+            for (f, &xv) in freq_ch.iter_mut().zip(x_ch.iter()).skip(j_start).take(band_end - j_start) {
+                *f = shl32(mult16_32_q15(xv, g), 2);
             }
         }
-
-        // Zero above the coded bandwidth
-        let zero_start = (m_factor * (ebands[end as usize] as c_int)) as usize;
-        for i in zero_start..n as usize {
-            freq[ch_off + i] = 0 as CeltSig;
-        }
-
-        c += 1;
-        if c >= c_channels {
-            break;
-        }
+        // Zero above the coded bandwidth.
+        freq_ch.iter_mut().skip(zero_start).for_each(|f| *f = 0 as CeltSig);
     }
 }
 
@@ -79,6 +71,9 @@ pub fn denormalise_bands(
 /// for the Hadamard rearrangement that maps between time-domain short
 /// blocks and the band's frequency layout. Applies the unnormalised
 /// Haar butterfly (scaled by 1/sqrt(2)) in-place.
+// In-place butterfly over strided pairs (stride*2j+i, stride*(2j+1)+i) — a
+// dual-write rotation with no iterator form (like vq::exp_rotation1).
+#[allow(clippy::indexing_slicing)]
 pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
     let n0 = n0 >> 1;
     for i in 0..stride {
@@ -101,24 +96,25 @@ pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
 pub fn intensity_stereo(m: &CELTMode, x: &mut [CeltNorm], y: &[CeltNorm], band_e: &[CeltEner], band_id: c_int, n: c_int) {
     let i = band_id as usize;
     let nb = m.nb_ebands as usize;
+    let be_left = *band_e.get(i).expect("band_id < nb_ebands");
+    let be_right = *band_e.get(i + nb).expect("band_id + nb_ebands in range");
 
     #[cfg(feature = "fixed-point")]
-    let shift = (celt_zlog2(band_e[i].max(band_e[i + nb])) - 13) as i32;
+    let shift = (celt_zlog2(be_left.max(be_right)) - 13) as i32;
     #[cfg(not(feature = "fixed-point"))]
     let shift: i32 = 0;
 
-    let left = vshr32(band_e[i], shift);
-    let right = vshr32(band_e[i + nb], shift);
+    let left = vshr32(be_left, shift);
+    let right = vshr32(be_right, shift);
     let norm = EPSILON
         + celt_sqrt(
             EPSILON + mult16_16(left as OpusVal16, left as OpusVal16) + mult16_16(right as OpusVal16, right as OpusVal16),
         );
     let a1 = div32_16(shl32(extend32(left as OpusVal16), 14), norm as OpusVal16);
     let a2 = div32_16(shl32(extend32(right as OpusVal16), 14), norm as OpusVal16);
-    for j in 0..n as usize {
-        let l = x[j];
-        let r = y[j];
-        x[j] = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
+    for (xj, &r) in x.iter_mut().zip(y.iter()).take(n as usize) {
+        let l = *xj;
+        *xj = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
     }
 }
 
@@ -131,9 +127,9 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
     let mut xp: OpusVal32 = 0 as OpusVal32;
     let mut side: OpusVal32 = 0 as OpusVal32;
 
-    for j in 0..x.len() {
-        xp = mac16_16(xp, x[j], y[j]);
-        side = mac16_16(side, y[j], y[j]);
+    for (&xj, &yj) in x.iter().zip(y.iter()) {
+        xp = mac16_16(xp, xj, yj);
+        side = mac16_16(side, yj, yj);
     }
     xp = mult16_32_q15(mid, xp);
     let mid2 = shr32(mid as OpusVal32, 1) as OpusVal16;
@@ -165,11 +161,11 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
     #[cfg(feature = "fixed-point")]
     let (kl, kr) = (kl.max(7), kr.max(7));
 
-    for j in 0..x.len() {
-        let l = mult16_16_q15(mid, x[j]);
-        let r = y[j];
-        x[j] = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
-        y[j] = extract16(pshr32(mult16_16(rgain as OpusVal16, add16(l as OpusVal16, r)), kr + 1));
+    for (xj, yj) in x.iter_mut().zip(y.iter_mut()) {
+        let l = mult16_16_q15(mid, *xj);
+        let r = *yj;
+        *xj = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
+        *yj = extract16(pshr32(mult16_16(rgain as OpusVal16, add16(l as OpusVal16, r)), kr + 1));
     }
 }
 
@@ -183,6 +179,9 @@ const ORDERY_TABLE: [c_int; 30] =
 /// Rearranges `X` from interleaved layout (stride-interleaved short blocks)
 /// into contiguous sub-vectors, optionally applying the ordery Hadamard
 /// permutation. Used before recursive band splitting in quant_band.
+// Strided gather/scatter permutation via the ORDERY_TABLE Gray-code map;
+// the data-dependent `ordery[i]` index has no clean iterator form.
+#[allow(clippy::indexing_slicing)]
 pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamard: c_int) {
     let n = (n0 * stride) as usize;
     let mut tmp = vec![0 as CeltNorm; n];
@@ -208,6 +207,8 @@ pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadam
 /// Inverse of deinterleave_hadamard: rearranges contiguous sub-vectors
 /// back into stride-interleaved layout, with optional ordery Hadamard
 /// permutation. Used after recursive band reconstruction in quant_band.
+// Inverse of deinterleave_hadamard: same ORDERY_TABLE gather/scatter, kept indexed.
+#[allow(clippy::indexing_slicing)]
 pub fn interleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamard: c_int) {
     let n = (n0 * stride) as usize;
     let mut tmp = vec![0 as CeltNorm; n];
@@ -249,7 +250,8 @@ pub fn compute_qn(n: c_int, b: c_int, offset: c_int, pulse_cap: c_int, stereo: c
     if qb < (1 << BITRES >> 1) {
         1
     } else {
-        let qn = (EXP2_TABLE8[(qb as usize) & 0x7] >> (14 - (qb >> BITRES as c_int))) as c_int;
+        let exp2 = *EXP2_TABLE8.get((qb as usize) & 0x7).expect("masked to 0..8");
+        let qn = (exp2 >> (14 - (qb >> BITRES as c_int))) as c_int;
         (qn + 1) >> 1 << 1
     }
 }
