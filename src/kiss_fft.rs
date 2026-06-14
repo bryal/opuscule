@@ -6,6 +6,12 @@
 // Only the inverse (decoder) path is translated. Forward butterflies
 // (kf_bfly*) and opus_fft were encoder-only and have been removed.
 
+// This file is the inverse-FFT butterfly kernel (ki_bfly2/3/4/5 + opus_ifft):
+// strided complex-array math with twiddle lookups and a bit-reversal scatter.
+// Like the MDCT/pitch/cwrs kernels, it has no clean iterator form, so it keeps
+// explicit indexed math under a module-wide allow.
+#![allow(clippy::indexing_slicing)]
+
 use crate::arch::*;
 use crate::util::zip;
 
