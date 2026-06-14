@@ -232,6 +232,13 @@ pub fn celt_decoder_reset(st: &mut CELTDecoder) {
 ///
 /// Uses noise-based PLC after 5+ consecutive losses (or if start!=0),
 /// otherwise pitch-based PLC with LPC synthesis.
+// Packet-loss concealment: a dense DSP kernel — seed-driven band-noise
+// synthesis (renormalise per band), LPC analysis/synthesis (autocorr, FIR,
+// IIR), excitation copy with a decaying pitch offset, symmetric TDAC
+// windowing, and comb pre/post-filtering, all over channel/band-strided
+// buffers (exc/mem/e and chans[cu][OM + ..], freq[c*n + i]). Indices are
+// bounded by MAX_PERIOD / n / overlap and the band structure; kept indexed.
+#[allow(clippy::indexing_slicing)]
 pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, lm: c_int) {
     let mode = st.mode;
     let overlap = mode.overlap;
