@@ -188,11 +188,6 @@ pub fn unquant_coarse_energy(
 /// RFC 6716 Section 4.3.1.
 ///
 /// Reads `fine_quant[i]` bits per band to refine the coarse energy estimate.
-///
-/// Sequential per-band/per-channel range-decoder reads driving a
-/// `old_ebands[i + c*nb_ebands]` update; bounds obvious (i < end <=
-/// nb_ebands, c < c_channels <= 2). Kept as explicit indexed decode.
-#[allow(clippy::indexing_slicing)]
 pub fn unquant_fine_energy(
     m: &CELTMode,
     start: c_int,
@@ -204,31 +199,27 @@ pub fn unquant_fine_energy(
 ) {
     let nb_ebands = m.nb_ebands as usize;
 
-    for i in (start as usize)..(end as usize) {
-        if fine_quant[i] <= 0 {
+    for (i, &fq) in fine_quant.iter().enumerate().take(end as usize).skip(start as usize) {
+        if fq <= 0 {
             continue;
         }
-        let mut c: usize = 0;
-        loop {
-            let q2 = ec_dec_bits(dec, fine_quant[i] as u32) as i32;
+        // Band i of each channel lives at old_ebands[i], [i+nb], ... — read the
+        // decoder once per channel, in order.
+        for eb in old_ebands.iter_mut().skip(i).step_by(nb_ebands).take(c_channels as usize) {
+            let q2 = ec_dec_bits(dec, fq as u32) as i32;
             let offset: OpusVal16;
             #[cfg(feature = "fixed-point")]
             {
                 offset = sub16(
-                    shr32(shl32(extend32(q2 as i16), DB_SHIFT) + qconst16(0.5, DB_SHIFT) as i32, fine_quant[i]) as i16,
+                    shr32(shl32(extend32(q2 as i16), DB_SHIFT) + qconst16(0.5, DB_SHIFT) as i32, fq) as i16,
                     qconst16(0.5, DB_SHIFT),
                 );
             }
             #[cfg(not(feature = "fixed-point"))]
             {
-                offset = (q2 as f32 + 0.5) * ((1 << (14 - fine_quant[i])) as f32) * (1.0 / 16384.0) - 0.5;
+                offset = (q2 as f32 + 0.5) * ((1 << (14 - fq)) as f32) * (1.0 / 16384.0) - 0.5;
             }
-            old_ebands[i + c * nb_ebands] += offset;
-
-            c += 1;
-            if c as c_int >= c_channels {
-                break;
-            }
+            *eb += offset;
         }
     }
 }
@@ -239,11 +230,6 @@ pub fn unquant_fine_energy(
 /// Iterates by priority (0 then 1), reading 1 bit per band to adjust
 /// the energy estimate by half a fine-quant step.
 ///
-/// Sequential range-decoder reads gated by `bits_left` and per-band
-/// `fine_quant[i]`/`fine_priority[i]`, updating `old_ebands[i +
-/// c*nb_ebands]`; bounds obvious (i < end <= nb_ebands, c < c_channels
-/// <= 2). Kept as explicit indexed decode.
-#[allow(clippy::indexing_slicing)]
 pub fn unquant_energy_finalise(
     m: &CELTMode,
     start: c_int,
@@ -258,33 +244,27 @@ pub fn unquant_energy_finalise(
     let nb_ebands = m.nb_ebands as usize;
 
     for prio in 0..2 {
-        let mut i = start as usize;
-        while i < end as usize && bits_left >= c_channels {
-            if fine_quant[i] >= MAX_FINE_BITS as c_int || fine_priority[i] != prio {
-                i += 1;
+        for ((i, &fq), &fp) in fine_quant.iter().enumerate().zip(fine_priority.iter()).take(end as usize).skip(start as usize) {
+            if bits_left < c_channels {
+                break;
+            }
+            if fq >= MAX_FINE_BITS as c_int || fp != prio {
                 continue;
             }
-            let mut c: usize = 0;
-            loop {
+            for eb in old_ebands.iter_mut().skip(i).step_by(nb_ebands).take(c_channels as usize) {
                 let q2 = ec_dec_bits(dec, 1) as i32;
                 let offset: OpusVal16;
                 #[cfg(feature = "fixed-point")]
                 {
-                    offset = shr16(shl16(q2 as i16, DB_SHIFT) - qconst16(0.5, DB_SHIFT), fine_quant[i] + 1);
+                    offset = shr16(shl16(q2 as i16, DB_SHIFT) - qconst16(0.5, DB_SHIFT), fq + 1);
                 }
                 #[cfg(not(feature = "fixed-point"))]
                 {
-                    offset = (q2 as f32 - 0.5) * ((1 << (14 - fine_quant[i] - 1)) as f32) * (1.0 / 16384.0);
+                    offset = (q2 as f32 - 0.5) * ((1 << (14 - fq - 1)) as f32) * (1.0 / 16384.0);
                 }
-                old_ebands[i + c * nb_ebands] += offset;
+                *eb += offset;
                 bits_left -= 1;
-
-                c += 1;
-                if c as c_int >= c_channels {
-                    break;
-                }
             }
-            i += 1;
         }
     }
 }
