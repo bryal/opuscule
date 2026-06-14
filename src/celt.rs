@@ -617,7 +617,10 @@ pub fn celt_decode_with_ec<'a>(
     let mut x = vec![0 as CeltNorm; (c_channels * n) as usize];
     let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * c_channels) as usize];
 
+    // Per-channel clear of the inactive low/high band bins: flat c*n+ii
+    // indexing into x with mode.ebands[..] band bounds. Kept indexed.
     let mut c = 0;
+    #[allow(clippy::indexing_slicing)]
     loop {
         for ii in 0..m * mode.ebands[st.start as usize] as c_int {
             x[(c * n + ii) as usize] = 0 as CeltNorm;
@@ -628,6 +631,7 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
     c = 0;
+    #[allow(clippy::indexing_slicing)]
     loop {
         for ii in m * mode.ebands[eff_end as usize] as c_int..n {
             x[(c * n + ii) as usize] = 0 as CeltNorm;
@@ -654,8 +658,10 @@ pub fn celt_decode_with_ec<'a>(
     };
 
     if c_channels == 1 {
-        for ii in 0..mode.nb_ebands {
-            st.old_band_e[ii as usize] = max16(st.old_band_e[ii as usize], st.old_band_e[(mode.nb_ebands + ii) as usize]);
+        let nb = mode.nb_ebands as usize;
+        let (lo, hi) = st.old_band_e.split_at_mut_checked(nb).expect("old_band_e holds 2*nb_ebands entries");
+        for (a, &b) in lo.iter_mut().zip(hi.iter()).take(nb) {
+            *a = max16(*a, b);
         }
     }
 
@@ -725,6 +731,9 @@ pub fn celt_decode_with_ec<'a>(
     let mut dynalloc_logp: c_int = 6;
     total_bits <<= BITRES;
     tell = ec_tell_frac(dec) as i32;
+    // Decoder-interleaved per-band dynalloc: ec reads gated by cap[ii] with
+    // mode.ebands[..] widths, writing offsets[ii]. Kept indexed.
+    #[allow(clippy::indexing_slicing)]
     for ii in st.start..st.end {
         let width = (c_channels * (mode.ebands[ii as usize + 1] - mode.ebands[ii as usize]) as c_int) << lm;
         let quanta = (width << BITRES).min((6i32 << BITRES).max(width));
@@ -857,7 +866,10 @@ pub fn celt_decode_with_ec<'a>(
         st.decode_mem.copy_within(base + n as usize..base + DECODE_BUFFER_SIZE as usize, base);
     }
 
+    // Per-channel clear of the inactive freq bins (same shape as the x clear
+    // above): flat c*n+ii indexing with mode.ebands[..] bounds. Kept indexed.
     c = 0;
+    #[allow(clippy::indexing_slicing)]
     loop {
         for ii in 0..m * mode.ebands[st.start as usize] as c_int {
             freq[(c * n + ii) as usize] = 0 as CeltSig;
@@ -868,6 +880,7 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
     c = 0;
+    #[allow(clippy::indexing_slicing)]
     loop {
         let mut bound = m * mode.ebands[eff_end as usize] as c_int;
         if st.downsample != 1 {
@@ -886,13 +899,14 @@ pub fn celt_decode_with_ec<'a>(
     let os = (DECODE_BUFFER_SIZE - n) as usize;
 
     if cc == 2 && c_channels == 1 {
-        for ii in 0..n as usize {
-            freq[n as usize + ii] = freq[ii];
-        }
+        // Duplicate the single decoded channel into the second region.
+        freq.copy_within(0..n as usize, n as usize);
     }
     if cc == 1 && c_channels == 2 {
-        for ii in 0..n as usize {
-            freq[ii] = half32(add32(freq[ii], freq[n as usize + ii]));
+        // Downmix the two decoded channels into the first region.
+        let (lo, hi) = freq.split_at_mut(n as usize);
+        for (x, &y) in lo.iter_mut().zip(hi.iter()).take(n as usize) {
+            *x = half32(add32(*x, y));
         }
     }
 
@@ -964,29 +978,32 @@ pub fn celt_decode_with_ec<'a>(
     }
 
     if c_channels == 1 {
-        for ii in 0..mode.nb_ebands {
-            st.old_band_e[(mode.nb_ebands + ii) as usize] = st.old_band_e[ii as usize];
-        }
+        let nb = mode.nb_ebands as usize;
+        st.old_band_e.copy_within(0..nb, nb);
     }
 
     // In case start or end were to change
+    let two_nb = (2 * mode.nb_ebands) as usize;
     if is_transient == 0 {
-        for ii in 0..(2 * mode.nb_ebands) as usize {
-            st.old_log_e2[ii] = st.old_log_e[ii];
+        for (d, &s) in st.old_log_e2.iter_mut().zip(st.old_log_e.iter()).take(two_nb) {
+            *d = s;
         }
-        for ii in 0..(2 * mode.nb_ebands) as usize {
-            st.old_log_e[ii] = st.old_band_e[ii];
+        for (d, &s) in st.old_log_e.iter_mut().zip(st.old_band_e.iter()).take(two_nb) {
+            *d = s;
         }
-        for ii in 0..(2 * mode.nb_ebands) as usize {
-            st.background_log_e[ii] =
-                min16(st.background_log_e[ii] + m as OpusVal16 * qconst16(0.001, DB_SHIFT), st.old_band_e[ii]);
+        for (bg, &oe) in st.background_log_e.iter_mut().zip(st.old_band_e.iter()).take(two_nb) {
+            *bg = min16(*bg + m as OpusVal16 * qconst16(0.001, DB_SHIFT), oe);
         }
     } else {
-        for ii in 0..(2 * mode.nb_ebands) as usize {
-            st.old_log_e[ii] = min16(st.old_log_e[ii], st.old_band_e[ii]);
+        for (le, &oe) in st.old_log_e.iter_mut().zip(st.old_band_e.iter()).take(two_nb) {
+            *le = min16(*le, oe);
         }
     }
+    // Reset inactive bands ([0,start) and [end,nb)) across all three energy
+    // history arrays, both channels: flat c*nb+ii indexing into three
+    // parallel arrays. Kept indexed.
     c = 0;
+    #[allow(clippy::indexing_slicing)]
     loop {
         for ii in 0..st.start {
             st.old_band_e[(c * mode.nb_ebands + ii) as usize] = 0 as OpusVal16;
@@ -1464,11 +1481,10 @@ static UNKNOWN_ERROR: &[u8] = b"unknown error\0";
 
 #[unsafe(no_mangle)]
 pub extern "C" fn opus_strerror(error: c_int) -> *const std::os::raw::c_char {
-    if !(-7..=0).contains(&error) {
-        UNKNOWN_ERROR.as_ptr() as *const std::os::raw::c_char
-    } else {
-        ERROR_STRINGS[(-error) as usize].as_ptr() as *const std::os::raw::c_char
-    }
+    // A valid error in -7..=0 maps to index 0..=7; anything else (including
+    // positive `error`, whose negation wraps to a huge usize) misses the
+    // table and falls back to the unknown-error string.
+    ERROR_STRINGS.get((-error) as usize).unwrap_or(&UNKNOWN_ERROR).as_ptr() as *const std::os::raw::c_char
 }
 
 static VERSION_STRING: &[u8] = b"libopus 1.0.0\0";
