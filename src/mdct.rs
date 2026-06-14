@@ -153,8 +153,7 @@ pub fn clt_mdct_backward(
         }
 
         // Overlapping region: window and accumulate
-        let mut wi = 0usize;
-        for _ in (n4 - overlap / 2) as usize..n4 as usize {
+        for wi in 0..overlap as usize / 2 {
             let x1 = f2[fp1];
             fp1 = fp1.wrapping_sub(1);
             let w1 = window[wi];
@@ -163,7 +162,6 @@ pub fn clt_mdct_backward(
             out[base + xp1] += mult16_32_q15(w2, x1);
             yp1 += 1;
             xp1 = xp1.wrapping_sub(1);
-            wi += 1;
         }
     }
 
@@ -181,8 +179,7 @@ pub fn clt_mdct_backward(
         }
 
         // Overlapping region: window and write
-        let mut wi = 0usize;
-        for _ in (n4 - overlap / 2) as usize..n4 as usize {
+        for wi in 0..overlap as usize / 2 {
             let x2 = f2[fp2];
             fp2 += 1;
             let w1 = window[wi];
@@ -191,7 +188,6 @@ pub fn clt_mdct_backward(
             out[base + xp2] = mult16_32_q15(w2, x2);
             yp2 = yp2.wrapping_sub(1);
             xp2 += 1;
-            wi += 1;
         }
     }
 }

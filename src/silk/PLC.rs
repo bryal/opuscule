@@ -273,7 +273,8 @@ fn silk_plc_conceal(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut SilkDecoder
     /* Copy LPC state */
     s_ltp_q14[s_lpc_off..s_lpc_off + MAX_LPC_ORDER].copy_from_slice(&ps_dec.s_lpc_q14_buf);
 
-    for i in 0..ps_dec.frame_length as usize {
+    assert_eq!(frame.len(), ps_dec.frame_length as usize);
+    for (i, out) in frame.iter_mut().enumerate() {
         /* partly unrolled */
         /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
         let base = s_lpc_off + MAX_LPC_ORDER + i;
@@ -296,7 +297,7 @@ fn silk_plc_conceal(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut SilkDecoder
         s_ltp_q14[base] += silk_lshift(lpc_pred_q10, 4);
 
         /* Scale with Gain */
-        frame[i] = silk_sat16(silk_sat16(silk_rshift_round(silk_smulww(s_ltp_q14[base], prev_gain_q10[1]), 8))) as i16;
+        *out = silk_sat16(silk_sat16(silk_rshift_round(silk_smulww(s_ltp_q14[base], prev_gain_q10[1]), 8))) as i16;
     }
 
     /* Save LPC state */

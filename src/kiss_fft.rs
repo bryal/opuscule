@@ -7,6 +7,7 @@
 // (kf_bfly*) and opus_fft were encoder-only and have been removed.
 
 use crate::arch::*;
+use crate::util::zip;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -272,13 +273,11 @@ pub fn ki_bfly5(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: u
 /// 15 = 3×5, 5 = 5×1 — giving factors = [4,30, 2,15, 3,5, 5,1].
 /// The butterfly stages are applied in reverse: bfly5, bfly3, bfly2, bfly4.
 pub fn opus_ifft(st: &KissFftState, fin: &[KissFftCpx], fout: &mut [KissFftCpx]) {
-    let nfft = st.nfft as usize;
     let shift = if st.shift > 0 { st.shift as usize } else { 0 };
 
-    // Bit-reverse the input into the output buffer
-    for i in 0..nfft {
-        let rev = st.bitrev[i] as usize;
-        fout[rev] = fin[i];
+    // Bit-reverse the input into the output buffer (bitrev has nfft entries)
+    for (&rev, &inp) in zip(st.bitrev, fin) {
+        fout[rev as usize] = inp;
     }
 
     // Build fstride table and count stages
