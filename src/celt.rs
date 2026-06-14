@@ -15,6 +15,7 @@ use crate::modes::{CELTMode, opus_custom_mode_create};
 use crate::pitch::{pitch_downsample, pitch_search};
 use crate::quant_bands::{log2amp, unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
 use crate::rate::compute_allocation;
+use crate::util::{zip, zip3, zip4};
 use crate::vq::renormalise_vector;
 
 // -- Constants --
@@ -645,7 +646,7 @@ pub fn celt_decode_with_ec<'a>(
     if c_channels == 1 {
         let nb = mode.nb_ebands as usize;
         let (lo, hi) = st.old_band_e.split_at_mut_checked(nb).expect("old_band_e holds 2*nb_ebands entries");
-        for (a, &b) in lo.iter_mut().zip(hi.iter()).take(nb) {
+        for (a, &b) in zip(lo, &*hi) {
             *a = max16(*a, b);
         }
     }
@@ -869,7 +870,7 @@ pub fn celt_decode_with_ec<'a>(
     if cc == 1 && c_channels == 2 {
         // Downmix the two decoded channels into the first region.
         let (lo, hi) = freq.split_at_mut(n as usize);
-        for (x, &y) in lo.iter_mut().zip(hi.iter()).take(n as usize) {
+        for (x, &y) in zip(lo, &*hi) {
             *x = half32(add32(*x, y));
         }
     }
@@ -943,17 +944,33 @@ pub fn celt_decode_with_ec<'a>(
     // In case start or end were to change
     let two_nb = (2 * mode.nb_ebands) as usize;
     if is_transient == 0 {
-        for (d, &s) in st.old_log_e2.iter_mut().zip(st.old_log_e.iter()).take(two_nb) {
+        let (le2, le) = (
+            st.old_log_e2.get_mut(..two_nb).expect("2*nb within history"),
+            st.old_log_e.get(..two_nb).expect("2*nb within history"),
+        );
+        for (d, &s) in zip(le2, le) {
             *d = s;
         }
-        for (d, &s) in st.old_log_e.iter_mut().zip(st.old_band_e.iter()).take(two_nb) {
+        let (le, be) = (
+            st.old_log_e.get_mut(..two_nb).expect("2*nb within history"),
+            st.old_band_e.get(..two_nb).expect("2*nb within history"),
+        );
+        for (d, &s) in zip(le, be) {
             *d = s;
         }
-        for (bg, &oe) in st.background_log_e.iter_mut().zip(st.old_band_e.iter()).take(two_nb) {
+        let (bg, be) = (
+            st.background_log_e.get_mut(..two_nb).expect("2*nb within history"),
+            st.old_band_e.get(..two_nb).expect("2*nb within history"),
+        );
+        for (bg, &oe) in zip(bg, be) {
             *bg = min16(*bg + m as OpusVal16 * qconst16(0.001, DB_SHIFT), oe);
         }
     } else {
-        for (le, &oe) in st.old_log_e.iter_mut().zip(st.old_band_e.iter()).take(two_nb) {
+        let (le, be) = (
+            st.old_log_e.get_mut(..two_nb).expect("2*nb within history"),
+            st.old_band_e.get(..two_nb).expect("2*nb within history"),
+        );
+        for (le, &oe) in zip(le, be) {
             *le = min16(*le, oe);
         }
     }
@@ -961,10 +978,8 @@ pub fn celt_decode_with_ec<'a>(
     // energy-history arrays, for both channels.
     let nb = mode.nb_ebands as usize;
     let (start, end) = (st.start as usize, st.end as usize);
-    for ((be, le), le2) in
-        st.old_band_e.chunks_mut(nb).zip(st.old_log_e.chunks_mut(nb)).zip(st.old_log_e2.chunks_mut(nb)).take(2)
-    {
-        for (i, ((b, l), l2)) in be.iter_mut().zip(le.iter_mut()).zip(le2.iter_mut()).enumerate() {
+    for (be, le, le2) in zip3(st.old_band_e.chunks_mut(nb), st.old_log_e.chunks_mut(nb), st.old_log_e2.chunks_mut(nb)).take(2) {
+        for (i, (b, l, l2)) in zip3(be, le, le2).enumerate() {
             if i < start || i >= end {
                 *b = 0 as OpusVal16;
                 *l = -qconst16(28.0, DB_SHIFT);
@@ -1092,9 +1107,7 @@ pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
     // Walk cap alongside adjacent eBands pairs (band width) and the matching
     // row of the caps cache.
     let row = m.nb_ebands as usize * (2 * lm as usize + c as usize - 1);
-    for (((capi, &lo), &hi), &capval) in
-        cap.iter_mut().zip(m.ebands.iter()).zip(m.ebands.iter().skip(1)).zip(m.cache.caps.iter().skip(row))
-    {
+    for (capi, &lo, &hi, &capval) in zip4(cap, m.ebands, m.ebands.iter().skip(1), m.cache.caps.iter().skip(row)) {
         let n = i32::from(hi - lo) << lm;
         *capi = (i32::from(capval) + 64) * c * n >> 2;
     }
@@ -1153,13 +1166,13 @@ pub fn compute_inv_mdcts(
         // Overlap-add: body[..ov] mixes the previous tail (chan[n..]) with the
         // fresh imdct output; body[ov..] copies it; then the new tail is saved.
         let (body, tail) = chan.split_at_mut(nu);
-        for ((b, &bf), &t) in body.iter_mut().zip(buf.iter()).zip(tail.iter()).take(ov) {
+        for (b, &bf, &t) in zip3(body.iter_mut(), buf.iter(), tail.iter()) {
             *b = bf + t;
         }
-        for (b, &bf) in body.iter_mut().zip(buf.iter()).skip(ov) {
+        for (b, &bf) in zip(body.iter_mut(), buf.iter()).skip(ov) {
             *b = bf;
         }
-        for (t, &bf) in tail.iter_mut().zip(buf.iter().skip(nu)) {
+        for (t, &bf) in zip(tail, buf.iter().skip(nu)) {
             *t = bf;
         }
     }
@@ -1186,11 +1199,11 @@ pub fn deemphasis(
     let c3 = *coef.get(3).expect("deemphasis coef[3]");
     // `count` deliberately carries across channels, matching the C.
     let mut count: c_int = 0;
-    for (c, (&x, m_slot)) in in_.iter().zip(mem.iter_mut()).enumerate().take(c_channels as usize) {
+    for (c, (&x, m_slot)) in zip(in_, mem.iter_mut()).enumerate().take(c_channels as usize) {
         // Channel c's interleaved output positions: c, c+channels, c+2*channels, ...
         let mut out = pcm.iter_mut().skip(c).step_by(c_channels as usize);
         let mut m = *m_slot;
-        for &xj in x.iter().take(n as usize) {
+        for &xj in x.get(..n as usize).expect("n samples within channel input") {
             let tmp = xj + m;
             m = mult16_32_q15(c0, tmp) - mult16_32_q15(c1, xj);
             let tmp = shl32(mult16_32_q15(c3, tmp), 2);

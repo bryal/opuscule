@@ -17,6 +17,7 @@ use crate::arch::*;
 use crate::entcode::EcCtx;
 use crate::entdec::ec_tell;
 use crate::modes::CELTMode;
+use crate::util::{zip, zip3};
 
 // -- Constants --
 
@@ -281,8 +282,8 @@ pub fn unquant_energy_finalise(
 pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [OpusVal32], old_ebands: &[OpusVal16], c_channels: c_int) {
     let nb_ebands = m.nb_ebands as usize;
     let band_range = start as usize..end as usize;
-    for (e_ch, old_ch) in e_bands.chunks_mut(nb_ebands).zip(old_ebands.chunks(nb_ebands)).take(c_channels as usize) {
-        for (i, ((eb, &oe), &em)) in e_ch.iter_mut().zip(old_ch).zip(E_MEANS.iter()).enumerate() {
+    for (e_ch, old_ch) in zip(e_bands.chunks_mut(nb_ebands), old_ebands.chunks(nb_ebands)).take(c_channels as usize) {
+        for (i, (eb, &oe, &em)) in zip3(e_ch, old_ch, E_MEANS.iter()).enumerate() {
             *eb = if band_range.contains(&i) {
                 pshr32(celt_exp2(add16(oe, shl16(em as OpusVal16, 6))), 4)
             } else {
@@ -307,8 +308,8 @@ pub fn amp2log2(
     let nb_ebands = m.nb_ebands as usize;
     let eff_end = eff_end as usize;
     let end = end as usize;
-    for (le_ch, be_ch) in band_log_e.chunks_mut(nb_ebands).zip(band_e.chunks(nb_ebands)).take(c_channels as usize) {
-        for (i, ((le, &be), &em)) in le_ch.iter_mut().zip(be_ch).zip(E_MEANS.iter()).enumerate() {
+    for (le_ch, be_ch) in zip(band_log_e.chunks_mut(nb_ebands), band_e.chunks(nb_ebands)).take(c_channels as usize) {
+        for (i, (le, &be, &em)) in zip3(le_ch, be_ch, E_MEANS.iter()).enumerate() {
             if i < eff_end {
                 *le = celt_log2(shl32(be, 2)) - shl16(em as OpusVal16, 6);
             } else if i < end {

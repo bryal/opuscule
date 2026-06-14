@@ -5,6 +5,7 @@
 
 use crate::arch::*;
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir};
+use crate::util::zip;
 
 /// SIG_SHIFT: number of fractional bits in celt_sig (fixed-point mode).
 /// In float mode the shift is a no-op because shr32 is identity on f32.
@@ -152,10 +153,10 @@ pub fn pitch_search(
     let mut xcorr = vec![0 as OpusVal32; (max_pitch >> 1) as usize];
 
     // Downsample by 2 again (from half-rate to quarter-rate)
-    for (dst, &src) in x_lp4.iter_mut().zip(x_lp.iter().step_by(2)) {
+    for (dst, &src) in zip(x_lp4.iter_mut(), x_lp.iter().step_by(2)) {
         *dst = src;
     }
-    for (dst, &src) in y_lp4.iter_mut().zip(y.iter().step_by(2)) {
+    for (dst, &src) in zip(y_lp4.iter_mut(), y.iter().step_by(2)) {
         *dst = src;
     }
 
@@ -193,7 +194,7 @@ pub fn pitch_search(
     let xcorr_len = (max_pitch >> 2) as usize;
     let len4 = (len >> 2) as usize;
     for (i, xc) in xcorr.iter_mut().take(xcorr_len).enumerate() {
-        let sum = x_lp4.iter().zip(y_lp4.iter().skip(i)).take(len4).fold(0 as OpusVal32, |s, (&a, &b)| mac16_16(s, a, b));
+        let sum = zip(&x_lp4, y_lp4.iter().skip(i)).take(len4).fold(0 as OpusVal32, |s, (&a, &b)| mac16_16(s, a, b));
         *xc = max32(-1 as OpusVal32, sum);
         #[cfg(feature = "fixed-point")]
         {
@@ -223,8 +224,7 @@ pub fn pitch_search(
         if (i as i32 - 2 * bp0).abs() > 2 && (i as i32 - 2 * bp1).abs() > 2 {
             continue;
         }
-        let sum =
-            x_lp.iter().zip(y.iter().skip(i)).take(len2).fold(0 as OpusVal32, |s, (&a, &b)| s + shr32(mult16_16(a, b), shift));
+        let sum = zip(x_lp, y.iter().skip(i)).take(len2).fold(0 as OpusVal32, |s, (&a, &b)| s + shr32(mult16_16(a, b), shift));
         *xc = max32(-1 as OpusVal32, sum);
         #[cfg(feature = "fixed-point")]
         {

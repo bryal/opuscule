@@ -11,6 +11,7 @@
 use std::os::raw::c_int;
 
 use crate::arch::*;
+use crate::util::zip;
 
 /// Maximum autocorrelation length (MAX_PERIOD from modes.h).
 const MAX_PERIOD: usize = 1024;
@@ -101,8 +102,8 @@ pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], ord: c_int, mem: &mut [O
     for xi in x {
         let input = *xi;
         let mut sum: OpusVal32 = shl32(extend32(input), SIG_SHIFT);
-        for (&n, &m) in num.iter().zip(mem.iter()).take(ord) {
-            sum = sum + mult16_16(n, m);
+        for (&num_c, &m) in zip(num, &*mem).take(ord) {
+            sum = sum + mult16_16(num_c, m);
         }
         // Shift register: mem[1..ord] = old mem[0..ord-1], then mem[0] = input.
         mem.copy_within(..ord - 1, 1);
@@ -126,7 +127,7 @@ pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], ord: c_int, mem: &mut [O
     let ord = ord as usize;
     for xi in x {
         let mut sum: OpusVal32 = *xi;
-        for (&d, &m) in den.iter().zip(mem.iter()).take(ord) {
+        for (&d, &m) in zip(den, &*mem).take(ord) {
             sum = sum - mult16_16(d, m);
         }
         // Shift register: mem[1..ord] = old mem[0..ord-1], then mem[0] = new.
@@ -155,7 +156,7 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
 
     // Copy x into local buffer, apply window to edges
     let mut xx = [0 as OpusVal16; MAX_PERIOD];
-    for (dst, &src) in xx.iter_mut().zip(x).take(n) {
+    for (dst, &src) in zip(xx.get_mut(..n).expect("n <= MAX_PERIOD"), x.get(..n).expect("n samples in x")) {
         *dst = src;
     }
     // Symmetric edge windowing: front sample `i` and back sample `n-1-i`
@@ -170,13 +171,13 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
     #[cfg(feature = "fixed-point")]
     {
         let mut ac0: i32 = 0;
-        for &xi in xx.iter().take(n) {
+        for &xi in xx.get(..n).expect("n <= MAX_PERIOD") {
             ac0 += shr32(mult16_16(xi, xi), 9);
         }
         ac0 += 1 + n as i32;
 
         let shift = (celt_ilog2(ac0) as i32 - 30 + 10 + 1) / 2;
-        for xi in xx.iter_mut().take(n) {
+        for xi in xx.get_mut(..n).expect("n <= MAX_PERIOD") {
             *xi = vshr32(*xi as i32, shift) as i16;
         }
     }
@@ -185,9 +186,9 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
     // i.e. the dot of xx shifted by l with itself (same summation order as the
     // C, so float results stay bit-exact). Lags are independent, so order of
     // evaluation across `l` doesn't matter.
-    for (l, slot) in ac.iter_mut().take(lag + 1).enumerate() {
+    for (l, slot) in ac.get_mut(..lag + 1).expect("lag+1 <= ac.len()").iter_mut().enumerate() {
         let mut d: OpusVal32 = 0 as OpusVal32;
-        for (&a, &b) in xx.iter().skip(l).zip(xx.iter()).take(n - l) {
+        for (&a, &b) in zip(xx.get(l..n).expect("lag <= n"), xx.get(..n - l).expect("n-l <= MAX_PERIOD")) {
             d = d + mult16_16(a, b);
         }
         *slot = d;
