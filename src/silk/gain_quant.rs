@@ -17,7 +17,6 @@ const MIN_DELTA_GAIN_QUANT: i32 = -4;
 // -- Derived constants matching the C #defines --
 
 const OFFSET: i32 = (MIN_QGAIN_DB * 128) / 6 + 16 * 128;
-const SCALE_Q16: i32 = (65536 * (N_LEVELS_QGAIN - 1)) / (((MAX_QGAIN_DB - MIN_QGAIN_DB) * 128) / 6);
 const INV_SCALE_Q16: i32 = (65536 * (((MAX_QGAIN_DB - MIN_QGAIN_DB) * 128) / 6)) / (N_LEVELS_QGAIN - 1);
 
 /// `silk_gains_dequant` — dequantize gain indices back to linear Q16 gains.
