@@ -10,6 +10,14 @@
 //   U(N,K) = number of combinations where N-1 objects taken at most K-1 times
 // See RFC 6716 Section 4.3.4.1 and the extensive comments in cwrs.c.
 
+// This file is entirely combinatorial-kernel code: the U/V recurrences
+// (`unext`/`uprev`/`ncwrs_urow` carry `ui0`/`um1`/`um2` across `u[j]`/`u[j-1]`
+// updates), the index-search decoders (`cwrsi*` walk the `u[]` row), and the
+// exact-division helpers (`INV_TABLE[d]`, d <= 54). None of it has a clean
+// iterator form, so — like the MDCT/pitch DSP kernels — it keeps explicit
+// indexed math under a module-wide allow rather than contrived rewrites.
+#![allow(clippy::indexing_slicing)]
+
 use std::os::raw::c_int;
 
 use crate::entcode::ec_dec;
