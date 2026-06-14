@@ -617,29 +617,14 @@ pub fn celt_decode_with_ec<'a>(
     let mut x = vec![0 as CeltNorm; (c_channels * n) as usize];
     let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * c_channels) as usize];
 
-    // Per-channel clear of the inactive low/high band bins: flat c*n+ii
-    // indexing into x with mode.ebands[..] band bounds. Kept indexed.
-    let mut c = 0;
-    #[allow(clippy::indexing_slicing)]
-    loop {
-        for ii in 0..m * mode.ebands[st.start as usize] as c_int {
-            x[(c * n + ii) as usize] = 0 as CeltNorm;
-        }
-        c += 1;
-        if c >= c_channels {
-            break;
-        }
-    }
-    c = 0;
-    #[allow(clippy::indexing_slicing)]
-    loop {
-        for ii in m * mode.ebands[eff_end as usize] as c_int..n {
-            x[(c * n + ii) as usize] = 0 as CeltNorm;
-        }
-        c += 1;
-        if c >= c_channels {
-            break;
-        }
+    // First/last active bin (in MDCT samples) for the start and eff_end bands.
+    let band_start = (m * i32::from(*mode.ebands.get(st.start as usize).expect("st.start <= nb_ebands"))) as usize;
+    let band_eff_end = (m * i32::from(*mode.ebands.get(eff_end as usize).expect("eff_end <= nb_ebands"))) as usize;
+
+    // Per-channel clear of the inactive low/high band bins.
+    for ch in x.chunks_mut(n as usize).take(c_channels as usize) {
+        ch.iter_mut().take(band_start).for_each(|v| *v = 0 as CeltNorm);
+        ch.iter_mut().skip(band_eff_end).for_each(|v| *v = 0 as CeltNorm);
     }
 
     let Some(data) = data.filter(|_| len > 1) else {
@@ -866,33 +851,12 @@ pub fn celt_decode_with_ec<'a>(
         st.decode_mem.copy_within(base + n as usize..base + DECODE_BUFFER_SIZE as usize, base);
     }
 
-    // Per-channel clear of the inactive freq bins (same shape as the x clear
-    // above): flat c*n+ii indexing with mode.ebands[..] bounds. Kept indexed.
-    c = 0;
-    #[allow(clippy::indexing_slicing)]
-    loop {
-        for ii in 0..m * mode.ebands[st.start as usize] as c_int {
-            freq[(c * n + ii) as usize] = 0 as CeltSig;
-        }
-        c += 1;
-        if c >= c_channels {
-            break;
-        }
-    }
-    c = 0;
-    #[allow(clippy::indexing_slicing)]
-    loop {
-        let mut bound = m * mode.ebands[eff_end as usize] as c_int;
-        if st.downsample != 1 {
-            bound = bound.min(n / st.downsample);
-        }
-        for ii in bound..n {
-            freq[(c * n + ii) as usize] = 0 as CeltSig;
-        }
-        c += 1;
-        if c >= c_channels {
-            break;
-        }
+    // Per-channel clear of the inactive freq bins; the high bound is also
+    // capped by the downsample ratio.
+    let freq_bound = if st.downsample != 1 { band_eff_end.min((n / st.downsample) as usize) } else { band_eff_end };
+    for ch in freq.chunks_mut(n as usize).take(c_channels as usize) {
+        ch.iter_mut().take(band_start).for_each(|v| *v = 0 as CeltSig);
+        ch.iter_mut().skip(freq_bound).for_each(|v| *v = 0 as CeltSig);
     }
 
     // out_syn[c] starts at DECODE_BUFFER_SIZE - n within each channel
@@ -925,14 +889,12 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
 
-    c = 0;
-    loop {
-        let base = c as usize * ch_size;
-        st.postfilter_period = st.postfilter_period.max(COMBFILTER_MINPERIOD);
-        st.postfilter_period_old = st.postfilter_period_old.max(COMBFILTER_MINPERIOD);
+    st.postfilter_period = st.postfilter_period.max(COMBFILTER_MINPERIOD);
+    st.postfilter_period_old = st.postfilter_period_old.max(COMBFILTER_MINPERIOD);
+    for ch in st.decode_mem.chunks_mut(ch_size).take(cc as usize) {
         comb_filter(
             None,
-            &mut st.decode_mem[base..base + ch_size],
+            ch,
             (DECODE_BUFFER_SIZE - n) as usize,
             st.postfilter_period_old,
             st.postfilter_period,
@@ -947,7 +909,7 @@ pub fn celt_decode_with_ec<'a>(
         if lm != 0 {
             comb_filter(
                 None,
-                &mut st.decode_mem[base..base + ch_size],
+                ch,
                 (DECODE_BUFFER_SIZE - n + mode.short_mdct_size) as usize,
                 st.postfilter_period,
                 postfilter_pitch,
@@ -959,10 +921,6 @@ pub fn celt_decode_with_ec<'a>(
                 mode.window,
                 mode.overlap,
             );
-        }
-        c += 1;
-        if c >= cc {
-            break;
         }
     }
     st.postfilter_period_old = st.postfilter_period;
@@ -999,25 +957,19 @@ pub fn celt_decode_with_ec<'a>(
             *le = min16(*le, oe);
         }
     }
-    // Reset inactive bands ([0,start) and [end,nb)) across all three energy
-    // history arrays, both channels: flat c*nb+ii indexing into three
-    // parallel arrays. Kept indexed.
-    c = 0;
-    #[allow(clippy::indexing_slicing)]
-    loop {
-        for ii in 0..st.start {
-            st.old_band_e[(c * mode.nb_ebands + ii) as usize] = 0 as OpusVal16;
-            st.old_log_e[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
-            st.old_log_e2[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
-        }
-        for ii in st.end..mode.nb_ebands {
-            st.old_band_e[(c * mode.nb_ebands + ii) as usize] = 0 as OpusVal16;
-            st.old_log_e[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
-            st.old_log_e2[(c * mode.nb_ebands + ii) as usize] = -qconst16(28.0, DB_SHIFT);
-        }
-        c += 1;
-        if c >= 2 {
-            break;
+    // Reset the inactive bands ([0,start) and [end,nb)) across all three
+    // energy-history arrays, for both channels.
+    let nb = mode.nb_ebands as usize;
+    let (start, end) = (st.start as usize, st.end as usize);
+    for ((be, le), le2) in
+        st.old_band_e.chunks_mut(nb).zip(st.old_log_e.chunks_mut(nb)).zip(st.old_log_e2.chunks_mut(nb)).take(2)
+    {
+        for (i, ((b, l), l2)) in be.iter_mut().zip(le.iter_mut()).zip(le2.iter_mut()).enumerate() {
+            if i < start || i >= end {
+                *b = 0 as OpusVal16;
+                *l = -qconst16(28.0, DB_SHIFT);
+                *l2 = -qconst16(28.0, DB_SHIFT);
+            }
         }
     }
     st.rng = dec.rng;
@@ -1141,13 +1093,15 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
 // -- init_caps --
 
 /// Initialise the per-band bit allocation caps from the mode's cache.
-// Per-band mode-table lookups (m.ebands[i]/[i+1] and the m.cache.caps row);
-// indices bounded by the band count. Kept indexed.
-#[allow(clippy::indexing_slicing)]
 pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
-    for (i, capi) in cap.iter_mut().enumerate() {
-        let n = ((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm;
-        *capi = (m.cache.caps[m.nb_ebands as usize * (2 * lm as usize + c as usize - 1) + i] as c_int + 64) * c * n >> 2;
+    // Walk cap alongside adjacent eBands pairs (band width) and the matching
+    // row of the caps cache.
+    let row = m.nb_ebands as usize * (2 * lm as usize + c as usize - 1);
+    for (((capi, &lo), &hi), &capval) in
+        cap.iter_mut().zip(m.ebands.iter()).zip(m.ebands.iter().skip(1)).zip(m.cache.caps.iter().skip(row))
+    {
+        let n = i32::from(hi - lo) << lm;
+        *capi = (i32::from(capval) + 64) * c * n >> 2;
     }
 }
 
@@ -1177,24 +1131,21 @@ pub fn compute_inv_mdcts(
 ) {
     let n = mode.short_mdct_size << lm;
     let overlap = mode.overlap;
+    let nu = n as usize;
+    let ov = overlap as usize;
     let mut buf = vec![0 as OpusVal32; (n + overlap) as usize];
 
-    let mut c = 0;
-    loop {
-        let mut n2 = n;
-        let mut b_count = 1;
+    let (n2, b_count) = if short_blocks != 0 { (mode.short_mdct_size, short_blocks) } else { (n, 1) };
 
-        if short_blocks != 0 {
-            n2 = mode.short_mdct_size;
-            b_count = short_blocks;
-        }
+    for (c, chan) in out_syn.iter_mut().enumerate().take(c_channels as usize) {
         // Prevents problems from the imdct doing the overlap-add
-        buf[..overlap as usize].fill(0 as OpusVal32);
+        buf.iter_mut().take(ov).for_each(|v| *v = 0 as OpusVal32);
 
         for b in 0..b_count {
+            let x_ch = x.get(c * nu + b as usize..(c + 1) * nu).expect("x holds c_channels regions of n samples");
             clt_mdct_backward(
                 &mode.mdct,
-                &x[(c * n + b) as usize..((c + 1) * n) as usize],
+                x_ch,
                 &mut buf,
                 (n2 * b) as usize,
                 mode.window,
@@ -1204,20 +1155,17 @@ pub fn compute_inv_mdcts(
             );
         }
 
-        let chan = &mut out_syn[c as usize];
-        for j in 0..overlap as usize {
-            chan[j] = buf[j] + chan[n as usize + j];
+        // Overlap-add: body[..ov] mixes the previous tail (chan[n..]) with the
+        // fresh imdct output; body[ov..] copies it; then the new tail is saved.
+        let (body, tail) = chan.split_at_mut(nu);
+        for ((b, &bf), &t) in body.iter_mut().zip(buf.iter()).zip(tail.iter()).take(ov) {
+            *b = bf + t;
         }
-        for j in overlap as usize..n as usize {
-            chan[j] = buf[j];
+        for (b, &bf) in body.iter_mut().zip(buf.iter()).skip(ov) {
+            *b = bf;
         }
-        for j in 0..overlap as usize {
-            chan[n as usize + j] = buf[n as usize + j];
-        }
-
-        c += 1;
-        if c >= c_channels {
-            break;
+        for (t, &bf) in tail.iter_mut().zip(buf.iter().skip(nu)) {
+            *t = bf;
         }
     }
 }
@@ -1229,9 +1177,6 @@ pub fn compute_inv_mdcts(
 /// The de-emphasis is a first-order IIR filter that undoes the pre-emphasis
 /// applied before encoding. Also handles downsampling (e.g. 48→8 kHz)
 /// by writing only every `downsample`-th sample.
-// First-order IIR (carried `m`) with a downsampled, channel-interleaved
-// scatter into `pcm[y]` and fixed coef[] taps. Kept indexed.
-#[allow(clippy::indexing_slicing)]
 pub fn deemphasis(
     in_: &[&[CeltSig]],
     pcm: &mut [OpusVal16],
@@ -1241,31 +1186,30 @@ pub fn deemphasis(
     coef: &[OpusVal16],
     mem: &mut [CeltSig],
 ) {
+    let c0 = *coef.first().expect("deemphasis coef[0]");
+    let c1 = *coef.get(1).expect("deemphasis coef[1]");
+    let c3 = *coef.get(3).expect("deemphasis coef[3]");
+    // `count` deliberately carries across channels, matching the C.
     let mut count: c_int = 0;
-    let mut c = 0;
-    loop {
-        let x = in_[c as usize];
-        let mut y = c as usize; // interleaved index into pcm
-        let mut m = mem[c as usize];
-        for &xj in &x[..n as usize] {
+    for (c, (&x, m_slot)) in in_.iter().zip(mem.iter_mut()).enumerate().take(c_channels as usize) {
+        // Channel c's interleaved output positions: c, c+channels, c+2*channels, ...
+        let mut out = pcm.iter_mut().skip(c).step_by(c_channels as usize);
+        let mut m = *m_slot;
+        for &xj in x.iter().take(n as usize) {
             let tmp = xj + m;
-            m = mult16_32_q15(coef[0], tmp) - mult16_32_q15(coef[1], xj);
-            let tmp = shl32(mult16_32_q15(coef[3], tmp), 2);
+            m = mult16_32_q15(c0, tmp) - mult16_32_q15(c1, xj);
+            let tmp = shl32(mult16_32_q15(c3, tmp), 2);
             if count == 0 {
-                pcm[y] = scaleout(sig2word16(tmp));
+                if let Some(o) = out.next() {
+                    *o = scaleout(sig2word16(tmp));
+                }
             }
             count += 1;
             if count == downsample {
-                y += c_channels as usize;
                 count = 0;
             }
         }
-        mem[c as usize] = m;
-
-        c += 1;
-        if c >= c_channels {
-            break;
-        }
+        *m_slot = m;
     }
 }
 
