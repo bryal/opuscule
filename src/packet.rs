@@ -192,7 +192,11 @@ pub fn opus_packet_parse_impl(
         // Two VBR frames
         2 => {
             count = 2;
-            let bytes = parse_size(data.get(off..).or_panic(off), len, size.first_mut().or_panic("empty size buffer"));
+            let bytes = parse_size(
+                data.get(off..).or_panic_dbg((off, data.len())),
+                len,
+                size.first_mut().or_panic("empty size buffer"),
+            );
             len -= bytes;
             let s0 = *size.first().or_panic("empty size buffer");
             if s0 < 0 || i32::from(s0) > len {
@@ -207,7 +211,7 @@ pub fn opus_packet_parse_impl(
                 return OPUS_INVALID_PACKET;
             }
             // Number of frames encoded in bits 0 to 5
-            let ch = *data.get(off).or_panic(off);
+            let ch = *data.get(off).or_panic_dbg((off, data.len()));
             off += 1;
             count = (ch & 0x3F) as c_int;
             if count <= 0 || framesize * count > 5760 {
@@ -222,7 +226,7 @@ pub fn opus_packet_parse_impl(
                     if len <= 0 {
                         return OPUS_INVALID_PACKET;
                     }
-                    p = i32::from(*data.get(off).or_panic(off));
+                    p = i32::from(*data.get(off).or_panic_dbg((off, data.len())));
                     off += 1;
                     len -= 1;
                     padding += if p == 255 { 254 } else { p };
@@ -241,7 +245,7 @@ pub fn opus_packet_parse_impl(
                 // VBR case
                 last_size = len;
                 for s in size.get_mut(..(count - 1) as usize).or_panic(count - 1) {
-                    let bytes = parse_size(data.get(off..).or_panic(off), len, s);
+                    let bytes = parse_size(data.get(off..).or_panic_dbg((off, data.len())), len, s);
                     len -= bytes;
                     if *s < 0 || i32::from(*s) > len {
                         return OPUS_INVALID_PACKET;
@@ -267,7 +271,7 @@ pub fn opus_packet_parse_impl(
     let last_idx = count as usize - 1;
     if self_delimited != 0 {
         let mut last = 0i16;
-        let bytes = parse_size(data.get(off..).or_panic(off), len, &mut last);
+        let bytes = parse_size(data.get(off..).or_panic_dbg((off, data.len())), len, &mut last);
         *size.get_mut(last_idx).or_panic(last_idx) = last;
         len -= bytes;
         if last < 0 || i32::from(last) > len {

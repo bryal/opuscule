@@ -18,7 +18,7 @@ use crate::util::OrPanic;
 #[inline]
 fn ec_read_byte(this: &mut EcCtx) -> i32 {
     if this.offs < this.storage {
-        let b = *this.buf.get(this.offs as usize).or_panic(this.offs);
+        let b = *this.buf.get(this.offs as usize).or_panic_dbg((this.offs, this.buf.len()));
         this.offs += 1;
         b as i32
     } else {
@@ -31,7 +31,8 @@ fn ec_read_byte(this: &mut EcCtx) -> i32 {
 fn ec_read_byte_from_end(this: &mut EcCtx) -> i32 {
     if this.end_offs < this.storage {
         this.end_offs += 1;
-        let b = *this.buf.get((this.storage - this.end_offs) as usize).or_panic(this.storage - this.end_offs);
+        let b =
+            *this.buf.get((this.storage - this.end_offs) as usize).or_panic_dbg((this.storage - this.end_offs, this.buf.len()));
         b as i32
     } else {
         0
@@ -153,7 +154,7 @@ pub fn ec_dec_icdf(this: &mut ec_dec, icdf: &[u8], ftb: u32) -> c_int {
         ret += 1;
         // The loop terminates because the last icdf entry is 0, which
         // makes s = 0, and d >= 0 always holds.
-        s = r.wrapping_mul(u32::from(*icdf.get(ret as usize).or_panic(ret)));
+        s = r.wrapping_mul(u32::from(*icdf.get(ret as usize).or_panic_dbg((ret, icdf.len()))));
         if d >= s {
             break;
         }
