@@ -3,6 +3,8 @@
 //! FIR prediction-error filter: computes `out = in - predicted(in)`.
 //! The first `d` output samples are set to zero (filter warm-up).
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlabb_ovflw, silk_smulbb};
 
 /// `silk_LPC_analysis_filter` — apply an LPC analysis filter of order `d`

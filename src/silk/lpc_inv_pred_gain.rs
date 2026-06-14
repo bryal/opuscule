@@ -3,6 +3,8 @@
 //! Compute inverse of LPC prediction gain and test stability (all poles
 //! within unit circle).
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift_round64, silk_smmul, silk_smull};
 
 const SILK_MAX_ORDER_LPC: usize = 16;

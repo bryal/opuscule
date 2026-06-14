@@ -2,6 +2,8 @@
 //!
 //! Low-complexity NLSF VQ weights after Laroia, Phamdo & Farvardin (1991).
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 const NLSF_W_Q: i32 = 2;
 
 /// `silk_NLSF_VQ_weights_laroia` — compute per-coefficient VQ weights for

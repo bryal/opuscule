@@ -6,6 +6,8 @@
 //! the result so it satisfies the codec's monotonicity / minimum-spacing
 //! constraints.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_limit_int, silk_lshift, silk_smlawb, silk_smulbb};
 use super::nlsf_stabilize::silk_nlsf_stabilize;
 use super::nlsf_unpack::silk_nlsf_unpack;

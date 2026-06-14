@@ -4,6 +4,8 @@
 //! polyphase branch, followed (externally) by a notch filter just above
 //! the original Nyquist.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_rom::{SILK_RESAMPLER_UP2_HQ_0, SILK_RESAMPLER_UP2_HQ_1};
 use super::structs::SilkResamplerStateStruct;

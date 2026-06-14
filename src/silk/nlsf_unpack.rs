@@ -3,6 +3,8 @@
 //! Unpacks predictor values and entropy-coding indices from the NLSF
 //! codebook.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::silk_smulbb;
 use super::structs::SilkNlsfCbStruct;
 

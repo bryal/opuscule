@@ -3,6 +3,8 @@
 //! Gain scalar quantization / dequantization on a log scale with
 //! hysteresis and delta coding.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::log2lin::silk_log2lin;
 use super::macros::{silk_limit_int, silk_lshift, silk_smulwb};
 

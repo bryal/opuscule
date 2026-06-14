@@ -2,6 +2,8 @@
 //!
 //! Second-order ARMA filter (direct form II transposed).
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 
 /// `silk_biquad_alt` — second-order ARMA filter, alternative implementation.

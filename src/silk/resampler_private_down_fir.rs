@@ -5,6 +5,8 @@
 //! dispatched on `FIR_Order` to let the compiler unroll the inner
 //! product.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_private_ar2::silk_resampler_private_ar2;
 use super::resampler_rom::{RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2};

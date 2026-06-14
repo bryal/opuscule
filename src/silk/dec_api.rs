@@ -6,6 +6,8 @@
 //! - [`silk_Decode`] — decode one frame (possibly stereo, possibly lost)
 //! - [`silk_get_TOC`] — extract per-packet VAD/FEC flags
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use core::ffi::c_int;
 
 use crate::entcode::ec_dec;

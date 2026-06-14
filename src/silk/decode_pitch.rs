@@ -3,6 +3,8 @@
 //! Reconstructs per-subframe pitch lags from the coded lag index and
 //! contour index using the pitch estimation codebook tables.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::pitch_est_tables::{SILK_CB_LAGS_STAGE2, SILK_CB_LAGS_STAGE2_10_MS, SILK_CB_LAGS_STAGE3, SILK_CB_LAGS_STAGE3_10_MS};
 
 // Constants from pitch_est_defines.h

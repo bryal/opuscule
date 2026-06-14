@@ -5,6 +5,8 @@
 //! whose coefficients live in [`silk_resampler_down2_0`] and
 //! [`silk_resampler_down2_1`].
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_rom::{SILK_RESAMPLER_DOWN2_0, SILK_RESAMPLER_DOWN2_1};
 

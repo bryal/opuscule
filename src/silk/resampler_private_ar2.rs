@@ -3,6 +3,8 @@
 //! Second-order AR filter with single delay elements, used internally by
 //! the resampler.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_smlawb, silk_smulwb};
 
 /// `silk_resampler_private_AR2` — second-order AR section.

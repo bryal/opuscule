@@ -5,6 +5,8 @@
 //! decode stages consume: gains, LPC prediction coefs (with optional
 //! interpolated first half), pitch lags, LTP coefs, and LTP scale.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::bwexpander::silk_bwexpander;
 use super::decode_pitch::silk_decode_pitch;
 use super::gain_quant::silk_gains_dequant;

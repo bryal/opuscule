@@ -2,6 +2,8 @@
 //!
 //! Low-quality 2/3 fractional downsampler used by some narrow-band paths.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
 use super::resampler_private_ar2::silk_resampler_private_ar2;
 use super::resampler_rom::SILK_RESAMPLER_2_3_COEFS_LQ;

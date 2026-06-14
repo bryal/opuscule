@@ -5,6 +5,8 @@
 //! table of sub-sampler selections — see the matrix at the top of the
 //! C source for the combinations each pair of rates uses.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_smulww};
 use super::resampler_private_down_fir::silk_resampler_private_down_fir;
 use super::resampler_private_iir_fir::silk_resampler_private_iir_fir;

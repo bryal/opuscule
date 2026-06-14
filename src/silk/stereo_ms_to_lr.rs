@@ -2,6 +2,8 @@
 //!
 //! Converts adaptive Mid/Side representation to Left/Right stereo signal.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulbb};
 use super::structs::StereoDecState;
 

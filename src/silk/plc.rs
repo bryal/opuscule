@@ -7,6 +7,8 @@
 //! progressively attenuated gains. `silk_PLC_glue_frames` crossfades
 //! into the first good frame after loss.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::bwexpander::silk_bwexpander;
 use super::lpc_analysis_filter::silk_lpc_analysis_filter;
 use super::lpc_inv_pred_gain::silk_lpc_inverse_pred_gain;

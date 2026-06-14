@@ -5,6 +5,8 @@
 //! subframes, runs LPC synthesis with per-subframe gain matching, and
 //! writes the reconstructed speech into `xq`.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::lpc_analysis_filter::silk_lpc_analysis_filter;
 use super::macros::{
     silk_div32_varq, silk_inverse32_varq, silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww,

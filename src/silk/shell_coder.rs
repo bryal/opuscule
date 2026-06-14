@@ -6,6 +6,8 @@
 //! count. Pulse-subframe length (16) is hard-coded — matching the C —
 //! and the binary-tree shape is unrolled in [`silk_shell_decoder`].
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_icdf;
 

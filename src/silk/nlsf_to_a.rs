@@ -11,6 +11,8 @@
 //! `silk_LSFCosTab_FIX_Q12` table, using a manually-chosen ordering
 //! that was found to maximize numerical accuracy.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::bwexpander_32::silk_bwexpander_32;
 use super::lpc_inv_pred_gain::silk_lpc_inverse_pred_gain;
 use super::macros::{silk_lshift, silk_rshift_round, silk_rshift_round64, silk_sat16, silk_smull};

@@ -2,6 +2,8 @@
 //!
 //! Decodes mid/side stereo predictors and mid-only flag from the range coder.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_icdf;
 

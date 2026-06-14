@@ -4,6 +4,8 @@
 //! most recent unvoiced frame and, during packet loss, synthesizes a
 //! noise signal that is mixed into the decoder output.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb, silk_smulww};
 use super::nlsf_to_a::silk_nlsf2a;
 use super::structs::{MAX_FRAME_LENGTH, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};

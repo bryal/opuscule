@@ -4,6 +4,8 @@
 //! pulses, parameters, core NSQ, PLC state update or loss
 //! concealment, output-buffer rotation, PLC glue, and CNG.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use crate::entcode::ec_dec;
 
 use super::cng::silk_cng;

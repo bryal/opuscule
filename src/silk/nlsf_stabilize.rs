@@ -3,6 +3,8 @@
 //! Stabilizer for Normalized Line Spectral Frequencies: enforces minimum
 //! spacing between coefficients and pushes them away from boundaries.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_limit_int, silk_rshift_round};
 use super::sort::silk_insertion_sort_increasing_all_values_int16;
 

@@ -3,6 +3,8 @@
 //! Computes the sum-of-squares energy of an `i16` vector, auto-scaling
 //! the accumulator by powers of two to prevent overflow.
 
+#![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
+
 use super::macros::{silk_smlabb_ovflw, silk_smulbb};
 
 /// `silk_sum_sqr_shift` — compute the energy (sum of squares) of `x[0..len]`,
