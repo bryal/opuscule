@@ -19,6 +19,7 @@ use crate::opus_decoder::{
 
 #[cfg(not(feature = "fixed-point"))]
 use crate::opus_decoder::float2int16;
+use crate::util::OrPanic;
 
 // -- Constants --
 
@@ -62,7 +63,9 @@ fn validate_layout(layout: &ChannelLayout) -> c_int {
     }
     let mut i = 0;
     while i < layout.nb_channels {
-        if layout.mapping[i as usize] as c_int >= max_channel && layout.mapping[i as usize] != 255 {
+        if *layout.mapping.get(i as usize).or_panic(i) as c_int >= max_channel
+            && *layout.mapping.get(i as usize).or_panic(i) != 255
+        {
             return 0;
         }
         i += 1;
@@ -73,7 +76,7 @@ fn validate_layout(layout: &ChannelLayout) -> c_int {
 fn get_left_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
     let mut i = if prev < 0 { 0 } else { prev + 1 };
     while i < layout.nb_channels {
-        if layout.mapping[i as usize] as c_int == stream_id * 2 {
+        if *layout.mapping.get(i as usize).or_panic(i) as c_int == stream_id * 2 {
             return i;
         }
         i += 1;
@@ -84,7 +87,7 @@ fn get_left_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_
 fn get_right_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
     let mut i = if prev < 0 { 0 } else { prev + 1 };
     while i < layout.nb_channels {
-        if layout.mapping[i as usize] as c_int == stream_id * 2 + 1 {
+        if *layout.mapping.get(i as usize).or_panic(i) as c_int == stream_id * 2 + 1 {
             return i;
         }
         i += 1;
@@ -95,7 +98,7 @@ fn get_right_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c
 fn get_mono_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
     let mut i = if prev < 0 { 0 } else { prev + 1 };
     while i < layout.nb_channels {
-        if layout.mapping[i as usize] as c_int == stream_id + layout.nb_coupled_streams {
+        if *layout.mapping.get(i as usize).or_panic(i) as c_int == stream_id + layout.nb_coupled_streams {
             return i;
         }
         i += 1;
@@ -133,7 +136,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_init(
 
         let mut i = 0;
         while i < (*st).layout.nb_channels {
-            (*st).layout.mapping[i as usize] = *mapping.offset(i as isize);
+            *(*st).layout.mapping.get_mut(i as usize).or_panic(i) = *mapping.offset(i as isize);
             i += 1;
         }
         if validate_layout(&(*st).layout) == 0 {
@@ -288,7 +291,8 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = buf[(2 * i) as usize];
+                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
+                            *buf.get((2 * i) as usize).or_panic(2 * i);
                         i += 1;
                     }
                     prev = chan;
@@ -302,7 +306,8 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = buf[(2 * i + 1) as usize];
+                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
+                            *buf.get((2 * i + 1) as usize).or_panic(2 * i + 1);
                         i += 1;
                     }
                     prev = chan;
@@ -317,7 +322,7 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = buf[i as usize];
+                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = *buf.get(i as usize).or_panic(i);
                         i += 1;
                     }
                     prev = chan;
@@ -328,7 +333,7 @@ unsafe fn opus_multistream_decode_native(
         // Handle muted channels
         let mut c = 0;
         while c < (*st).layout.nb_channels {
-            if (*st).layout.mapping[c as usize] == 255 {
+            if *(*st).layout.mapping.get(c as usize).or_panic(c) == 255 {
                 let mut i = 0;
                 while i < frame_size {
                     *pcm.offset(((*st).layout.nb_channels * i + c) as isize) = Default::default();
@@ -373,7 +378,7 @@ pub unsafe extern "C" fn opus_multistream_decode(
         if ret > 0 {
             let mut i = 0;
             while i < ret * nb_channels {
-                *pcm.offset(i as isize) = float2int16(out[i as usize]);
+                *pcm.offset(i as isize) = float2int16(*out.get(i as usize).or_panic(i));
                 i += 1;
             }
         }

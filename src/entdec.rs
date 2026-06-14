@@ -12,12 +12,13 @@ use std::os::raw::c_int;
 use crate::entcode::{
     EC_CODE_BITS, EC_CODE_EXTRA, EC_CODE_TOP, EC_SYM_BITS, EC_SYM_MAX, EC_UINT_BITS, EC_WINDOW_SIZE, EcCtx, ec_dec, ec_ilog,
 };
+use crate::util::OrPanic;
 
 /// Read the next byte from the front of the buffer, or 0 if exhausted.
 #[inline]
 fn ec_read_byte(this: &mut EcCtx) -> i32 {
     if this.offs < this.storage {
-        let b = this.buf[this.offs as usize];
+        let b = *this.buf.get(this.offs as usize).or_panic(this.offs);
         this.offs += 1;
         b as i32
     } else {
@@ -30,7 +31,7 @@ fn ec_read_byte(this: &mut EcCtx) -> i32 {
 fn ec_read_byte_from_end(this: &mut EcCtx) -> i32 {
     if this.end_offs < this.storage {
         this.end_offs += 1;
-        let b = this.buf[(this.storage - this.end_offs) as usize];
+        let b = *this.buf.get((this.storage - this.end_offs) as usize).or_panic(this.storage - this.end_offs);
         b as i32
     } else {
         0
@@ -152,7 +153,7 @@ pub fn ec_dec_icdf(this: &mut ec_dec, icdf: &[u8], ftb: u32) -> c_int {
         ret += 1;
         // The loop terminates because the last icdf entry is 0, which
         // makes s = 0, and d >= 0 always holds.
-        s = r.wrapping_mul(icdf[ret as usize] as u32);
+        s = r.wrapping_mul(u32::from(*icdf.get(ret as usize).or_panic(ret)));
         if d >= s {
             break;
         }
