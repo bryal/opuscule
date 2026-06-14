@@ -18,25 +18,25 @@ static SIGM_LUT_POS_Q15: [i32; 6] = [16384, 23955, 28861, 31213, 32178, 32548];
 static SIGM_LUT_NEG_Q15: [i32; 6] = [16384, 8812, 3906, 1554, 589, 219];
 
 /// `silk_sigm_Q15` — approximate sigmoid, Q15 output for Q5 input.
+///
+/// `ind = in_q5 >> 5` selects the table segment; `ind >= 6` (i.e. the C's
+/// `in_q5 >= 6*32` clip case) falls out of the lookup table, so a failed
+/// `.get()` IS the clip condition.
 pub fn silk_sigm_q15(in_q5: i32) -> i32 {
     if in_q5 < 0 {
         /* Negative input */
         let in_q5 = -in_q5;
-        if in_q5 >= 6 * 32 {
-            0 /* Clip */
-        } else {
-            /* Linear interpolation of look up table */
-            let ind = (in_q5 >> 5) as usize;
-            SIGM_LUT_NEG_Q15[ind] - silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F)
-        }
+        let ind = (in_q5 >> 5) as usize;
+        let (Some(&base), Some(&slope)) = (SIGM_LUT_NEG_Q15.get(ind), SIGM_LUT_SLOPE_Q10.get(ind)) else {
+            return 0; /* Clip */
+        };
+        base - silk_smulbb(slope, in_q5 & 0x1F)
     } else {
         /* Positive input */
-        if in_q5 >= 6 * 32 {
-            32767 /* clip */
-        } else {
-            /* Linear interpolation of look up table */
-            let ind = (in_q5 >> 5) as usize;
-            SIGM_LUT_POS_Q15[ind] + silk_smulbb(SIGM_LUT_SLOPE_Q10[ind], in_q5 & 0x1F)
-        }
+        let ind = (in_q5 >> 5) as usize;
+        let (Some(&base), Some(&slope)) = (SIGM_LUT_POS_Q15.get(ind), SIGM_LUT_SLOPE_Q10.get(ind)) else {
+            return 32767; /* Clip */
+        };
+        base + silk_smulbb(slope, in_q5 & 0x1F)
     }
 }
