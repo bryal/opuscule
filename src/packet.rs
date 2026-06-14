@@ -6,7 +6,7 @@
 
 use std::os::raw::c_int;
 
-use crate::util::zip;
+use crate::util::{OrPanic, zip};
 
 // -- Mode constants from opus_private.h --
 const MODE_SILK_ONLY: c_int = 1000;
@@ -127,7 +127,7 @@ fn parse_size(data: &[u8], len: c_int, size: &mut i16) -> c_int {
         *size = -1;
         return -1;
     }
-    let b0 = i16::from(*data.first().expect("len >= 1 implies at least one byte"));
+    let b0 = i16::from(*data.first().or_panic("len >= 1 implies at least one byte"));
     if b0 < 252 {
         *size = b0;
         1
@@ -135,7 +135,7 @@ fn parse_size(data: &[u8], len: c_int, size: &mut i16) -> c_int {
         *size = -1;
         -1
     } else {
-        *size = 4 * i16::from(*data.get(1).expect("len >= 2 implies a second byte")) + b0;
+        *size = 4 * i16::from(*data.get(1).or_panic("len >= 2 implies a second byte")) + b0;
         2
     }
 }
@@ -163,7 +163,7 @@ pub fn opus_packet_parse_impl(
     // `len` is the remaining-bytes counter, initialised from the packet length.
     let mut len = data.len() as c_int;
 
-    let toc = *data.first().expect("opus_packet_parse_impl requires a non-empty packet");
+    let toc = *data.first().or_panic("opus_packet_parse_impl requires a non-empty packet");
     let framesize = packet_get_samples_per_frame(toc, 48000);
 
     let mut cbr: c_int = 0;
@@ -186,15 +186,15 @@ pub fn opus_packet_parse_impl(
                     return OPUS_INVALID_PACKET;
                 }
                 last_size = len / 2;
-                *size.first_mut().expect("size buffer non-empty") = last_size as i16;
+                *size.first_mut().or_panic("size buffer non-empty") = last_size as i16;
             }
         }
         // Two VBR frames
         2 => {
             count = 2;
-            let bytes = parse_size(&data[off..], len, size.first_mut().expect("size buffer non-empty"));
+            let bytes = parse_size(&data[off..], len, size.first_mut().or_panic("size buffer non-empty"));
             len -= bytes;
-            let s0 = *size.first().expect("size buffer non-empty");
+            let s0 = *size.first().or_panic("size buffer non-empty");
             if s0 < 0 || i32::from(s0) > len {
                 return OPUS_INVALID_PACKET;
             }
@@ -207,7 +207,7 @@ pub fn opus_packet_parse_impl(
                 return OPUS_INVALID_PACKET;
             }
             // Number of frames encoded in bits 0 to 5
-            let ch = *data.get(off).expect("off within packet");
+            let ch = *data.get(off).or_panic(off);
             off += 1;
             count = (ch & 0x3F) as c_int;
             if count <= 0 || framesize * count > 5760 {
@@ -222,7 +222,7 @@ pub fn opus_packet_parse_impl(
                     if len <= 0 {
                         return OPUS_INVALID_PACKET;
                     }
-                    p = i32::from(*data.get(off).expect("off within packet"));
+                    p = i32::from(*data.get(off).or_panic(off));
                     off += 1;
                     len -= 1;
                     padding += if p == 255 { 254 } else { p };
@@ -240,7 +240,7 @@ pub fn opus_packet_parse_impl(
             if cbr == 0 {
                 // VBR case
                 last_size = len;
-                for s in size.get_mut(..(count - 1) as usize).expect("frame count <= size buffer") {
+                for s in size.get_mut(..(count - 1) as usize).or_panic(count - 1) {
                     let bytes = parse_size(&data[off..], len, s);
                     len -= bytes;
                     if *s < 0 || i32::from(*s) > len {
@@ -258,7 +258,7 @@ pub fn opus_packet_parse_impl(
                 if last_size * count != len {
                     return OPUS_INVALID_PACKET;
                 }
-                size.get_mut(..(count - 1) as usize).expect("frame count <= size buffer").fill(last_size as i16);
+                size.get_mut(..(count - 1) as usize).or_panic(count - 1).fill(last_size as i16);
             }
         }
     }
@@ -268,7 +268,7 @@ pub fn opus_packet_parse_impl(
     if self_delimited != 0 {
         let mut last = 0i16;
         let bytes = parse_size(&data[off..], len, &mut last);
-        *size.get_mut(last_idx).expect("last frame within size buffer") = last;
+        *size.get_mut(last_idx).or_panic(last_idx) = last;
         len -= bytes;
         if last < 0 || i32::from(last) > len {
             return OPUS_INVALID_PACKET;
@@ -279,7 +279,7 @@ pub fn opus_packet_parse_impl(
             if i32::from(last) * count > len {
                 return OPUS_INVALID_PACKET;
             }
-            size.get_mut(..last_idx).expect("frame count <= size buffer").fill(last);
+            size.get_mut(..last_idx).or_panic(last_idx).fill(last);
         } else if i32::from(last) > last_size {
             return OPUS_INVALID_PACKET;
         }
@@ -290,7 +290,7 @@ pub fn opus_packet_parse_impl(
         if last_size > 1275 {
             return OPUS_INVALID_PACKET;
         }
-        *size.get_mut(last_idx).expect("last frame within size buffer") = last_size as i16;
+        *size.get_mut(last_idx).or_panic(last_idx) = last_size as i16;
     }
 
     if let Some(frames) = frames {

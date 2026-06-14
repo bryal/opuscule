@@ -11,6 +11,7 @@ use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, sil
 use super::resampler_private_ar2::silk_resampler_private_ar2;
 use super::resampler_rom::{RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2};
 use super::structs::{SILK_RESAMPLER_MAX_FIR_ORDER, SilkResamplerStateStruct};
+use crate::util::OrPanic;
 
 const RESAMPLER_MAX_BATCH_SIZE_IN: usize = 10 * 48;
 
@@ -135,7 +136,7 @@ pub fn silk_resampler_private_down_fir(s: &mut SilkResamplerStateStruct, out: &m
     let fir_order = s.fir_order as usize;
     buf[..fir_order].copy_from_slice(&s.s_fir[..fir_order]);
 
-    let coefs = s.coefs.expect("down-FIR resampler sets coefs in silk_resampler_init");
+    let coefs = s.coefs.or_panic("down-FIR resampler sets coefs in silk_resampler_init");
     let fir_coefs = &coefs[2..];
 
     /* Iterate over blocks of frameSizeIn input samples */

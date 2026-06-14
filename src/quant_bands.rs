@@ -17,7 +17,7 @@ use crate::arch::*;
 use crate::entcode::EcCtx;
 use crate::entdec::ec_tell;
 use crate::modes::CELTMode;
-use crate::util::{zip, zip3};
+use crate::util::{OrPanic, zip, zip3};
 
 // -- Constants --
 
@@ -201,7 +201,7 @@ pub fn unquant_fine_energy(
     let nb_ebands = m.nb_ebands as usize;
 
     let (s, e) = (start as usize, end as usize);
-    for (i, &fq) in (s..e).zip(fine_quant.get(s..e).expect("[start,end) within fine_quant")) {
+    for (i, &fq) in (s..e).zip(fine_quant.get(s..e).or_panic_dbg((s, e))) {
         if fq <= 0 {
             continue;
         }
@@ -247,9 +247,8 @@ pub fn unquant_energy_finalise(
 
     let (s, e) = (start as usize, end as usize);
     for prio in 0..2 {
-        for ((i, &fq), &fp) in (s..e)
-            .zip(fine_quant.get(s..e).expect("[start,end) within fine_quant"))
-            .zip(fine_priority.get(s..e).expect("[start,end) within fine_priority"))
+        for ((i, &fq), &fp) in
+            (s..e).zip(fine_quant.get(s..e).or_panic_dbg((s, e))).zip(fine_priority.get(s..e).or_panic_dbg((s, e)))
         {
             if bits_left < c_channels {
                 break;

@@ -5,7 +5,7 @@
 
 use crate::arch::*;
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir};
-use crate::util::zip;
+use crate::util::{OrPanic, zip};
 
 /// SIG_SHIFT: number of fractional bits in celt_sig (fixed-point mode).
 /// In float mode the shift is a no-op because shr32 is identity on f32.
@@ -202,7 +202,7 @@ pub fn pitch_search(
         }
     }
 
-    let xcorr1 = xcorr.get(..xcorr_len).expect("xcorr holds max_pitch/2 >= max_pitch/4 entries");
+    let xcorr1 = xcorr.get(..xcorr_len).or_panic(xcorr_len);
     #[cfg(not(feature = "fixed-point"))]
     find_best_pitch(xcorr1, &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch);
     #[cfg(feature = "fixed-point")]
@@ -232,7 +232,7 @@ pub fn pitch_search(
         }
     }
 
-    let xcorr2 = xcorr.get(..half_max_pitch).expect("xcorr holds max_pitch/2 entries");
+    let xcorr2 = xcorr.get(..half_max_pitch).or_panic(half_max_pitch);
     #[cfg(not(feature = "fixed-point"))]
     find_best_pitch(xcorr2, y, len >> 1, max_pitch >> 1, &mut best_pitch);
     #[cfg(feature = "fixed-point")]

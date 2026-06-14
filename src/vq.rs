@@ -16,6 +16,7 @@ use std::os::raw::c_int;
 use crate::arch::*;
 use crate::cwrs::decode_pulses;
 use crate::entcode::ec_dec;
+use crate::util::OrPanic;
 
 // -- Static helpers --
 
@@ -54,7 +55,7 @@ fn exp_rotation(x: &mut [CeltNorm], len: usize, dir: i32, stride: usize, k: i32,
     if 2 * k >= len as i32 || spread == SPREAD_NONE {
         return;
     }
-    let factor = SPREAD_FACTOR.get((spread - 1) as usize).copied().expect("spread is 1..=3 after the SPREAD_NONE guard");
+    let factor = SPREAD_FACTOR.get((spread - 1) as usize).copied().or_panic(spread - 1);
 
     // C: gain = celt_div((opus_val32)MULT16_16(Q15_ONE,len),
     //                     (opus_val32)(len+factor*K));

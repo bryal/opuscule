@@ -186,7 +186,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_create(
             return std::ptr::null_mut();
         }
         let layout = std::alloc::Layout::from_size_align(size as usize, std::mem::align_of::<OpusMSDecoder>())
-            .expect("invalid layout for OpusMSDecoder");
+            .unwrap_or_else(|e| panic!("invalid layout for OpusMSDecoder: {e:?}"));
         let ptr = std::alloc::alloc_zeroed(layout) as *mut OpusMSDecoder;
         if ptr.is_null() {
             if !error.is_null() {
@@ -214,7 +214,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_destroy(st: *mut OpusMSDecoder
         }
         let size = opus_multistream_decoder_get_size((*st).layout.nb_streams, (*st).layout.nb_coupled_streams);
         let layout = std::alloc::Layout::from_size_align(size as usize, std::mem::align_of::<OpusMSDecoder>())
-            .expect("invalid layout for OpusMSDecoder");
+            .unwrap_or_else(|e| panic!("invalid layout for OpusMSDecoder: {e:?}"));
         std::alloc::dealloc(st as *mut u8, layout);
     }
 }

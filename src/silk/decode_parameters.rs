@@ -16,6 +16,7 @@ use super::nlsf_to_a::silk_nlsf2a;
 use super::structs::{LTP_ORDER, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 use super::tables_ltp::SILK_LTP_VQ_PTRS_Q7;
 use super::tables_other::SILK_LTP_SCALES_TABLE_Q14;
+use crate::util::OrPanic;
 
 const CODE_CONDITIONALLY: i32 = 2;
 const TYPE_VOICED: i32 = 2;
@@ -41,7 +42,7 @@ pub fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut S
     silk_nlsf_decode(
         &mut p_nlsf_q15,
         &ps_dec.indices.nlsf_indices,
-        ps_dec.ps_nlsf_cb.expect("NLSF codebook is set by silk_decoder_set_fs before decoding"),
+        ps_dec.ps_nlsf_cb.or_panic("NLSF codebook is set by silk_decoder_set_fs before decoding"),
     );
 
     /* Convert NLSF parameters to AR prediction filter coefficients */

@@ -11,7 +11,7 @@
 use std::os::raw::c_int;
 
 use crate::arch::*;
-use crate::util::zip;
+use crate::util::{OrPanic, zip};
 
 /// Maximum autocorrelation length (MAX_PERIOD from modes.h).
 const MAX_PERIOD: usize = 1024;
@@ -156,7 +156,7 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
 
     // Copy x into local buffer, apply window to edges
     let mut xx = [0 as OpusVal16; MAX_PERIOD];
-    for (dst, &src) in zip(xx.get_mut(..n).expect("n <= MAX_PERIOD"), x.get(..n).expect("n samples in x")) {
+    for (dst, &src) in zip(xx.get_mut(..n).or_panic(n), x.get(..n).or_panic(n)) {
         *dst = src;
     }
     // Symmetric edge windowing: front sample `i` and back sample `n-1-i`
@@ -171,13 +171,13 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
     #[cfg(feature = "fixed-point")]
     {
         let mut ac0: i32 = 0;
-        for &xi in xx.get(..n).expect("n <= MAX_PERIOD") {
+        for &xi in xx.get(..n).or_panic(n) {
             ac0 += shr32(mult16_16(xi, xi), 9);
         }
         ac0 += 1 + n as i32;
 
         let shift = (celt_ilog2(ac0) as i32 - 30 + 10 + 1) / 2;
-        for xi in xx.get_mut(..n).expect("n <= MAX_PERIOD") {
+        for xi in xx.get_mut(..n).or_panic(n) {
             *xi = vshr32(*xi as i32, shift) as i16;
         }
     }
@@ -186,9 +186,9 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
     // i.e. the dot of xx shifted by l with itself (same summation order as the
     // C, so float results stay bit-exact). Lags are independent, so order of
     // evaluation across `l` doesn't matter.
-    for (l, slot) in ac.get_mut(..lag + 1).expect("lag+1 <= ac.len()").iter_mut().enumerate() {
+    for (l, slot) in ac.get_mut(..lag + 1).or_panic(lag + 1).iter_mut().enumerate() {
         let mut d: OpusVal32 = 0 as OpusVal32;
-        for (&a, &b) in zip(xx.get(l..n).expect("lag <= n"), xx.get(..n - l).expect("n-l <= MAX_PERIOD")) {
+        for (&a, &b) in zip(xx.get(l..n).or_panic_dbg((l, n)), xx.get(..n - l).or_panic(n - l)) {
             d = d + mult16_16(a, b);
         }
         *slot = d;

@@ -25,7 +25,7 @@ const TEST_WIN_STEP: usize = 120;
 /// Returns the number of frames (each frame = nchannels samples).
 fn read_pcm16(fin: &mut File, nchannels: usize) -> (Vec<f32>, usize) {
     let mut raw = Vec::new();
-    fin.read_to_end(&mut raw).expect("failed to read PCM file");
+    fin.read_to_end(&mut raw).unwrap_or_else(|e| panic!("failed to read PCM file: {e}"));
     let bytes_per_frame = 2 * nchannels;
     let nframes = raw.len() / bytes_per_frame;
     let mut samples = Vec::with_capacity(nframes * nchannels);
@@ -139,7 +139,7 @@ fn main() {
     let mut yfreqs = NFREQS;
     let mut downsample = 1usize;
     if argv[argi] == "-r" {
-        rate = argv[argi + 1].parse().expect("invalid rate");
+        rate = argv[argi + 1].parse().unwrap_or_else(|e| panic!("invalid rate: {e}"));
         if ![8000, 12000, 16000, 24000, 48000].contains(&rate) {
             eprintln!("Sampling rate must be 8000, 12000, 16000, 24000, or 48000");
             process::exit(1);

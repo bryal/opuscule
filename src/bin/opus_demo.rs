@@ -86,9 +86,9 @@ fn main() {
         process::exit(1);
     }
 
-    let sampling_rate: i32 = argv[args].parse().expect("invalid sampling rate");
+    let sampling_rate: i32 = argv[args].parse().unwrap_or_else(|e| panic!("invalid sampling rate: {e}"));
     args += 1;
-    let channels: i32 = argv[args].parse().expect("invalid channel count");
+    let channels: i32 = argv[args].parse().unwrap_or_else(|e| panic!("invalid channel count: {e}"));
     args += 1;
 
     if ![8000, 12000, 16000, 24000, 48000].contains(&sampling_rate) {
@@ -106,7 +106,7 @@ fn main() {
         let opt = argv[args].as_str();
         match opt {
             "-loss" => {
-                packet_loss_perc = argv[args + 1].parse().expect("invalid loss percentage");
+                packet_loss_perc = argv[args + 1].parse().unwrap_or_else(|e| panic!("invalid loss percentage: {e}"));
                 args += 2;
             }
             "-inbandfec" => {
@@ -254,7 +254,7 @@ fn main() {
                         fbytes[2 * i + 1] = ((s >> 8) & 0xFF) as u8;
                     }
                     let write_bytes = write_samples * channels as usize * 2;
-                    fout.write_all(&fbytes[..write_bytes]).expect("Error writing output");
+                    fout.write_all(&fbytes[..write_bytes]).unwrap_or_else(|e| panic!("error writing output: {e}"));
                 }
                 if output_samples < skip {
                     skip -= output_samples;

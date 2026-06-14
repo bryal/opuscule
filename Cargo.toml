@@ -23,6 +23,7 @@ unit_arg = "allow"
 
 # Promoted to errors: a bare panic-on-failure or unchecked index hides *why*
 # it can't fail and gives no context if it ever does.
+expect_used = "deny"
 undocumented_unsafe_blocks = "deny"
 indexing_slicing = "deny"
 unwrap_used = "deny"

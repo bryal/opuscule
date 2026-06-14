@@ -15,7 +15,7 @@ use crate::modes::{CELTMode, opus_custom_mode_create};
 use crate::pitch::{pitch_downsample, pitch_search};
 use crate::quant_bands::{log2amp, unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
 use crate::rate::compute_allocation;
-use crate::util::{zip, zip3, zip4};
+use crate::util::{OrPanic, zip, zip3, zip4};
 use crate::vq::renormalise_vector;
 
 // -- Constants --
@@ -336,7 +336,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
         {
             let ch_len = (n + st.overlap) as usize;
             if cc == 2 {
-                let (c0, c1) = chans.split_at_mut_checked(1).expect("cc == 2 means chans holds two channel slices");
+                let (c0, c1) = chans.split_at_mut_checked(1).or_panic("cc == 2 means chans holds two channel slices");
                 compute_inv_mdcts(mode, 0, &freq, &mut [&mut c0[0][os..os + ch_len], &mut c1[0][os..os + ch_len]], cc, lm);
             } else {
                 compute_inv_mdcts(mode, 0, &freq, &mut [&mut chans[0][os..os + ch_len]], cc, lm);
@@ -619,13 +619,13 @@ pub fn celt_decode_with_ec<'a>(
     let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * c_channels) as usize];
 
     // First/last active bin (in MDCT samples) for the start and eff_end bands.
-    let band_start = (m * i32::from(*mode.ebands.get(st.start as usize).expect("st.start <= nb_ebands"))) as usize;
-    let band_eff_end = (m * i32::from(*mode.ebands.get(eff_end as usize).expect("eff_end <= nb_ebands"))) as usize;
+    let band_start = (m * i32::from(*mode.ebands.get(st.start as usize).or_panic(st.start))) as usize;
+    let band_eff_end = (m * i32::from(*mode.ebands.get(eff_end as usize).or_panic(eff_end))) as usize;
 
     // Per-channel clear of the inactive low/high band bins.
     for ch in x.chunks_mut(n as usize).take(c_channels as usize) {
-        ch.get_mut(..band_start).expect("band_start <= n").fill(0 as CeltNorm);
-        ch.get_mut(band_eff_end..).expect("band_eff_end <= n").fill(0 as CeltNorm);
+        ch.get_mut(..band_start).or_panic(band_start).fill(0 as CeltNorm);
+        ch.get_mut(band_eff_end..).or_panic(band_eff_end).fill(0 as CeltNorm);
     }
 
     let Some(data) = data.filter(|_| len > 1) else {
@@ -645,7 +645,7 @@ pub fn celt_decode_with_ec<'a>(
 
     if c_channels == 1 {
         let nb = mode.nb_ebands as usize;
-        let (lo, hi) = st.old_band_e.split_at_mut_checked(nb).expect("old_band_e holds 2*nb_ebands entries");
+        let (lo, hi) = st.old_band_e.split_at_mut_checked(nb).or_panic("old_band_e holds 2*nb_ebands entries");
         for (a, &b) in zip(lo, &*hi) {
             *a = max16(*a, b);
         }
@@ -776,7 +776,7 @@ pub fn celt_decode_with_ec<'a>(
     // Decode fixed codebook
     let mut collapse_masks = vec![0u8; (c_channels * mode.nb_ebands) as usize];
     {
-        let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).expect("x is c_channels*n long, so n <= x.len()");
+        let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).or_panic("x is c_channels*n long, so n <= x.len()");
         quant_all_bands(
             0,
             mode,
@@ -856,8 +856,8 @@ pub fn celt_decode_with_ec<'a>(
     // capped by the downsample ratio.
     let freq_bound = if st.downsample != 1 { band_eff_end.min((n / st.downsample) as usize) } else { band_eff_end };
     for ch in freq.chunks_mut(n as usize).take(c_channels as usize) {
-        ch.get_mut(..band_start).expect("band_start <= n").fill(0 as CeltSig);
-        ch.get_mut(freq_bound..).expect("freq_bound <= n").fill(0 as CeltSig);
+        ch.get_mut(..band_start).or_panic(band_start).fill(0 as CeltSig);
+        ch.get_mut(freq_bound..).or_panic(freq_bound).fill(0 as CeltSig);
     }
 
     // out_syn[c] starts at DECODE_BUFFER_SIZE - n within each channel
@@ -882,7 +882,7 @@ pub fn celt_decode_with_ec<'a>(
         // overlap) each, so the split at ch_size always lands on the channel-1
         // boundary; the checked split documents that and reports if it ever
         // doesn't, rather than panicking bare like split_at_mut would.
-        let (c0, c1) = st.decode_mem.split_at_mut_checked(ch_size).expect("decode_mem holds MAX_CHANNELS regions of ch_size");
+        let (c0, c1) = st.decode_mem.split_at_mut_checked(ch_size).or_panic("decode_mem holds MAX_CHANNELS regions of ch_size");
         if cc == 2 {
             compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len], &mut c1[os..os + ch_len]], cc, lm);
         } else {
@@ -944,32 +944,20 @@ pub fn celt_decode_with_ec<'a>(
     // In case start or end were to change
     let two_nb = (2 * mode.nb_ebands) as usize;
     if is_transient == 0 {
-        let (le2, le) = (
-            st.old_log_e2.get_mut(..two_nb).expect("2*nb within history"),
-            st.old_log_e.get(..two_nb).expect("2*nb within history"),
-        );
+        let (le2, le) = (st.old_log_e2.get_mut(..two_nb).or_panic(two_nb), st.old_log_e.get(..two_nb).or_panic(two_nb));
         for (d, &s) in zip(le2, le) {
             *d = s;
         }
-        let (le, be) = (
-            st.old_log_e.get_mut(..two_nb).expect("2*nb within history"),
-            st.old_band_e.get(..two_nb).expect("2*nb within history"),
-        );
+        let (le, be) = (st.old_log_e.get_mut(..two_nb).or_panic(two_nb), st.old_band_e.get(..two_nb).or_panic(two_nb));
         for (d, &s) in zip(le, be) {
             *d = s;
         }
-        let (bg, be) = (
-            st.background_log_e.get_mut(..two_nb).expect("2*nb within history"),
-            st.old_band_e.get(..two_nb).expect("2*nb within history"),
-        );
+        let (bg, be) = (st.background_log_e.get_mut(..two_nb).or_panic(two_nb), st.old_band_e.get(..two_nb).or_panic(two_nb));
         for (bg, &oe) in zip(bg, be) {
             *bg = min16(*bg + m as OpusVal16 * qconst16(0.001, DB_SHIFT), oe);
         }
     } else {
-        let (le, be) = (
-            st.old_log_e.get_mut(..two_nb).expect("2*nb within history"),
-            st.old_band_e.get(..two_nb).expect("2*nb within history"),
-        );
+        let (le, be) = (st.old_log_e.get_mut(..two_nb).or_panic(two_nb), st.old_band_e.get(..two_nb).or_panic(two_nb));
         for (le, &oe) in zip(le, be) {
             *le = min16(*le, oe);
         }
@@ -1080,7 +1068,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
     let budget = budget - tf_select_rsv as u32;
     let mut tf_changed = 0;
     let mut curr = 0;
-    for r in tf_res.get_mut(start as usize..end as usize).expect("[start,end) within tf_res") {
+    for r in tf_res.get_mut(start as usize..end as usize).or_panic_dbg((start, end)) {
         if tell + logp <= budget {
             curr ^= ec_dec_bit_logp(dec, logp);
             tell = ec_tell(dec) as u32;
@@ -1089,13 +1077,13 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
         *r = curr;
         logp = if is_transient != 0 { 4 } else { 5 };
     }
-    let tf_row = TF_SELECT_TABLE.get(lm as usize).expect("lm in 0..=3");
-    let tf_at = |k: c_int| *tf_row.get(k as usize).expect("tf_select index in 0..8");
+    let tf_row = TF_SELECT_TABLE.get(lm as usize).or_panic(lm);
+    let tf_at = |k: c_int| *tf_row.get(k as usize).or_panic(k);
     let mut tf_select = 0;
     if tf_select_rsv != 0 && tf_at(4 * is_transient + tf_changed) != tf_at(4 * is_transient + 2 + tf_changed) {
         tf_select = ec_dec_bit_logp(dec, 1);
     }
-    for r in tf_res.get_mut(start as usize..end as usize).expect("[start,end) within tf_res") {
+    for r in tf_res.get_mut(start as usize..end as usize).or_panic_dbg((start, end)) {
         *r = i32::from(tf_at(4 * is_transient + 2 * tf_select + *r));
     }
 }
@@ -1150,7 +1138,7 @@ pub fn compute_inv_mdcts(
         buf.iter_mut().take(ov).for_each(|v| *v = 0 as OpusVal32);
 
         for b in 0..b_count {
-            let x_ch = x.get(c * nu + b as usize..(c + 1) * nu).expect("x holds c_channels regions of n samples");
+            let x_ch = x.get(c * nu + b as usize..(c + 1) * nu).or_panic("x holds c_channels regions of n samples");
             clt_mdct_backward(
                 &mode.mdct,
                 x_ch,
@@ -1194,16 +1182,16 @@ pub fn deemphasis(
     coef: &[OpusVal16],
     mem: &mut [CeltSig],
 ) {
-    let c0 = *coef.first().expect("deemphasis coef[0]");
-    let c1 = *coef.get(1).expect("deemphasis coef[1]");
-    let c3 = *coef.get(3).expect("deemphasis coef[3]");
+    let c0 = *coef.first().or_panic("deemphasis coef[0]");
+    let c1 = *coef.get(1).or_panic("deemphasis coef[1]");
+    let c3 = *coef.get(3).or_panic("deemphasis coef[3]");
     // `count` deliberately carries across channels, matching the C.
     let mut count: c_int = 0;
     for (c, (&x, m_slot)) in zip(in_, mem.iter_mut()).enumerate().take(c_channels as usize) {
         // Channel c's interleaved output positions: c, c+channels, c+2*channels, ...
         let mut out = pcm.iter_mut().skip(c).step_by(c_channels as usize);
         let mut m = *m_slot;
-        for &xj in x.get(..n as usize).expect("n samples within channel input") {
+        for &xj in x.get(..n as usize).or_panic(n) {
             let tmp = xj + m;
             m = mult16_32_q15(c0, tmp) - mult16_32_q15(c1, xj);
             let tmp = shl32(mult16_32_q15(c3, tmp), 2);
