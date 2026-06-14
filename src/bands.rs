@@ -1069,9 +1069,13 @@ pub fn quant_all_bands(
     let mut y_ = y_;
     let c = if y_.is_some() { 2 } else { 1 };
 
-    let norm_len = (big_m * ebands[m.nb_ebands as usize] as c_int) as usize;
+    // First MDCT bin of band `k` (`M * eBands[k]`), the unit in which this
+    // function slices the normalised buffers.
+    let eb = |k: c_int| big_m * i32::from(*ebands.get(k as usize).expect("band index <= nb_ebands"));
+
+    let norm_len = eb(m.nb_ebands) as usize;
     let norm_size = c as usize * norm_len;
-    let scratch_size = (big_m * (ebands[m.nb_ebands as usize] as c_int - ebands[(m.nb_ebands - 1) as usize] as c_int)) as usize;
+    let scratch_size = (eb(m.nb_ebands) - eb(m.nb_ebands - 1)) as usize;
     let mut norm_buf = vec![0 as CeltNorm; norm_size];
     let mut scratch_buf = vec![0 as CeltNorm; scratch_size];
     let mut fold_buf = vec![0 as CeltNorm; scratch_size];
@@ -1085,8 +1089,8 @@ pub fn quant_all_bands(
 
     for i in start..end {
         let i_u = i as usize;
-        let eb_i = (big_m * ebands[i_u] as c_int) as usize;
-        let n = big_m * ebands[i_u + 1] as c_int - big_m * ebands[i_u] as c_int;
+        let eb_i = eb(i) as usize;
+        let n = eb(i + 1) - eb(i);
         let tell = ec_tell_frac(ec) as i32;
 
         if i != start {
@@ -1096,19 +1100,17 @@ pub fn quant_all_bands(
         let b_val;
         if i < coded_bands {
             let curr_balance = balance / 3.min(coded_bands - i);
-            b_val = 0.max(16383.min(remaining_bits + 1).min(pulses[i_u] + curr_balance));
+            b_val =
+                0.max(16383.min(remaining_bits + 1).min(*pulses.get(i_u).expect("band index < pulses.len()") + curr_balance));
         } else {
             b_val = 0;
         }
 
-        if resynth
-            && big_m * ebands[i_u] as c_int - n >= big_m * ebands[start as usize] as c_int
-            && (update_lowband != 0 || lowband_offset == 0)
-        {
+        if resynth && eb(i) - n >= eb(start) && (update_lowband != 0 || lowband_offset == 0) {
             lowband_offset = i;
         }
 
-        let tf_change = tf_res[i_u];
+        let tf_change = *tf_res.get(i_u).expect("band index < tf_res.len()");
         let above_eff = i >= m.eff_ebands;
 
         // Get a conservative estimate of the collapse_mask's for the bands we're going to fold from
@@ -1116,19 +1118,18 @@ pub fn quant_all_bands(
         let mut y_cm: u32;
         let mut effective_lowband: c_int = -1;
         if lowband_offset != 0 && (spread != SPREAD_AGGRESSIVE || b_blocks > 1 || tf_change < 0) {
-            effective_lowband =
-                (big_m * ebands[start as usize] as c_int).max(big_m * ebands[lowband_offset as usize] as c_int - n);
+            effective_lowband = eb(start).max(eb(lowband_offset) - n);
             let mut fold_start = lowband_offset;
             loop {
                 fold_start -= 1;
-                if big_m * ebands[fold_start as usize] as c_int <= effective_lowband {
+                if eb(fold_start) <= effective_lowband {
                     break;
                 }
             }
             let mut fold_end = lowband_offset - 1;
             loop {
                 fold_end += 1;
-                if big_m * ebands[fold_end as usize] as c_int >= effective_lowband + n {
+                if eb(fold_end) >= effective_lowband + n {
                     break;
                 }
             }
@@ -1136,8 +1137,9 @@ pub fn quant_all_bands(
             y_cm = 0;
             let mut fold_i = fold_start;
             loop {
-                x_cm |= collapse_masks[(fold_i as usize) * c as usize] as u32;
-                y_cm |= collapse_masks[(fold_i as usize) * c as usize + c as usize - 1] as u32;
+                let base = fold_i as usize * c as usize;
+                x_cm |= u32::from(*collapse_masks.get(base).expect("fold band within collapse_masks"));
+                y_cm |= u32::from(*collapse_masks.get(base + c as usize - 1).expect("fold band within collapse_masks"));
                 fold_i += 1;
                 if fold_i >= fold_end {
                     break;
@@ -1150,8 +1152,11 @@ pub fn quant_all_bands(
 
         if dual_stereo != 0 && i == intensity {
             dual_stereo = 0;
-            for j in (big_m * ebands[start as usize] as c_int) as usize..eb_i {
-                norm[j] = half32(norm[j] as OpusVal32 + norm2[j] as OpusVal32) as CeltNorm;
+            let lo = eb(start) as usize;
+            let n_lo = norm.get_mut(lo..eb_i).expect("merge span within norm");
+            let n2_lo = norm2.get(lo..eb_i).expect("merge span within norm2");
+            for (nj, &n2j) in zip(n_lo, n2_lo) {
+                *nj = half32(*nj as OpusVal32 + n2j as OpusVal32) as CeltNorm;
             }
         }
 
@@ -1300,9 +1305,10 @@ pub fn quant_all_bands(
             };
             y_cm = x_cm;
         }
-        collapse_masks[i_u * c as usize] = x_cm as u8;
-        collapse_masks[i_u * c as usize + c as usize - 1] = y_cm as u8;
-        balance += pulses[i_u] + tell;
+        let base = i_u * c as usize;
+        *collapse_masks.get_mut(base).expect("band within collapse_masks") = x_cm as u8;
+        *collapse_masks.get_mut(base + c as usize - 1).expect("band within collapse_masks") = y_cm as u8;
+        balance += *pulses.get(i_u).expect("band index < pulses.len()") + tell;
 
         update_lowband = (b_val > (n << BITRES as c_int)) as c_int;
     }
