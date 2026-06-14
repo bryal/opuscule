@@ -309,12 +309,44 @@ pub fn opus_packet_parse_impl(
     count
 }
 
-/// Parse an Opus packet (non-self-delimited).
-/// RFC 6716 Section 3.2.
+/// Parse an Opus packet (non-self-delimited), RFC 6716 Section 3.2.
 ///
-/// Public entry point that wraps `opus_packet_parse_impl` with
-/// `self_delimited = 0`, keeping the C pointer ABI (the impl works
-/// with frame offsets; this converts them back to pointers).
+/// Safe core of [`opus_packet_parse`]. `opus_packet_parse_impl` reports
+/// frames as byte offsets into `data`; here we turn each offset back into a
+/// pointer into `data` for the C-ABI caller, using `wrapping_add` (a safe
+/// pointer op) rather than indexing.
+fn opus_packet_parse_native(
+    data: &[u8],
+    len: c_int,
+    out_toc: Option<&mut u8>,
+    frames: Option<&mut [*const u8]>,
+    size: &mut [i16],
+    payload_offset: Option<&mut c_int>,
+) -> c_int {
+    let mut frame_offsets = [0 as c_int; 48];
+    let count = opus_packet_parse_impl(
+        data,
+        len,
+        0,
+        out_toc,
+        if frames.is_some() { Some(&mut frame_offsets[..]) } else { None },
+        size,
+        payload_offset,
+    );
+    if count > 0 {
+        if let Some(frames) = frames {
+            for (frame, &off) in frames.iter_mut().zip(&frame_offsets).take(count as usize) {
+                *frame = data.as_ptr().wrapping_add(off as usize);
+            }
+        }
+    }
+    count
+}
+
+/// Parse an Opus packet (non-self-delimited), RFC 6716 Section 3.2.
+///
+/// Thin C-ABI shell: it only converts the raw pointer arguments into safe
+/// references and slices, then defers to [`opus_packet_parse_native`].
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_parse(
     data: *const u8,
@@ -328,24 +360,14 @@ pub unsafe extern "C" fn opus_packet_parse(
         if size.is_null() {
             return OPUS_BAD_ARG;
         }
-        let data_slice = core::slice::from_raw_parts(data, len.max(0) as usize);
-        let size_slice = core::slice::from_raw_parts_mut(size, 48);
-        let mut frame_offsets = [0 as c_int; 48];
-        let count = opus_packet_parse_impl(
-            data_slice,
+        opus_packet_parse_native(
+            core::slice::from_raw_parts(data, len.max(0) as usize),
             len,
-            0,
             if out_toc.is_null() { None } else { Some(&mut *out_toc) },
-            if frames.is_null() { None } else { Some(&mut frame_offsets[..]) },
-            size_slice,
+            if frames.is_null() { None } else { Some(core::slice::from_raw_parts_mut(frames, 48)) },
+            core::slice::from_raw_parts_mut(size, 48),
             if payload_offset.is_null() { None } else { Some(&mut *payload_offset) },
-        );
-        if count > 0 && !frames.is_null() {
-            for i in 0..count as usize {
-                *frames.add(i) = data.add(frame_offsets[i] as usize);
-            }
-        }
-        count
+        )
     }
 }
 
