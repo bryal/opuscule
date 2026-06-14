@@ -10,6 +10,17 @@
 //
 // See RFC 6716 Section 4.3.3.
 
+// Bit allocation is one cohesive algorithm built on per-band arrays all
+// indexed by the same band number `j` (bits1/bits2/thresh/cap/bits/ebits/
+// fine_priority/offsets), the mode tables (m.ebands/m.alloc_vectors/
+// m.log_n/m.cache), and carried state (psum/balance/coded_bands) with
+// interleaved range-decoder reads — often iterated backwards. Zipping the
+// parallel arrays would be markedly less legible than indexed access and
+// would obscure the decode order, so this stays indexed under a module-wide
+// allow. Indices are band-bounded: j in [start, end) <= nb_ebands, the
+// per-band arrays are nb_ebands long, and LOG2_FRAC_TABLE indices < 24.
+#![allow(clippy::indexing_slicing)]
+
 use std::os::raw::c_int;
 
 use crate::entcode::{BITRES, EcCtx};
