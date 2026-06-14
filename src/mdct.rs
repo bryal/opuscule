@@ -32,6 +32,15 @@ pub struct MdctLookup {
 /// the back-adjustment is folded into a base index.
 ///
 /// C implementation: mdct.c clt_mdct_backward(), lines 217-237.
+///
+/// This is a strided FFT/MDCT butterfly with bidirectional cursors
+/// (pre/post-rotate, de-shuffle, and the TDAC overlap-add that scatters
+/// into `out` counting both up and down from `base`). Every index is
+/// governed by the transform sizes — `i < n4`, the `f`/`f2` scratch
+/// buffers are `n2 = 2*n4` long, `trig` is sized for the mode, and the
+/// `out` writes stay within the current frame — so it stays as indexed
+/// butterfly math rather than a contrived iterator form.
+#[allow(clippy::indexing_slicing)]
 pub fn clt_mdct_backward(
     l: &MdctLookup,
     inp: &[OpusVal32],     // frequency-domain input (N/2 strided values)
