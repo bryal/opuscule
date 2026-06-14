@@ -21,6 +21,11 @@ use crate::entcode::ec_dec;
 
 /// Apply Givens rotations along a single stride.
 /// Used by exp_rotation to spread energy across coefficients.
+///
+/// In-place rotation of the pair `(x[i], x[i+stride])`: a sequential
+/// recurrence (consecutive `i` overlap), so it has no iterator form. The
+/// loop ranges keep `i+stride < len` in both passes.
+#[allow(clippy::indexing_slicing)]
 fn exp_rotation1(x: &mut [CeltNorm], len: usize, stride: usize, c: OpusVal16, s: OpusVal16) {
     // Forward pass
     for i in 0..len - stride {
@@ -49,7 +54,7 @@ fn exp_rotation(x: &mut [CeltNorm], len: usize, dir: i32, stride: usize, k: i32,
     if 2 * k >= len as i32 || spread == SPREAD_NONE {
         return;
     }
-    let factor = SPREAD_FACTOR[(spread - 1) as usize];
+    let factor = SPREAD_FACTOR.get((spread - 1) as usize).copied().expect("spread is 1..=3 after the SPREAD_NONE guard");
 
     // C: gain = celt_div((opus_val32)MULT16_16(Q15_ONE,len),
     //                     (opus_val32)(len+factor*K));
@@ -80,9 +85,10 @@ fn exp_rotation(x: &mut [CeltNorm], len: usize, dir: i32, stride: usize, k: i32,
         }
     }
 
+    // CELT guarantees len is a multiple of stride, so this yields exactly
+    // `stride` blocks of `block_len` (>= 1) samples.
     let block_len = len / stride;
-    for i in 0..stride {
-        let slice = &mut x[i * block_len..(i + 1) * block_len];
+    for slice in x.chunks_exact_mut(block_len).take(stride) {
         if dir < 0 {
             if stride2 > 0 {
                 exp_rotation1(slice, block_len, stride2, s, c);
@@ -105,7 +111,7 @@ fn exp_rotation(x: &mut [CeltNorm], len: usize, dir: i32, stride: usize, k: i32,
 /// In float mode, k is unused (the compiler will optimise it away).
 /// In fixed mode, k = celt_ilog2(Ryy) >> 1 controls the shift.
 #[allow(unused_variables)]
-fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], n: usize, ryy: OpusVal32, gain: OpusVal16) {
+fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], ryy: OpusVal32, gain: OpusVal16) {
     // C: k = celt_ilog2(Ryy)>>1;   (fixed only)
     //    t = VSHR32(Ryy, 2*(k-7));
     //    g = MULT16_16_P15(celt_rsqrt_norm(t), gain);
@@ -115,16 +121,16 @@ fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], n: usize, ryy: OpusVal32
         let k = celt_ilog2(ryy) >> 1;
         let t = vshr32(ryy, 2 * (k as i32 - 7));
         let g = mult16_16_p15(celt_rsqrt_norm(t), gain) as i16;
-        for i in 0..n {
-            x[i] = extract16(pshr32(mult16_16(g, iy[i] as i16), k as i32 + 1));
+        for (xi, &iyi) in x.iter_mut().zip(iy) {
+            *xi = extract16(pshr32(mult16_16(g, iyi as i16), k as i32 + 1));
         }
     }
     #[cfg(not(feature = "fixed-point"))]
     {
         let t = ryy;
         let g = celt_rsqrt_norm(t) * gain;
-        for i in 0..n {
-            x[i] = g * iy[i] as f32;
+        for (xi, &iyi) in x.iter_mut().zip(iy) {
+            *xi = g * iyi as f32;
         }
     }
 }
@@ -135,13 +141,13 @@ fn extract_collapse_mask(iy: &[c_int], n: usize, b: usize) -> u32 {
     if b <= 1 {
         return 1;
     }
+    // CELT guarantees the band size n is a multiple of the block count b,
+    // so iy splits into exactly b blocks of n0 (>= 1) samples.
     let n0 = n / b;
     let mut collapse_mask = 0u32;
-    for i in 0..b {
-        for j in 0..n0 {
-            if iy[i * n0 + j] != 0 {
-                collapse_mask |= 1 << i;
-            }
+    for (i, block) in iy.chunks_exact(n0).take(b).enumerate() {
+        if block.iter().any(|&v| v != 0) {
+            collapse_mask |= 1 << i;
         }
     }
     collapse_mask
@@ -167,7 +173,7 @@ pub fn alg_unquant(x: &mut [CeltNorm], n: c_int, k: c_int, spread: c_int, b: c_i
         ryy = mac16_16(ryy, v as OpusVal16, v as OpusVal16);
     }
 
-    normalise_residual(&iy, &mut x[..n], n, ryy, gain);
+    normalise_residual(&iy, &mut x[..n], ryy, gain);
     exp_rotation(&mut x[..n], n, -1, b as usize, k, spread);
     extract_collapse_mask(&iy, n, b as usize)
 }
