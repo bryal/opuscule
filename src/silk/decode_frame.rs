@@ -7,11 +7,11 @@
 use crate::entcode::ec_dec;
 
 use super::CNG::silk_cng;
-use super::PLC::{silk_plc, silk_plc_glue_frames};
 use super::decode_core::silk_decode_core;
 use super::decode_indices::silk_decode_indices;
 use super::decode_parameters::silk_decode_parameters;
 use super::decode_pulses::silk_decode_pulses;
+use super::plc::{silk_plc, silk_plc_glue_frames};
 use super::structs::{LTP_ORDER, MAX_FRAME_LENGTH, MAX_LPC_ORDER, MAX_NB_SUBFR, SilkDecoderControl, SilkDecoderState};
 
 const FLAG_DECODE_NORMAL: i32 = 0;

@@ -9,7 +9,6 @@
 pub mod CNG;
 pub mod NLSF2A;
 pub mod NLSF_decode;
-pub mod PLC;
 pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
@@ -33,6 +32,7 @@ pub mod nlsf_stabilize;
 pub mod nlsf_unpack;
 pub mod nlsf_vq_weights_laroia;
 pub mod pitch_est_tables;
+pub mod plc;
 pub mod resampler;
 pub mod resampler_down2;
 pub mod resampler_down2_3;
