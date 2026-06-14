@@ -192,7 +192,7 @@ pub fn opus_packet_parse_impl(
         // Two VBR frames
         2 => {
             count = 2;
-            let bytes = parse_size(&data[off..], len, size.first_mut().or_panic("size buffer non-empty"));
+            let bytes = parse_size(data.get(off..).or_panic(off), len, size.first_mut().or_panic("size buffer non-empty"));
             len -= bytes;
             let s0 = *size.first().or_panic("size buffer non-empty");
             if s0 < 0 || i32::from(s0) > len {
@@ -241,7 +241,7 @@ pub fn opus_packet_parse_impl(
                 // VBR case
                 last_size = len;
                 for s in size.get_mut(..(count - 1) as usize).or_panic(count - 1) {
-                    let bytes = parse_size(&data[off..], len, s);
+                    let bytes = parse_size(data.get(off..).or_panic(off), len, s);
                     len -= bytes;
                     if *s < 0 || i32::from(*s) > len {
                         return OPUS_INVALID_PACKET;
@@ -267,7 +267,7 @@ pub fn opus_packet_parse_impl(
     let last_idx = count as usize - 1;
     if self_delimited != 0 {
         let mut last = 0i16;
-        let bytes = parse_size(&data[off..], len, &mut last);
+        let bytes = parse_size(data.get(off..).or_panic(off), len, &mut last);
         *size.get_mut(last_idx).or_panic(last_idx) = last;
         len -= bytes;
         if last < 0 || i32::from(last) > len {

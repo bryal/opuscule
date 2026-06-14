@@ -1158,8 +1158,10 @@ pub fn quant_all_bands(
         if dual_stereo != 0 {
             // Channel 0 from norm, channel 1 from norm2
             let lb = if effective_lowband != -1 {
-                fold_buf[..n as usize].copy_from_slice(&norm[effective_lowband as usize..(effective_lowband + n) as usize]);
-                Some(&mut fold_buf[..n as usize])
+                fold_buf.get_mut(..n as usize).or_panic(n).copy_from_slice(
+                    norm.get(effective_lowband as usize..(effective_lowband + n) as usize).or_panic_dbg((effective_lowband, n)),
+                );
+                Some(fold_buf.get_mut(..n as usize).or_panic(n))
             } else {
                 None
             };
@@ -1168,9 +1170,12 @@ pub fn quant_all_bands(
                     let (nlo, nhi) = norm
                         .split_at_mut_checked(eb_i)
                         .or_panic("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
-                    (&mut nlo[..n as usize], &mut nhi[..n as usize])
+                    (nlo.get_mut(..n as usize).or_panic(n), nhi.get_mut(..n as usize).or_panic(n))
                 } else {
-                    (&mut x_[eb_i..eb_i + n as usize], &mut norm[eb_i..eb_i + n as usize])
+                    (
+                        x_.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n)),
+                        norm.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n)),
+                    )
                 };
                 quant_band(
                     encode,
@@ -1197,8 +1202,12 @@ pub fn quant_all_bands(
                 )
             };
             let lb2 = if effective_lowband != -1 {
-                fold_buf[..n as usize].copy_from_slice(&norm2[effective_lowband as usize..(effective_lowband + n) as usize]);
-                Some(&mut fold_buf[..n as usize])
+                fold_buf.get_mut(..n as usize).or_panic(n).copy_from_slice(
+                    norm2
+                        .get(effective_lowband as usize..(effective_lowband + n) as usize)
+                        .or_panic_dbg((effective_lowband, n)),
+                );
+                Some(fold_buf.get_mut(..n as usize).or_panic(n))
             } else {
                 None
             };
@@ -1207,11 +1216,14 @@ pub fn quant_all_bands(
                     let (nlo, nhi) = norm2
                         .split_at_mut_checked(eb_i)
                         .or_panic("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
-                    (&mut nlo[..n as usize], &mut nhi[..n as usize])
+                    (nlo.get_mut(..n as usize).or_panic(n), nhi.get_mut(..n as usize).or_panic(n))
                 } else {
                     (
-                        &mut y_.as_deref_mut().or_panic("dual_stereo implies stereo: y_ is Some")[eb_i..eb_i + n as usize],
-                        &mut norm2[eb_i..eb_i + n as usize],
+                        y_.as_deref_mut()
+                            .or_panic("dual_stereo implies stereo: y_ is Some")
+                            .get_mut(eb_i..eb_i + n as usize)
+                            .or_panic_dbg((eb_i, n)),
+                        norm2.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n)),
                     )
                 };
                 quant_band(
@@ -1241,8 +1253,10 @@ pub fn quant_all_bands(
         } else {
             // Joint stereo (or mono)
             let lb = if effective_lowband != -1 {
-                fold_buf[..n as usize].copy_from_slice(&norm[effective_lowband as usize..(effective_lowband + n) as usize]);
-                Some(&mut fold_buf[..n as usize])
+                fold_buf.get_mut(..n as usize).or_panic(n).copy_from_slice(
+                    norm.get(effective_lowband as usize..(effective_lowband + n) as usize).or_panic_dbg((effective_lowband, n)),
+                );
+                Some(fold_buf.get_mut(..n as usize).or_panic(n))
             } else {
                 None
             };
@@ -1254,8 +1268,8 @@ pub fn quant_all_bands(
                     encode,
                     m,
                     i,
-                    &mut nlo[..n as usize],
-                    if y_.is_some() { Some(&mut norm2[..n as usize]) } else { None },
+                    nlo.get_mut(..n as usize).or_panic(n),
+                    if y_.is_some() { Some(norm2.get_mut(..n as usize).or_panic(n)) } else { None },
                     n,
                     b_val,
                     spread,
@@ -1266,7 +1280,7 @@ pub fn quant_all_bands(
                     ec,
                     &mut remaining_bits,
                     lm,
-                    Some(&mut nhi[..n as usize]),
+                    Some(nhi.get_mut(..n as usize).or_panic(n)),
                     0,
                     seed,
                     Q15ONE,
@@ -1278,8 +1292,8 @@ pub fn quant_all_bands(
                     encode,
                     m,
                     i,
-                    &mut x_[eb_i..eb_i + n as usize],
-                    y_.as_deref_mut().map(|y| &mut y[eb_i..eb_i + n as usize]),
+                    x_.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n)),
+                    y_.as_deref_mut().map(|y| y.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n))),
                     n,
                     b_val,
                     spread,
@@ -1290,7 +1304,7 @@ pub fn quant_all_bands(
                     ec,
                     &mut remaining_bits,
                     lm,
-                    Some(&mut norm[eb_i..eb_i + n as usize]),
+                    Some(norm.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n))),
                     0,
                     seed,
                     Q15ONE,

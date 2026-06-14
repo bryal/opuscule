@@ -293,12 +293,12 @@ fn opus_decode_frame(
     if let Some(d) = data {
         audiosize = st.frame_size;
         mode = st.mode;
-        ec_dec_init(&mut dec, &d[..len as usize], len as u32);
+        ec_dec_init(&mut dec, d.get(..len as usize).or_panic(len), len as u32);
     } else {
         audiosize = frame_size;
         if st.prev_mode == 0 {
             // If we haven't got any packet yet, all we can do is return zeros
-            for v in pcm[..(audiosize * channels) as usize].iter_mut() {
+            for v in pcm.get_mut(..(audiosize * channels) as usize).or_panic(audiosize * channels) {
                 *v = 0 as OpusVal16;
             }
             return audiosize;
@@ -311,7 +311,14 @@ fn opus_decode_frame(
     if data.is_none() && frame_size > f20 && mode != MODE_SILK_ONLY {
         let mut nb_samples: c_int = 0;
         loop {
-            let ret = opus_decode_frame(st, None, 0, &mut pcm[(nb_samples * channels) as usize..], f20, 0);
+            let ret = opus_decode_frame(
+                st,
+                None,
+                0,
+                pcm.get_mut((nb_samples * channels) as usize..).or_panic(nb_samples * channels),
+                f20,
+                0,
+            );
             if ret != f20 {
                 return OPUS_INTERNAL_ERROR;
             }
@@ -389,14 +396,17 @@ fn opus_decode_frame(
                 lost_flag,
                 first_frame,
                 &mut dec,
-                &mut pcm_silk_buf[silk_off..],
+                pcm_silk_buf.get_mut(silk_off..).or_panic(silk_off),
                 &mut silk_frame_size,
             );
             if silk_ret != 0 {
                 if lost_flag != 0 {
                     // PLC failure should not be fatal
                     silk_frame_size = frame_size;
-                    for v in pcm_silk_buf[silk_off..silk_off + (frame_size * channels) as usize].iter_mut() {
+                    for v in pcm_silk_buf
+                        .get_mut(silk_off..silk_off + (frame_size * channels) as usize)
+                        .or_panic_dbg((silk_off, frame_size * channels))
+                    {
                         *v = 0;
                     }
                 } else {
@@ -470,7 +480,7 @@ fn opus_decode_frame(
         let d = data.or_panic("redundancy is only set in the data-present branch");
         celt_decode_with_ec(
             &mut st.celt_dec,
-            Some(&d[len as usize..(len + redundancy_bytes) as usize]),
+            Some(d.get(len as usize..(len + redundancy_bytes) as usize).or_panic_dbg((len, redundancy_bytes))),
             redundancy_bytes,
             &mut redundant_audio_buf,
             f5,
@@ -489,11 +499,11 @@ fn opus_decode_frame(
             celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::ResetState);
         }
         // Decode CELT
-        let celt_data = if decode_fec != 0 { None } else { data.map(|d| &d[..len as usize]) };
+        let celt_data = if decode_fec != 0 { None } else { data.map(|d| d.get(..len as usize).or_panic(len)) };
         celt_ret = celt_decode_with_ec(&mut st.celt_dec, celt_data, len, pcm, celt_frame_size, Some(&mut dec));
     } else {
         let silence: [u8; 2] = [0xFF, 0xFF];
-        for v in pcm[..(frame_size * channels) as usize].iter_mut() {
+        for v in pcm.get_mut(..(frame_size * channels) as usize).or_panic(frame_size * channels) {
             *v = 0 as OpusVal16;
         }
         // For hybrid -> SILK transitions, we let the CELT MDCT
@@ -528,7 +538,7 @@ fn opus_decode_frame(
         let d = data.or_panic("redundancy is only set in the data-present branch");
         celt_decode_with_ec(
             &mut st.celt_dec,
-            Some(&d[len as usize..(len + redundancy_bytes) as usize]),
+            Some(d.get(len as usize..(len + redundancy_bytes) as usize).or_panic_dbg((len, redundancy_bytes))),
             redundancy_bytes,
             &mut redundant_audio_buf,
             f5,
@@ -538,8 +548,8 @@ fn opus_decode_frame(
         let off = (channels * (frame_size - f2_5)) as usize;
         smooth_fade(
             None,
-            Some(&redundant_audio_buf[(channels * f2_5) as usize..]),
-            &mut pcm[off..],
+            Some(redundant_audio_buf.get((channels * f2_5) as usize..).or_panic(channels * f2_5)),
+            pcm.get_mut(off..).or_panic(off),
             f2_5,
             channels,
             window,
@@ -553,9 +563,9 @@ fn opus_decode_frame(
         let dst = pcm.get_mut(..k).or_panic(k);
         dst.copy_from_slice(redundant_audio_buf.get(..k).or_panic(k));
         smooth_fade(
-            Some(&redundant_audio_buf[(channels * f2_5) as usize..]),
+            Some(redundant_audio_buf.get((channels * f2_5) as usize..).or_panic(channels * f2_5)),
             None,
-            &mut pcm[(channels * f2_5) as usize..],
+            pcm.get_mut((channels * f2_5) as usize..).or_panic(channels * f2_5),
             f2_5,
             channels,
             window,
@@ -567,9 +577,9 @@ fn opus_decode_frame(
             let k = (channels * f2_5) as usize;
             pcm.get_mut(..k).or_panic(k).copy_from_slice(pcm_transition_buf.get(..k).or_panic(k));
             smooth_fade(
-                Some(&pcm_transition_buf[(channels * f2_5) as usize..]),
+                Some(pcm_transition_buf.get((channels * f2_5) as usize..).or_panic(channels * f2_5)),
                 None,
-                &mut pcm[(channels * f2_5) as usize..],
+                pcm.get_mut((channels * f2_5) as usize..).or_panic(channels * f2_5),
                 f2_5,
                 channels,
                 window,
@@ -626,8 +636,14 @@ pub fn opus_decode_native(
     st.frame_size = packet_get_samples_per_frame(toc_byte, st.fs);
     st.stream_channels = packet_get_nb_channels(toc_byte);
 
-    let count =
-        opus_packet_parse_impl(&data[..len as usize], self_delimited, Some(&mut toc), None, &mut size, Some(&mut offset));
+    let count = opus_packet_parse_impl(
+        data.get(..len as usize).or_panic(len),
+        self_delimited,
+        Some(&mut toc),
+        None,
+        &mut size,
+        Some(&mut offset),
+    );
     if count < 0 {
         return count;
     }
@@ -646,9 +662,9 @@ pub fn opus_decode_native(
         let sz = *size.get(i as usize).or_panic(i) as c_int;
         let ret = opus_decode_frame(
             st,
-            Some(&data[data_off..data_off + sz as usize]),
+            Some(data.get(data_off..data_off + sz as usize).or_panic_dbg((data_off, sz))),
             sz,
-            &mut pcm[pcm_off..],
+            pcm.get_mut(pcm_off..).or_panic(pcm_off),
             frame_size - nb_samples,
             decode_fec,
         );

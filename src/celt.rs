@@ -630,7 +630,7 @@ pub fn celt_decode_with_ec<'a>(
 
     let Some(data) = data.filter(|_| len > 1) else {
         let pcm_len = (n / st.downsample * cc) as usize;
-        celt_decode_lost(st, &mut pcm[..pcm_len], n, lm);
+        celt_decode_lost(st, pcm.get_mut(..pcm_len).or_panic(pcm_len), n, lm);
         return frame_size / st.downsample;
     };
 
@@ -638,7 +638,7 @@ pub fn celt_decode_with_ec<'a>(
     let dec: &mut EcCtx = match dec {
         Some(d) => d,
         None => {
-            ec_dec_init(&mut _dec, &data[..len as usize], len as u32);
+            ec_dec_init(&mut _dec, data.get(..len as usize).or_panic(len), len as u32);
             &mut _dec
         }
     };
@@ -840,7 +840,7 @@ pub fn celt_decode_with_ec<'a>(
     if silence != 0 {
         let n_bands = (c_channels * mode.nb_ebands) as usize;
         band_e.fill(0 as CeltEner);
-        st.old_band_e[..n_bands].fill(-qconst16(28.0, DB_SHIFT));
+        st.old_band_e.get_mut(..n_bands).or_panic(n_bands).fill(-qconst16(28.0, DB_SHIFT));
     }
     // Synthesis
     denormalise_bands(mode, &x, &mut freq, &band_e, eff_end, c_channels, m);
@@ -884,9 +884,19 @@ pub fn celt_decode_with_ec<'a>(
         // doesn't, rather than panicking bare like split_at_mut would.
         let (c0, c1) = st.decode_mem.split_at_mut_checked(ch_size).or_panic("decode_mem holds MAX_CHANNELS regions of ch_size");
         if cc == 2 {
-            compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len], &mut c1[os..os + ch_len]], cc, lm);
+            compute_inv_mdcts(
+                mode,
+                short_blocks,
+                &freq,
+                &mut [
+                    c0.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len)),
+                    c1.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len)),
+                ],
+                cc,
+                lm,
+            );
         } else {
-            compute_inv_mdcts(mode, short_blocks, &freq, &mut [&mut c0[os..os + ch_len]], cc, lm);
+            compute_inv_mdcts(mode, short_blocks, &freq, &mut [c0.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len))], cc, lm);
         }
     }
 
@@ -979,12 +989,28 @@ pub fn celt_decode_with_ec<'a>(
 
     {
         let pcm_len = (n / st.downsample * cc) as usize;
-        let ch0 = &st.decode_mem[os..os + n as usize];
+        let ch0 = st.decode_mem.get(os..os + n as usize).or_panic_dbg((os, n));
         if cc == 2 {
-            let ch1 = &st.decode_mem[ch_size + os..ch_size + os + n as usize];
-            deemphasis(&[ch0, ch1], &mut pcm[..pcm_len], n, cc, st.downsample, &mode.preemph, &mut st.preemph_mem_d);
+            let ch1 = st.decode_mem.get(ch_size + os..ch_size + os + n as usize).or_panic_dbg((ch_size + os, n));
+            deemphasis(
+                &[ch0, ch1],
+                pcm.get_mut(..pcm_len).or_panic(pcm_len),
+                n,
+                cc,
+                st.downsample,
+                &mode.preemph,
+                &mut st.preemph_mem_d,
+            );
         } else {
-            deemphasis(&[ch0], &mut pcm[..pcm_len], n, cc, st.downsample, &mode.preemph, &mut st.preemph_mem_d);
+            deemphasis(
+                &[ch0],
+                pcm.get_mut(..pcm_len).or_panic(pcm_len),
+                n,
+                cc,
+                st.downsample,
+                &mode.preemph,
+                &mut st.preemph_mem_d,
+            );
         }
     }
     st.loss_count = 0;

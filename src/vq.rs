@@ -174,8 +174,8 @@ pub fn alg_unquant(x: &mut [CeltNorm], n: c_int, k: c_int, spread: c_int, b: c_i
         ryy = mac16_16(ryy, v as OpusVal16, v as OpusVal16);
     }
 
-    normalise_residual(&iy, &mut x[..n], ryy, gain);
-    exp_rotation(&mut x[..n], n, -1, b as usize, k, spread);
+    normalise_residual(&iy, x.get_mut(..n).or_panic(n), ryy, gain);
+    exp_rotation(x.get_mut(..n).or_panic(n), n, -1, b as usize, k, spread);
     extract_collapse_mask(&iy, n, b as usize)
 }
 
