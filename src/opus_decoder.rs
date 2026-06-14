@@ -17,6 +17,7 @@ use crate::packet::{
     packet_get_mode, packet_get_nb_channels, packet_get_samples_per_frame,
 };
 use crate::silk::dec_api::{SilkDecControlStruct, SilkDecoder, silk_decode, silk_init_decoder};
+use crate::util::{OrPanic, zip};
 
 // -- Constants --
 
@@ -159,7 +160,7 @@ pub unsafe extern "C" fn opus_decoder_create(fs: i32, channels: c_int, error: *m
         }
         let size = opus_decoder_get_size(channels) as usize;
         let layout = std::alloc::Layout::from_size_align(size, std::mem::align_of::<OpusDecoder>())
-            .expect("invalid layout for OpusDecoder");
+            .unwrap_or_else(|e| panic!("invalid layout for OpusDecoder: {e:?}"));
         let ptr = std::alloc::alloc_zeroed(layout) as *mut OpusDecoder;
         if ptr.is_null() {
             if !error.is_null() {
@@ -188,7 +189,7 @@ pub unsafe extern "C" fn opus_decoder_destroy(st: *mut OpusDecoder) {
         let channels = (*st).channels;
         let size = opus_decoder_get_size(channels) as usize;
         let layout = std::alloc::Layout::from_size_align(size, std::mem::align_of::<OpusDecoder>())
-            .expect("invalid layout for OpusDecoder");
+            .unwrap_or_else(|e| panic!("invalid layout for OpusDecoder: {e:?}"));
         std::alloc::dealloc(st as *mut u8, layout);
     }
 }
@@ -213,10 +214,12 @@ fn smooth_fade(
     for c in 0..channels {
         for i in 0..overlap {
             let idx = (i * channels + c) as usize;
-            let w: OpusVal16 = mult16_16_q15(window[(i * inc) as usize], window[(i * inc) as usize]) as OpusVal16;
-            let v1 = in1.map_or(out[idx], |s| s[idx]);
-            let v2 = in2.map_or(out[idx], |s| s[idx]);
-            out[idx] = shr32(mac16_16(mult16_16(w, v2), Q15ONE - w, v1), 15) as OpusVal16;
+            let wv = *window.get((i * inc) as usize).or_panic(i * inc);
+            let w: OpusVal16 = mult16_16_q15(wv, wv) as OpusVal16;
+            let cur = *out.get(idx).or_panic(idx);
+            let v1 = in1.map_or(cur, |s| *s.get(idx).or_panic(idx));
+            let v2 = in2.map_or(cur, |s| *s.get(idx).or_panic(idx));
+            *out.get_mut(idx).or_panic(idx) = shr32(mac16_16(mult16_16(w, v2), Q15ONE - w, v1), 15) as OpusVal16;
         }
     }
 }
@@ -464,7 +467,7 @@ fn opus_decode_frame(
     // 5 ms redundant frame for CELT->SILK
     if redundancy != 0 && celt_to_silk != 0 {
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetStartBand(0));
-        let d = data.expect("redundancy is only set in the data-present branch");
+        let d = data.or_panic("redundancy is only set in the data-present branch");
         celt_decode_with_ec(
             &mut st.celt_dec,
             Some(&d[len as usize..(len + redundancy_bytes) as usize]),
@@ -502,13 +505,16 @@ fn opus_decode_frame(
     }
 
     if mode != MODE_CELT_ONLY {
+        let n = (frame_size * channels) as usize;
+        let pcm_n = pcm.get_mut(..n).or_panic(n);
+        let silk_n = pcm_silk_buf.get(..n).or_panic(n);
         #[cfg(feature = "fixed-point")]
-        for i in 0..(frame_size * channels) as usize {
-            pcm[i] = sat16(pcm[i] as i32 + pcm_silk_buf[i] as i32);
+        for (p, &s) in zip(pcm_n, silk_n) {
+            *p = sat16(*p as i32 + s as i32);
         }
         #[cfg(not(feature = "fixed-point"))]
-        for i in 0..(frame_size * channels) as usize {
-            pcm[i] += (1.0 / 32768.0) * pcm_silk_buf[i] as f32;
+        for (p, &s) in zip(pcm_n, silk_n) {
+            *p += (1.0 / 32768.0) * s as f32;
         }
     }
 
@@ -519,7 +525,7 @@ fn opus_decode_frame(
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::ResetState);
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetStartBand(0));
 
-        let d = data.expect("redundancy is only set in the data-present branch");
+        let d = data.or_panic("redundancy is only set in the data-present branch");
         celt_decode_with_ec(
             &mut st.celt_dec,
             Some(&d[len as usize..(len + redundancy_bytes) as usize]),
@@ -541,11 +547,11 @@ fn opus_decode_frame(
         );
     }
     if redundancy != 0 && celt_to_silk != 0 {
-        for c in 0..channels {
-            for i in 0..f2_5 {
-                pcm[(channels * i + c) as usize] = redundant_audio_buf[(channels * i + c) as usize];
-            }
-        }
+        // Every index in [0, channels*f2_5) is written exactly once, so this is
+        // a flat copy of that prefix.
+        let k = (channels * f2_5) as usize;
+        let dst = pcm.get_mut(..k).or_panic(k);
+        dst.copy_from_slice(redundant_audio_buf.get(..k).or_panic(k));
         smooth_fade(
             Some(&redundant_audio_buf[(channels * f2_5) as usize..]),
             None,
@@ -558,9 +564,8 @@ fn opus_decode_frame(
     }
     if transition != 0 {
         if audiosize >= f5 {
-            for i in 0..(channels * f2_5) as usize {
-                pcm[i] = pcm_transition_buf[i];
-            }
+            let k = (channels * f2_5) as usize;
+            pcm.get_mut(..k).or_panic(k).copy_from_slice(pcm_transition_buf.get(..k).or_panic(k));
             smooth_fade(
                 Some(&pcm_transition_buf[(channels * f2_5) as usize..]),
                 None,
@@ -615,10 +620,11 @@ pub fn opus_decode_native(
     }
 
     let mut tot_offset = 0;
-    st.mode = packet_get_mode(data[0]);
-    st.bandwidth = packet_get_bandwidth(data[0]);
-    st.frame_size = packet_get_samples_per_frame(data[0], st.fs);
-    st.stream_channels = packet_get_nb_channels(data[0]);
+    let toc_byte = *data.first().or_panic("opus_decode_native: empty packet");
+    st.mode = packet_get_mode(toc_byte);
+    st.bandwidth = packet_get_bandwidth(toc_byte);
+    st.frame_size = packet_get_samples_per_frame(toc_byte, st.fs);
+    st.stream_channels = packet_get_nb_channels(toc_byte);
 
     let count =
         opus_packet_parse_impl(&data[..len as usize], self_delimited, Some(&mut toc), None, &mut size, Some(&mut offset));
@@ -637,7 +643,7 @@ pub fn opus_decode_native(
     let mut pcm_off = 0usize;
     let mut i = 0;
     while i < count {
-        let sz = size[i as usize] as c_int;
+        let sz = *size.get(i as usize).or_panic(i) as c_int;
         let ret = opus_decode_frame(
             st,
             Some(&data[data_off..data_off + sz as usize]),
@@ -709,10 +715,8 @@ pub unsafe extern "C" fn opus_decode(
         let mut out_buf: Vec<f32> = vec![0.0f32; (frame_size * channels) as usize];
         let ret = opus_decode_native(&mut *st, data_view(data, len), len, &mut out_buf, frame_size, decode_fec, 0, None);
         if ret > 0 {
-            let mut i = 0;
-            while i < ret * channels {
-                *pcm.offset(i as isize) = float2int16(out_buf[i as usize]);
-                i += 1;
+            for (i, &v) in out_buf.get(..(ret * channels) as usize).or_panic(ret * channels).iter().enumerate() {
+                *pcm.add(i) = float2int16(v);
             }
         }
         ret
