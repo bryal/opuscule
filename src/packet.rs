@@ -150,14 +150,14 @@ fn parse_size(data: &[u8], len: c_int, size: &mut i16) -> c_int {
 /// requested, which `payload_offset` reflects.
 pub fn opus_packet_parse_impl(
     data: &[u8],
-    len: c_int,
     self_delimited: c_int,
     out_toc: Option<&mut u8>,
     frames: Option<&mut [c_int]>,
     size: &mut [i16],
     payload_offset: Option<&mut c_int>,
 ) -> c_int {
-    let mut len = len;
+    // `len` is the remaining-bytes counter, initialised from the packet length.
+    let mut len = data.len() as c_int;
 
     let framesize = packet_get_samples_per_frame(data[0], 48000);
 
@@ -317,7 +317,6 @@ pub fn opus_packet_parse_impl(
 /// pointer op) rather than indexing.
 fn opus_packet_parse_native(
     data: &[u8],
-    len: c_int,
     out_toc: Option<&mut u8>,
     frames: Option<&mut [*const u8]>,
     size: &mut [i16],
@@ -326,7 +325,6 @@ fn opus_packet_parse_native(
     let mut frame_offsets = [0 as c_int; 48];
     let count = opus_packet_parse_impl(
         data,
-        len,
         0,
         out_toc,
         if frames.is_some() { Some(&mut frame_offsets[..]) } else { None },
@@ -360,9 +358,12 @@ pub unsafe extern "C" fn opus_packet_parse(
         if size.is_null() {
             return OPUS_BAD_ARG;
         }
+        // A negative length is meaningless; parse it into the slice length once.
+        let Ok(len) = usize::try_from(len) else {
+            return OPUS_BAD_ARG;
+        };
         opus_packet_parse_native(
-            core::slice::from_raw_parts(data, len.max(0) as usize),
-            len,
+            core::slice::from_raw_parts(data, len),
             if out_toc.is_null() { None } else { Some(&mut *out_toc) },
             if frames.is_null() { None } else { Some(core::slice::from_raw_parts_mut(frames, 48)) },
             core::slice::from_raw_parts_mut(size, 48),

@@ -621,7 +621,7 @@ pub fn opus_decode_native(
     st.stream_channels = packet_get_nb_channels(data[0]);
 
     let count =
-        opus_packet_parse_impl(&data[..len as usize], len, self_delimited, Some(&mut toc), None, &mut size, Some(&mut offset));
+        opus_packet_parse_impl(&data[..len as usize], self_delimited, Some(&mut toc), None, &mut size, Some(&mut offset));
     if count < 0 {
         return count;
     }
