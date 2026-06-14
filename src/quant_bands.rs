@@ -14,7 +14,7 @@
 use std::os::raw::c_int;
 
 use crate::arch::*;
-use crate::entcode::ec_ctx;
+use crate::entcode::EcCtx;
 use crate::entdec::ec_tell;
 use crate::modes::CELTMode;
 
@@ -120,7 +120,7 @@ pub fn unquant_coarse_energy(
     end: c_int,
     old_ebands: &mut [OpusVal16],
     intra: c_int,
-    dec: &mut ec_ctx,
+    dec: &mut EcCtx,
     c_channels: c_int,
     lm: c_int,
 ) {
@@ -186,7 +186,7 @@ pub fn unquant_fine_energy(
     end: c_int,
     old_ebands: &mut [OpusVal16],
     fine_quant: &[c_int],
-    dec: &mut ec_ctx,
+    dec: &mut EcCtx,
     c_channels: c_int,
 ) {
     let nb_ebands = m.nb_ebands as usize;
@@ -233,7 +233,7 @@ pub fn unquant_energy_finalise(
     fine_quant: &[c_int],
     fine_priority: &[c_int],
     mut bits_left: c_int,
-    dec: &mut ec_ctx,
+    dec: &mut EcCtx,
     c_channels: c_int,
 ) {
     let nb_ebands = m.nb_ebands as usize;

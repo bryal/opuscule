@@ -8,7 +8,7 @@ use std::os::raw::c_int;
 use crate::arch::*;
 use crate::bands::{SPREAD_NORMAL, anti_collapse, celt_lcg_rand, denormalise_bands, quant_all_bands};
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir, celt_iir};
-use crate::entcode::{BITRES, ec_ctx, ec_tell_frac};
+use crate::entcode::{BITRES, EcCtx, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::mdct::clt_mdct_backward;
 use crate::modes::{CELTMode, opus_custom_mode_create};
@@ -572,7 +572,7 @@ pub fn celt_decode_with_ec<'a>(
     len: c_int,
     pcm: &mut [OpusVal16],
     frame_size: c_int,
-    dec: Option<&mut ec_ctx<'a>>,
+    dec: Option<&mut EcCtx<'a>>,
 ) -> c_int {
     let mode = st.mode;
     let cc = st.channels;
@@ -637,8 +637,8 @@ pub fn celt_decode_with_ec<'a>(
         return frame_size / st.downsample;
     };
 
-    let mut _dec = ec_ctx::empty();
-    let dec: &mut ec_ctx = match dec {
+    let mut _dec = EcCtx::empty();
+    let dec: &mut EcCtx = match dec {
         Some(d) => d,
         None => {
             ec_dec_init(&mut _dec, &data[..len as usize], len as u32);
@@ -1081,7 +1081,7 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut ec_ctx) {
+pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut EcCtx) {
     let budget = dec.storage * 8;
     let mut tell = ec_tell(dec) as u32;
     let mut logp: u32 = if is_transient != 0 { 2 } else { 4 };

@@ -10,7 +10,7 @@ use std::os::raw::c_int;
 
 use crate::arch::*;
 use crate::celt::{CELTDecoder, CeltDecCtl, celt_decode_with_ec, celt_decoder_ctl, celt_decoder_init};
-use crate::entcode::ec_ctx;
+use crate::entcode::EcCtx;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::packet::{
     opus_packet_get_nb_frames, opus_packet_get_samples_per_frame, opus_packet_parse_impl, packet_get_bandwidth,
@@ -257,7 +257,7 @@ fn opus_decode_frame(
     let channels = st.channels;
     let mut silk_ret: c_int;
     let mut celt_ret: c_int = 0;
-    let mut dec = ec_ctx::empty();
+    let mut dec = EcCtx::empty();
     let mut silk_frame_size: i32 = 0;
 
     let audiosize: c_int;

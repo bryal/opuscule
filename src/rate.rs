@@ -12,7 +12,7 @@
 
 use std::os::raw::c_int;
 
-use crate::entcode::{BITRES, ec_ctx};
+use crate::entcode::{BITRES, EcCtx};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_uint};
 use crate::modes::CELTMode;
 
@@ -96,7 +96,7 @@ fn interp_bits2pulses(
     fine_priority: &mut [i32],
     c: i32,
     lm: i32,
-    ec: &mut ec_ctx,
+    ec: &mut EcCtx,
     encode: i32,
     prev: i32,
 ) -> i32 {
@@ -340,7 +340,7 @@ pub fn compute_allocation(
     fine_priority: &mut [c_int],
     c: c_int,
     lm: c_int,
-    ec: &mut ec_ctx,
+    ec: &mut EcCtx,
     encode: c_int,
     prev: c_int,
 ) -> c_int {

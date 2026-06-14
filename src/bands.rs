@@ -17,7 +17,7 @@ use crate::arch::{
 use crate::arch::{celt_exp2, celt_ilog2, celt_zlog2, shl16};
 #[cfg(not(feature = "fixed-point"))]
 use crate::arch::{celt_exp2, celt_rsqrt};
-use crate::entcode::{BITRES, ec_ctx, ec_ilog, ec_tell_frac};
+use crate::entcode::{BITRES, EcCtx, ec_ilog, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_uint, ec_dec_update, ec_decode};
 use crate::mathops::frac_mul16;
 use crate::modes::CELTMode;
@@ -433,7 +433,7 @@ pub fn quant_band(
     intensity: c_int,
     tf_change_in: c_int,
     lowband_in: Option<&mut [CeltNorm]>,
-    ec: &mut ec_ctx,
+    ec: &mut EcCtx,
     remaining_bits: &mut i32,
     lm_in: c_int,
     lowband_out: Option<&mut [CeltNorm]>,
@@ -1015,7 +1015,7 @@ pub fn quant_all_bands(
     tf_res: &[c_int],
     total_bits: i32,
     balance: i32,
-    ec: &mut ec_ctx,
+    ec: &mut EcCtx,
     lm: c_int,
     coded_bands: c_int,
     seed: &mut u32,

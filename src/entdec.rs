@@ -10,12 +10,12 @@
 use std::os::raw::c_int;
 
 use crate::entcode::{
-    EC_CODE_BITS, EC_CODE_EXTRA, EC_CODE_TOP, EC_SYM_BITS, EC_SYM_MAX, EC_UINT_BITS, EC_WINDOW_SIZE, ec_ctx, ec_dec, ec_ilog,
+    EC_CODE_BITS, EC_CODE_EXTRA, EC_CODE_TOP, EC_SYM_BITS, EC_SYM_MAX, EC_UINT_BITS, EC_WINDOW_SIZE, EcCtx, ec_dec, ec_ilog,
 };
 
 /// Read the next byte from the front of the buffer, or 0 if exhausted.
 #[inline]
-fn ec_read_byte(this: &mut ec_ctx) -> i32 {
+fn ec_read_byte(this: &mut EcCtx) -> i32 {
     if this.offs < this.storage {
         let b = this.buf[this.offs as usize];
         this.offs += 1;
@@ -27,7 +27,7 @@ fn ec_read_byte(this: &mut ec_ctx) -> i32 {
 
 /// Read the next byte from the end of the buffer, or 0 if exhausted.
 #[inline]
-fn ec_read_byte_from_end(this: &mut ec_ctx) -> i32 {
+fn ec_read_byte_from_end(this: &mut EcCtx) -> i32 {
     if this.end_offs < this.storage {
         this.end_offs += 1;
         let b = this.buf[(this.storage - this.end_offs) as usize];
@@ -41,7 +41,7 @@ fn ec_read_byte_from_end(this: &mut ec_ctx) -> i32 {
 /// high-order symbol. Called after every decode operation to refill the
 /// range coder state.
 #[inline]
-fn ec_dec_normalize(this: &mut ec_ctx) {
+fn ec_dec_normalize(this: &mut EcCtx) {
     // If the range is too small, rescale it and input some bits.
     while this.rng <= (EC_CODE_TOP >> EC_SYM_BITS) {
         this.nbits_total += EC_SYM_BITS as c_int;
@@ -234,7 +234,7 @@ fn ec_mini(a: u32, b: u32) -> u32 {
 /// Returns the number of bits "used" by the encoded/decoded symbols so far.
 /// Matches ec_tell() / ec_tell_inline() from c/celt/entcode.h.
 #[inline]
-pub fn ec_tell(this: &ec_ctx) -> i32 {
+pub fn ec_tell(this: &EcCtx) -> i32 {
     this.nbits_total - ec_ilog(this.rng)
 }
 
@@ -255,7 +255,7 @@ mod tests {
     fn test_ec_tell() {
         // ec_tell = nbits_total - ec_ilog(rng)
         // With nbits_total=33, rng=0x80000000: 33 - 32 = 1
-        let ctx = ec_ctx {
+        let ctx = EcCtx {
             buf: &[],
             storage: 0,
             end_offs: 0,

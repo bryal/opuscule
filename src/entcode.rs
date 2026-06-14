@@ -33,7 +33,7 @@ pub const EC_WINDOW_SIZE: u32 = 32;
 /// We use the same structure for both. See c/celt/entcode.h struct ec_ctx.
 /// The decoder only ever reads the payload, so `buf` is a shared slice
 /// borrowed for the decoder's lifetime (the C used a raw `*mut u8`).
-pub struct ec_ctx<'a> {
+pub struct EcCtx<'a> {
     /// Buffered input/output.
     pub buf: &'a [u8],
     /// The size of the buffer.
@@ -64,16 +64,16 @@ pub struct ec_ctx<'a> {
 
 // Type aliases matching C's typedefs.
 #[allow(non_camel_case_types)]
-pub type ec_dec<'a> = ec_ctx<'a>;
+pub type ec_dec<'a> = EcCtx<'a>;
 #[allow(non_camel_case_types)]
-pub type ec_enc<'a> = ec_ctx<'a>;
+pub type ec_enc<'a> = EcCtx<'a>;
 
-impl ec_ctx<'_> {
+impl EcCtx<'_> {
     /// All-zero context with an empty buffer — the safe replacement for
     /// the C pattern of declaring an uninitialised `ec_dec` on the stack
     /// before `ec_dec_init` fills it in.
-    pub const fn empty() -> ec_ctx<'static> {
-        ec_ctx {
+    pub const fn empty() -> EcCtx<'static> {
+        EcCtx {
             buf: &[],
             storage: 0,
             end_offs: 0,
@@ -122,7 +122,7 @@ pub fn ec_ilog(mut v: u32) -> i32 {
 ///
 /// Translated from c/celt/entcode.c ec_tell_frac().
 /// See RFC 6716 Section 4.1.
-pub fn ec_tell_frac(this: &ec_ctx) -> u32 {
+pub fn ec_tell_frac(this: &EcCtx) -> u32 {
     let nbits = (this.nbits_total as u32) << BITRES;
     let mut l = ec_ilog(this.rng);
     let mut r = this.rng >> (l as u32 - 16);
