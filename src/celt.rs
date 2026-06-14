@@ -1081,6 +1081,9 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
+// Decoder-interleaved (conditional ec_dec_bit_logp reads) with per-band
+// tf_res[i] writes and TF_SELECT_TABLE[lm][..] 2D lookups; kept indexed.
+#[allow(clippy::indexing_slicing)]
 pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut EcCtx) {
     let budget = dec.storage * 8;
     let mut tell = ec_tell(dec) as u32;
@@ -1114,6 +1117,9 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
 // -- init_caps --
 
 /// Initialise the per-band bit allocation caps from the mode's cache.
+// Per-band mode-table lookups (m.ebands[i]/[i+1] and the m.cache.caps row);
+// indices bounded by the band count. Kept indexed.
+#[allow(clippy::indexing_slicing)]
 pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
     for (i, capi) in cap.iter_mut().enumerate() {
         let n = ((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm;
@@ -1133,6 +1139,10 @@ pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
 /// (overlap samples) pointers are contiguous in decode_mem, so each
 /// channel passes the combined region and the overlap memory lives at
 /// `[n..n + overlap]`.
+// Per-channel IMDCT + overlap-add: strided channel slices of `x`, the
+// `clt_mdct_backward` butterfly, and an overlap-add that aliases `chan` at
+// `[j]` and `[n+j]`. Kept indexed (bounds: n + overlap per channel region).
+#[allow(clippy::indexing_slicing)]
 pub fn compute_inv_mdcts(
     mode: &CELTMode,
     short_blocks: c_int,
@@ -1195,6 +1205,9 @@ pub fn compute_inv_mdcts(
 /// The de-emphasis is a first-order IIR filter that undoes the pre-emphasis
 /// applied before encoding. Also handles downsampling (e.g. 48→8 kHz)
 /// by writing only every `downsample`-th sample.
+// First-order IIR (carried `m`) with a downsampled, channel-interleaved
+// scatter into `pcm[y]` and fixed coef[] taps. Kept indexed.
+#[allow(clippy::indexing_slicing)]
 pub fn deemphasis(
     in_: &[&[CeltSig]],
     pcm: &mut [OpusVal16],
@@ -1246,7 +1259,10 @@ pub fn deemphasis(
 /// version takes the whole backing buffer `x` plus `x_off` (the position
 /// the C pointer would have had), and `y: None` for the in-place case or
 /// `y: Some(out)` for a separate output (used by the PLC pre-filter).
-#[allow(clippy::too_many_arguments)]
+// 3-tap comb filter reading pitch history at negative offsets
+// (x[xi - t0 +- k], x[xi - t1 +- k]) with a crossfade window and a 2D
+// `gains[tapset][k]` table. Kept indexed (a DSP kernel).
+#[allow(clippy::too_many_arguments, clippy::indexing_slicing)]
 pub fn comb_filter(
     y: Option<&mut [OpusVal32]>,
     x: &mut [OpusVal32],
