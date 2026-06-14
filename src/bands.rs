@@ -22,6 +22,7 @@ use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_uint, ec_dec_update, ec
 use crate::mathops::frac_mul16;
 use crate::modes::CELTMode;
 use crate::rate::{bits2pulses, get_pulses, pulses2bits};
+use crate::util::{zip, zip3};
 use crate::vq::{alg_unquant, renormalise_vector};
 
 /// Linear congruential generator used for pseudo-random noise injection
@@ -50,18 +51,20 @@ pub fn denormalise_bands(
     let nb = m.nb_ebands as usize;
     let zero_start = (m_factor * i32::from(*ebands.get(end as usize).expect("end <= nb_ebands"))) as usize;
 
-    for ((freq_ch, x_ch), be_ch) in freq.chunks_mut(n).zip(x.chunks(n)).zip(band_e.chunks(nb)).take(c_channels as usize) {
+    for (freq_ch, x_ch, be_ch) in zip3(freq.chunks_mut(n), x.chunks(n), band_e.chunks(nb)).take(c_channels as usize) {
         // Each active band [eBands[i], eBands[i+1]) is scaled by its energy g.
-        for ((&be, &lo), &hi) in be_ch.iter().zip(ebands.iter()).zip(ebands.iter().skip(1)).take(end as usize) {
+        for (&be, &lo, &hi) in zip3(be_ch, ebands, ebands.iter().skip(1)).take(end as usize) {
             let g = shr32(be, 1);
             let j_start = (m_factor * i32::from(lo)) as usize;
             let band_end = (m_factor * i32::from(hi)) as usize;
-            for (f, &xv) in freq_ch.iter_mut().zip(x_ch.iter()).skip(j_start).take(band_end - j_start) {
+            let f_band = freq_ch.get_mut(j_start..band_end).expect("band span within channel");
+            let x_band = x_ch.get(j_start..band_end).expect("band span within channel");
+            for (f, &xv) in zip(f_band, x_band) {
                 *f = shl32(mult16_32_q15(xv, g), 2);
             }
         }
         // Zero above the coded bandwidth.
-        freq_ch.iter_mut().skip(zero_start).for_each(|f| *f = 0 as CeltSig);
+        freq_ch.get_mut(zero_start..).expect("zero_start <= n").fill(0 as CeltSig);
     }
 }
 
@@ -112,7 +115,10 @@ pub fn intensity_stereo(m: &CELTMode, x: &mut [CeltNorm], y: &[CeltNorm], band_e
         );
     let a1 = div32_16(shl32(extend32(left as OpusVal16), 14), norm as OpusVal16);
     let a2 = div32_16(shl32(extend32(right as OpusVal16), 14), norm as OpusVal16);
-    for (xj, &r) in x.iter_mut().zip(y.iter()).take(n as usize) {
+    let nb_band = n as usize;
+    let x_band = x.get_mut(..nb_band).expect("n within x");
+    let y_band = y.get(..nb_band).expect("n within y");
+    for (xj, &r) in zip(x_band, y_band) {
         let l = *xj;
         *xj = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
     }
@@ -127,7 +133,7 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
     let mut xp: OpusVal32 = 0 as OpusVal32;
     let mut side: OpusVal32 = 0 as OpusVal32;
 
-    for (&xj, &yj) in x.iter().zip(y.iter()) {
+    for (&xj, &yj) in zip(&*x, &*y) {
         xp = mac16_16(xp, xj, yj);
         side = mac16_16(side, yj, yj);
     }
@@ -161,7 +167,7 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
     #[cfg(feature = "fixed-point")]
     let (kl, kr) = (kl.max(7), kr.max(7));
 
-    for (xj, yj) in x.iter_mut().zip(y.iter_mut()) {
+    for (xj, yj) in zip(&mut *x, &mut *y) {
         let l = mult16_16_q15(mid, *xj);
         let r = *yj;
         *xj = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
@@ -494,10 +500,10 @@ pub fn quant_band(
             if resynth {
                 let val = if sign != 0 { -NORM_SCALING } else { NORM_SCALING };
                 if c == 0 {
-                    x_s[0] = val;
+                    *x_s.first_mut().expect("band has >= 1 sample") = val;
                 } else {
                     // c reaches 1 only when 1 + stereo > 1, i.e. stereo, i.e. y_s is Some.
-                    y_s.as_mut().expect("stereo path implies y_s is Some")[0] = val;
+                    *y_s.as_mut().expect("stereo path implies y_s is Some").first_mut().expect("band has >= 1 sample") = val;
                 }
             }
             c += 1;
@@ -506,7 +512,7 @@ pub fn quant_band(
             }
         }
         if let Some(lb_out) = lowband_out {
-            lb_out[0] = shr16(x_s[0], 4);
+            *lb_out.first_mut().expect("lowband_out has >= 1 sample") = shr16(*x_s.first().expect("band has >= 1 sample"), 4);
         }
         return 1;
     }
@@ -521,7 +527,11 @@ pub fn quant_band(
             // the scratch then *becomes* the lowband for the rest of the band.
             let lb = lowband.take().expect("guarded by lowband.is_some() in the condition");
             let scratch = lowband_scratch.take().expect("quant_all_bands always supplies scratch at level 0");
-            scratch[..n as usize].copy_from_slice(&lb[..n as usize]);
+            let nb_band = n as usize;
+            scratch
+                .get_mut(..nb_band)
+                .expect("scratch spans the band")
+                .copy_from_slice(lb.get(..nb_band).expect("lowband spans the band"));
             lowband = Some(scratch);
         }
 
@@ -530,10 +540,12 @@ pub fn quant_band(
             if let Some(lb) = lowband.as_mut() {
                 let n0k = n >> k;
                 let stride = 1 << k;
-                haar1(&mut lb[..(n0k * stride) as usize], n0k, stride);
+                haar1(lb.get_mut(..(n0k * stride) as usize).expect("recombine span within lowband"), n0k, stride);
             }
-            fill = BIT_INTERLEAVE_TABLE[(fill & 0xF) as usize] as c_int
-                | (BIT_INTERLEAVE_TABLE[(fill >> 4) as usize] as c_int) << 2;
+            // fill is an 8-bit fold mask, so both nibbles index the 16-entry table.
+            let lo = *BIT_INTERLEAVE_TABLE.get((fill & 0xF) as usize).expect("low nibble < 16") as c_int;
+            let hi = *BIT_INTERLEAVE_TABLE.get((fill >> 4) as usize).expect("high nibble < 16") as c_int;
+            fill = lo | (hi << 2);
         }
         b_blocks >>= recombine;
         n_b <<= recombine;
@@ -541,7 +553,7 @@ pub fn quant_band(
         // Increasing the time resolution
         while (n_b & 1) == 0 && tf_change < 0 {
             if let Some(lb) = lowband.as_mut() {
-                haar1(&mut lb[..(n_b * b_blocks) as usize], n_b, b_blocks);
+                haar1(lb.get_mut(..(n_b * b_blocks) as usize).expect("time-resolution span within lowband"), n_b, b_blocks);
             }
             fill |= fill << b_blocks;
             b_blocks <<= 1;
@@ -556,15 +568,22 @@ pub fn quant_band(
             if let Some(lb) = lowband.as_mut() {
                 let n0d = n_b >> recombine;
                 let stride = b0 << recombine;
-                deinterleave_hadamard(&mut lb[..(n0d * stride) as usize], n0d, stride, long_blocks as c_int);
+                deinterleave_hadamard(
+                    lb.get_mut(..(n0d * stride) as usize).expect("deinterleave span within lowband"),
+                    n0d,
+                    stride,
+                    long_blocks as c_int,
+                );
             }
         }
     }
     n_b0 = n_b;
 
     // If we need 1.5 more bit than we can produce, split the band in two.
-    let cache = &m.cache.bits[m.cache.index[((lm + 1) * m.nb_ebands + i) as usize] as usize..];
-    if stereo == 0 && lm != -1 && b > cache[cache[0] as usize] as c_int + 12 && n > 2 {
+    let cache_idx = *m.cache.index.get(((lm + 1) * m.nb_ebands + i) as usize).expect("cache index in range") as usize;
+    let cache = m.cache.bits.get(cache_idx..).expect("cache offset in range");
+    let cache_max = *cache.get(*cache.first().expect("cache row non-empty") as usize).expect("cache entry in range") as c_int;
+    if stereo == 0 && lm != -1 && b > cache_max + 12 && n > 2 {
         n >>= 1;
         split = 1;
         lm -= 1;
@@ -585,7 +604,7 @@ pub fn quant_band(
         let orig_fill;
 
         // Decide on the resolution to give to the split parameter theta
-        pulse_cap = m.log_n[i as usize] as c_int + lm * (1 << BITRES as c_int);
+        pulse_cap = *m.log_n.get(i as usize).expect("band index < nb_ebands") as c_int + lm * (1 << BITRES as c_int);
         offset = (pulse_cap >> 1) - if stereo != 0 && n == 2 { QTHETA_OFFSET_TWOPHASE } else { QTHETA_OFFSET };
         let qn = compute_qn(n, b, offset, pulse_cap, stereo);
         let qn_val = if stereo != 0 && i >= intensity { 1 } else { qn };
@@ -671,6 +690,9 @@ pub fn quant_band(
         }
 
         // Special case for N=2 stereo
+        // Fixed 2-element stereo butterfly (x[0]/x[1] paired with y[0]/y[1]);
+        // a small dual-write rotation kept as indexed math.
+        #[allow(clippy::indexing_slicing)]
         if n == 2 && stereo != 0 {
             let mut sign = 0i32;
             mbits = b;
@@ -899,19 +921,19 @@ pub fn quant_band(
 
         if q != 0 {
             let k = get_pulses(q);
-            cm = alg_unquant(&mut x_s[..n as usize], n, k, spread, b_blocks, ec, gain);
+            cm = alg_unquant(x_s.get_mut(..n as usize).expect("band span within x_s"), n, k, spread, b_blocks, ec, gain);
         } else {
             // If there's no pulse, fill the band anyway
             if resynth {
                 let cm_mask: u32 = (1u32 << b_blocks as u32) - 1;
                 fill &= cm_mask as c_int;
                 if fill == 0 {
-                    x_s[..n as usize].fill(0 as CeltNorm);
+                    x_s.get_mut(..n as usize).expect("band span within x_s").fill(0 as CeltNorm);
                 } else {
                     match lowband.as_ref() {
                         None => {
                             // Noise
-                            for slot in &mut x_s[..n as usize] {
+                            for slot in x_s.get_mut(..n as usize).expect("band span within x_s") {
                                 *seed = celt_lcg_rand(*seed);
                                 *slot = ((*seed as i32) >> 20) as CeltNorm;
                             }
@@ -919,16 +941,17 @@ pub fn quant_band(
                         }
                         Some(lb) => {
                             // Folded spectrum
-                            for j in 0..n as usize {
+                            let lb_band = lb.get(..n as usize).expect("band span within lowband");
+                            for (xj, &lbj) in zip(x_s.get_mut(..n as usize).expect("band span within x_s"), lb_band) {
                                 *seed = celt_lcg_rand(*seed);
                                 let tmp = qconst16(1.0 / 256.0, 10);
                                 let tmp = if (*seed) & 0x8000 != 0 { tmp } else { -tmp };
-                                x_s[j] = lb[j] + tmp;
+                                *xj = lbj + tmp;
                             }
                             cm = fill as u32;
                         }
                     }
-                    renormalise_vector(&mut x_s[..n as usize], gain);
+                    renormalise_vector(x_s.get_mut(..n as usize).expect("band span within x_s"), gain);
                 }
             }
         }
@@ -939,11 +962,15 @@ pub fn quant_band(
         if stereo != 0 {
             if n != 2 {
                 let y_sl = y_s.as_deref_mut().expect("stereo path implies y_s is Some");
-                stereo_merge(&mut x_s[..n as usize], &mut y_sl[..n as usize], mid);
+                stereo_merge(
+                    x_s.get_mut(..n as usize).expect("band span within x_s"),
+                    y_sl.get_mut(..n as usize).expect("band span within y_s"),
+                    mid,
+                );
             }
             if inv != 0 {
                 let y_sl = y_s.as_deref_mut().expect("stereo path implies y_s is Some");
-                for yj in y_sl[..n as usize].iter_mut() {
+                for yj in y_sl.get_mut(..n as usize).expect("band span within y_s") {
                     *yj = -*yj;
                 }
             }
@@ -952,7 +979,12 @@ pub fn quant_band(
             if b0 > 1 {
                 let n0d = n_b >> recombine;
                 let stride = b0 << recombine;
-                interleave_hadamard(&mut x_s[..(n0d * stride) as usize], n0d, stride, long_blocks as c_int);
+                interleave_hadamard(
+                    x_s.get_mut(..(n0d * stride) as usize).expect("interleave span within x_s"),
+                    n0d,
+                    stride,
+                    long_blocks as c_int,
+                );
             }
 
             // Undo time-freq changes that we did earlier
@@ -962,24 +994,25 @@ pub fn quant_band(
                 b_blocks >>= 1;
                 n_b <<= 1;
                 cm |= cm >> b_blocks as u32;
-                haar1(&mut x_s[..(n_b * b_blocks) as usize], n_b, b_blocks);
+                haar1(x_s.get_mut(..(n_b * b_blocks) as usize).expect("haar span within x_s"), n_b, b_blocks);
             }
 
             for k in 0..recombine {
                 const BIT_DEINTERLEAVE_TABLE: [u8; 16] =
                     [0x00, 0x03, 0x0C, 0x0F, 0x30, 0x33, 0x3C, 0x3F, 0xC0, 0xC3, 0xCC, 0xCF, 0xF0, 0xF3, 0xFC, 0xFF];
-                cm = BIT_DEINTERLEAVE_TABLE[cm as usize] as u32;
+                cm = *BIT_DEINTERLEAVE_TABLE.get(cm as usize).expect("cm is a 4-bit mask < 16") as u32;
                 let n0_param = n0 >> k;
                 let stride = 1 << k;
-                haar1(&mut x_s[..(n0_param * stride) as usize], n0_param, stride);
+                haar1(x_s.get_mut(..(n0_param * stride) as usize).expect("haar span within x_s"), n0_param, stride);
             }
             b_blocks <<= recombine;
 
             // Scale output for later folding
             if let Some(lb_out) = lowband_out {
                 let norm_val = celt_sqrt(shl32(extend32(n0 as OpusVal16), 22));
-                for j in 0..n0 as usize {
-                    lb_out[j] = mult16_16_q15(norm_val as OpusVal16, x_s[j]) as CeltNorm;
+                let lb_band = lb_out.get_mut(..n0 as usize).expect("n0 within lowband_out");
+                for (oj, &xj) in zip(lb_band, x_s.get(..n0 as usize).expect("n0 within x_s")) {
+                    *oj = mult16_16_q15(norm_val as OpusVal16, xj) as CeltNorm;
                 }
             }
             cm &= (1u32 << b_blocks as u32) - 1;

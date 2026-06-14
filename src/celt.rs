@@ -623,8 +623,8 @@ pub fn celt_decode_with_ec<'a>(
 
     // Per-channel clear of the inactive low/high band bins.
     for ch in x.chunks_mut(n as usize).take(c_channels as usize) {
-        ch.iter_mut().take(band_start).for_each(|v| *v = 0 as CeltNorm);
-        ch.iter_mut().skip(band_eff_end).for_each(|v| *v = 0 as CeltNorm);
+        ch.get_mut(..band_start).expect("band_start <= n").fill(0 as CeltNorm);
+        ch.get_mut(band_eff_end..).expect("band_eff_end <= n").fill(0 as CeltNorm);
     }
 
     let Some(data) = data.filter(|_| len > 1) else {
@@ -855,8 +855,8 @@ pub fn celt_decode_with_ec<'a>(
     // capped by the downsample ratio.
     let freq_bound = if st.downsample != 1 { band_eff_end.min((n / st.downsample) as usize) } else { band_eff_end };
     for ch in freq.chunks_mut(n as usize).take(c_channels as usize) {
-        ch.iter_mut().take(band_start).for_each(|v| *v = 0 as CeltSig);
-        ch.iter_mut().skip(freq_bound).for_each(|v| *v = 0 as CeltSig);
+        ch.get_mut(..band_start).expect("band_start <= n").fill(0 as CeltSig);
+        ch.get_mut(freq_bound..).expect("freq_bound <= n").fill(0 as CeltSig);
     }
 
     // out_syn[c] starts at DECODE_BUFFER_SIZE - n within each channel
@@ -1065,8 +1065,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
     let budget = budget - tf_select_rsv as u32;
     let mut tf_changed = 0;
     let mut curr = 0;
-    let band_range = (end - start) as usize;
-    for r in tf_res.iter_mut().skip(start as usize).take(band_range) {
+    for r in tf_res.get_mut(start as usize..end as usize).expect("[start,end) within tf_res") {
         if tell + logp <= budget {
             curr ^= ec_dec_bit_logp(dec, logp);
             tell = ec_tell(dec) as u32;
@@ -1081,7 +1080,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
     if tf_select_rsv != 0 && tf_at(4 * is_transient + tf_changed) != tf_at(4 * is_transient + 2 + tf_changed) {
         tf_select = ec_dec_bit_logp(dec, 1);
     }
-    for r in tf_res.iter_mut().skip(start as usize).take(band_range) {
+    for r in tf_res.get_mut(start as usize..end as usize).expect("[start,end) within tf_res") {
         *r = i32::from(tf_at(4 * is_transient + 2 * tf_select + *r));
     }
 }

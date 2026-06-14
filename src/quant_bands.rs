@@ -199,7 +199,8 @@ pub fn unquant_fine_energy(
 ) {
     let nb_ebands = m.nb_ebands as usize;
 
-    for (i, &fq) in fine_quant.iter().enumerate().take(end as usize).skip(start as usize) {
+    let (s, e) = (start as usize, end as usize);
+    for (i, &fq) in (s..e).zip(fine_quant.get(s..e).expect("[start,end) within fine_quant")) {
         if fq <= 0 {
             continue;
         }
@@ -243,8 +244,12 @@ pub fn unquant_energy_finalise(
 ) {
     let nb_ebands = m.nb_ebands as usize;
 
+    let (s, e) = (start as usize, end as usize);
     for prio in 0..2 {
-        for ((i, &fq), &fp) in fine_quant.iter().enumerate().zip(fine_priority.iter()).take(end as usize).skip(start as usize) {
+        for ((i, &fq), &fp) in (s..e)
+            .zip(fine_quant.get(s..e).expect("[start,end) within fine_quant"))
+            .zip(fine_priority.get(s..e).expect("[start,end) within fine_priority"))
+        {
             if bits_left < c_channels {
                 break;
             }
