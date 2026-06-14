@@ -1057,9 +1057,6 @@ pub fn scaleout(a: OpusVal16) -> OpusVal16 {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-// Decoder-interleaved (conditional ec_dec_bit_logp reads) with per-band
-// tf_res[i] writes and TF_SELECT_TABLE[lm][..] 2D lookups; kept indexed.
-#[allow(clippy::indexing_slicing)]
 pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut EcCtx) {
     let budget = dec.storage * 8;
     let mut tell = ec_tell(dec) as u32;
@@ -1068,25 +1065,24 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
     let budget = budget - tf_select_rsv as u32;
     let mut tf_changed = 0;
     let mut curr = 0;
-    for i in start..end {
+    let band_range = (end - start) as usize;
+    for r in tf_res.iter_mut().skip(start as usize).take(band_range) {
         if tell + logp <= budget {
             curr ^= ec_dec_bit_logp(dec, logp);
             tell = ec_tell(dec) as u32;
             tf_changed |= curr;
         }
-        tf_res[i as usize] = curr;
+        *r = curr;
         logp = if is_transient != 0 { 4 } else { 5 };
     }
+    let tf_row = TF_SELECT_TABLE.get(lm as usize).expect("lm in 0..=3");
+    let tf_at = |k: c_int| *tf_row.get(k as usize).expect("tf_select index in 0..8");
     let mut tf_select = 0;
-    if tf_select_rsv != 0
-        && TF_SELECT_TABLE[lm as usize][(4 * is_transient + 0 + tf_changed) as usize]
-            != TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 + tf_changed) as usize]
-    {
+    if tf_select_rsv != 0 && tf_at(4 * is_transient + tf_changed) != tf_at(4 * is_transient + 2 + tf_changed) {
         tf_select = ec_dec_bit_logp(dec, 1);
     }
-    for i in start..end {
-        tf_res[i as usize] =
-            TF_SELECT_TABLE[lm as usize][(4 * is_transient + 2 * tf_select + tf_res[i as usize]) as usize] as c_int;
+    for r in tf_res.iter_mut().skip(start as usize).take(band_range) {
+        *r = i32::from(tf_at(4 * is_transient + 2 * tf_select + *r));
     }
 }
 
