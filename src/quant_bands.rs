@@ -114,6 +114,14 @@ use crate::laplace::ec_laplace_decode;
 ///
 /// Uses inter-frame prediction (unless `intra`), applying the probability
 /// model selected by frame size (`LM`) and prediction mode.
+///
+/// Interleaves sequential range-decoder reads (budget-dependent Laplace /
+/// ICDF / bit) with band-model-table lookups (`prob_model[2*min(i,20)]`)
+/// and a per-channel `old_ebands[i + c*nb_ebands]` read-modify-write plus
+/// `prev[c]` state. Indices are bounded (i < end <= nb_ebands, c < 2,
+/// 2*min(i,20)+1 < 42), so it stays as explicit indexed decode rather
+/// than obscuring the read order with strided iterators.
+#[allow(clippy::indexing_slicing)]
 pub fn unquant_coarse_energy(
     m: &CELTMode,
     start: c_int,
@@ -180,6 +188,11 @@ pub fn unquant_coarse_energy(
 /// RFC 6716 Section 4.3.1.
 ///
 /// Reads `fine_quant[i]` bits per band to refine the coarse energy estimate.
+///
+/// Sequential per-band/per-channel range-decoder reads driving a
+/// `old_ebands[i + c*nb_ebands]` update; bounds obvious (i < end <=
+/// nb_ebands, c < c_channels <= 2). Kept as explicit indexed decode.
+#[allow(clippy::indexing_slicing)]
 pub fn unquant_fine_energy(
     m: &CELTMode,
     start: c_int,
@@ -225,6 +238,12 @@ pub fn unquant_fine_energy(
 ///
 /// Iterates by priority (0 then 1), reading 1 bit per band to adjust
 /// the energy estimate by half a fine-quant step.
+///
+/// Sequential range-decoder reads gated by `bits_left` and per-band
+/// `fine_quant[i]`/`fine_priority[i]`, updating `old_ebands[i +
+/// c*nb_ebands]`; bounds obvious (i < end <= nb_ebands, c < c_channels
+/// <= 2). Kept as explicit indexed decode.
+#[allow(clippy::indexing_slicing)]
 pub fn unquant_energy_finalise(
     m: &CELTMode,
     start: c_int,
@@ -276,21 +295,14 @@ pub fn unquant_energy_finalise(
 /// zeroing bands outside [start, end).
 pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [OpusVal32], old_ebands: &[OpusVal16], c_channels: c_int) {
     let nb_ebands = m.nb_ebands as usize;
-    let mut c: usize = 0;
-    loop {
-        for i in 0..(start as usize) {
-            e_bands[i + c * nb_ebands] = 0 as OpusVal32;
-        }
-        for i in (start as usize)..(end as usize) {
-            let lg = add16(old_ebands[i + c * nb_ebands], shl16(E_MEANS[i] as OpusVal16, 6));
-            e_bands[i + c * nb_ebands] = pshr32(celt_exp2(lg), 4);
-        }
-        for i in (end as usize)..nb_ebands {
-            e_bands[i + c * nb_ebands] = 0 as OpusVal32;
-        }
-        c += 1;
-        if c as c_int >= c_channels {
-            break;
+    let band_range = start as usize..end as usize;
+    for (e_ch, old_ch) in e_bands.chunks_mut(nb_ebands).zip(old_ebands.chunks(nb_ebands)).take(c_channels as usize) {
+        for (i, ((eb, &oe), &em)) in e_ch.iter_mut().zip(old_ch).zip(E_MEANS.iter()).enumerate() {
+            *eb = if band_range.contains(&i) {
+                pshr32(celt_exp2(add16(oe, shl16(em as OpusVal16, 6))), 4)
+            } else {
+                0 as OpusVal32
+            };
         }
     }
 }
@@ -308,17 +320,16 @@ pub fn amp2log2(
     c_channels: c_int,
 ) {
     let nb_ebands = m.nb_ebands as usize;
-    let mut c: usize = 0;
-    loop {
-        for i in 0..(eff_end as usize) {
-            band_log_e[i + c * nb_ebands] = celt_log2(shl32(band_e[i + c * nb_ebands], 2)) - shl16(E_MEANS[i] as OpusVal16, 6);
-        }
-        for i in (eff_end as usize)..(end as usize) {
-            band_log_e[c * nb_ebands + i] = -qconst16(14.0, DB_SHIFT);
-        }
-        c += 1;
-        if c as c_int >= c_channels {
-            break;
+    let eff_end = eff_end as usize;
+    let end = end as usize;
+    for (le_ch, be_ch) in band_log_e.chunks_mut(nb_ebands).zip(band_e.chunks(nb_ebands)).take(c_channels as usize) {
+        for (i, ((le, &be), &em)) in le_ch.iter_mut().zip(be_ch).zip(E_MEANS.iter()).enumerate() {
+            if i < eff_end {
+                *le = celt_log2(shl32(be, 2)) - shl16(em as OpusVal16, 6);
+            } else if i < end {
+                *le = -qconst16(14.0, DB_SHIFT);
+            }
+            // bands >= end are left untouched, as in the C
         }
     }
 }
