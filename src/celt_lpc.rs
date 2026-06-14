@@ -23,6 +23,12 @@ pub const LPC_ORDER: usize = 24;
 /// Computes `p` LPC coefficients from `p+1` autocorrelation values.
 /// Bails out early if prediction gain exceeds ~30 dB (error < ac[0]/1024
 /// in fixed-point, error < 0.001*ac[0] in float).
+///
+/// Levinson-Durbin is a recurrence with a symmetric in-place coefficient
+/// update (`lpc[j]` paired with `lpc[i-1-j]`) and `ac[i-j]` cross-indexing;
+/// the indices are bounded by `j < i < p` and `ac` holding `p+1` values, so
+/// it stays as indexed array math rather than a contrived iterator form.
+#[allow(clippy::indexing_slicing)]
 pub fn _celt_lpc(_lpc: &mut [OpusVal16], ac: &[OpusVal32], p: c_int) {
     let p = p as usize;
 
@@ -95,13 +101,14 @@ pub fn celt_fir(x: &mut [OpusVal16], num: &[OpusVal16], ord: c_int, mem: &mut [O
     for xi in x {
         let input = *xi;
         let mut sum: OpusVal32 = shl32(extend32(input), SIG_SHIFT);
-        for j in 0..ord {
-            sum = sum + mult16_16(num[j], mem[j]);
+        for (&n, &m) in num.iter().zip(mem.iter()).take(ord) {
+            sum = sum + mult16_16(n, m);
         }
-        for j in (1..ord).rev() {
-            mem[j] = mem[j - 1];
+        // Shift register: mem[1..ord] = old mem[0..ord-1], then mem[0] = input.
+        mem.copy_within(..ord - 1, 1);
+        if let Some(first) = mem.first_mut() {
+            *first = input;
         }
-        mem[0] = input;
         *xi = round16(sum, SIG_SHIFT);
     }
 }
@@ -119,13 +126,14 @@ pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], ord: c_int, mem: &mut [O
     let ord = ord as usize;
     for xi in x {
         let mut sum: OpusVal32 = *xi;
-        for j in 0..ord {
-            sum = sum - mult16_16(den[j], mem[j]);
+        for (&d, &m) in den.iter().zip(mem.iter()).take(ord) {
+            sum = sum - mult16_16(d, m);
         }
-        for j in (1..ord).rev() {
-            mem[j] = mem[j - 1];
+        // Shift register: mem[1..ord] = old mem[0..ord-1], then mem[0] = new.
+        mem.copy_within(..ord - 1, 1);
+        if let Some(first) = mem.first_mut() {
+            *first = round16(sum, SIG_SHIFT);
         }
-        mem[0] = round16(sum, SIG_SHIFT);
         *xi = sum;
     }
 }
@@ -140,14 +148,19 @@ pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], ord: c_int, mem: &mut [O
 pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16], overlap: c_int, lag: c_int, n: c_int) {
     let n = n as usize;
     let overlap = overlap as usize;
-    let mut lag = lag as usize;
+    let lag = lag as usize;
 
     debug_assert!(n > 0);
     debug_assert!(n <= MAX_PERIOD);
 
     // Copy x into local buffer, apply window to edges
     let mut xx = [0 as OpusVal16; MAX_PERIOD];
-    xx[..n].copy_from_slice(&x[..n]);
+    for (dst, &src) in xx.iter_mut().zip(x).take(n) {
+        *dst = src;
+    }
+    // Symmetric edge windowing: front sample `i` and back sample `n-1-i`
+    // both scaled by `window[i]`, for i < overlap (<= n/2). Kept indexed.
+    #[allow(clippy::indexing_slicing)]
     for i in 0..overlap {
         xx[i] = mult16_16_q15(x[i], window[i]) as OpusVal16;
         xx[n - i - 1] = mult16_16_q15(x[n - i - 1], window[i]) as OpusVal16;
@@ -157,32 +170,33 @@ pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16
     #[cfg(feature = "fixed-point")]
     {
         let mut ac0: i32 = 0;
-        for i in 0..n {
-            ac0 += shr32(mult16_16(xx[i], xx[i]), 9);
+        for &xi in xx.iter().take(n) {
+            ac0 += shr32(mult16_16(xi, xi), 9);
         }
         ac0 += 1 + n as i32;
 
         let shift = (celt_ilog2(ac0) as i32 - 30 + 10 + 1) / 2;
-        for i in 0..n {
-            xx[i] = vshr32(xx[i] as i32, shift) as i16;
+        for xi in xx.iter_mut().take(n) {
+            *xi = vshr32(*xi as i32, shift) as i16;
         }
     }
 
-    // Compute autocorrelation for each lag (lag down to 0)
-    loop {
+    // Autocorrelation at each lag: ac[l] = sum_i xx[i]*xx[i-l] over i in l..n,
+    // i.e. the dot of xx shifted by l with itself (same summation order as the
+    // C, so float results stay bit-exact). Lags are independent, so order of
+    // evaluation across `l` doesn't matter.
+    for (l, slot) in ac.iter_mut().take(lag + 1).enumerate() {
         let mut d: OpusVal32 = 0 as OpusVal32;
-        for i in lag..n {
-            d = d + mult16_16(xx[i], xx[i - lag]);
+        for (&a, &b) in xx.iter().skip(l).zip(xx.iter()).take(n - l) {
+            d = d + mult16_16(a, b);
         }
-        ac[lag] = d;
-        if lag == 0 {
-            break;
-        }
-        lag -= 1;
+        *slot = d;
     }
 
     // Bias to avoid division by zero
-    ac[0] = ac[0] + 10 as OpusVal32;
+    if let Some(first) = ac.first_mut() {
+        *first = *first + 10 as OpusVal32;
+    }
 }
 
 /// SIG_SHIFT constant from arch.h — controls the Q format for signals.
