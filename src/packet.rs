@@ -127,7 +127,7 @@ fn parse_size(data: &[u8], len: c_int, size: &mut i16) -> c_int {
         *size = -1;
         return -1;
     }
-    let b0 = i16::from(*data.first().or_panic("len >= 1 implies at least one byte"));
+    let b0 = i16::from(*data.first().or_panic("empty data in parse_size"));
     if b0 < 252 {
         *size = b0;
         1
@@ -135,7 +135,7 @@ fn parse_size(data: &[u8], len: c_int, size: &mut i16) -> c_int {
         *size = -1;
         -1
     } else {
-        *size = 4 * i16::from(*data.get(1).or_panic("len >= 2 implies a second byte")) + b0;
+        *size = 4 * i16::from(*data.get(1).or_panic("parse_size: missing second byte")) + b0;
         2
     }
 }
@@ -163,7 +163,7 @@ pub fn opus_packet_parse_impl(
     // `len` is the remaining-bytes counter, initialised from the packet length.
     let mut len = data.len() as c_int;
 
-    let toc = *data.first().or_panic("opus_packet_parse_impl requires a non-empty packet");
+    let toc = *data.first().or_panic("empty packet");
     let framesize = packet_get_samples_per_frame(toc, 48000);
 
     let mut cbr: c_int = 0;
@@ -186,15 +186,15 @@ pub fn opus_packet_parse_impl(
                     return OPUS_INVALID_PACKET;
                 }
                 last_size = len / 2;
-                *size.first_mut().or_panic("size buffer non-empty") = last_size as i16;
+                *size.first_mut().or_panic("empty size buffer") = last_size as i16;
             }
         }
         // Two VBR frames
         2 => {
             count = 2;
-            let bytes = parse_size(data.get(off..).or_panic(off), len, size.first_mut().or_panic("size buffer non-empty"));
+            let bytes = parse_size(data.get(off..).or_panic(off), len, size.first_mut().or_panic("empty size buffer"));
             len -= bytes;
-            let s0 = *size.first().or_panic("size buffer non-empty");
+            let s0 = *size.first().or_panic("empty size buffer");
             if s0 < 0 || i32::from(s0) > len {
                 return OPUS_INVALID_PACKET;
             }

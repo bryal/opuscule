@@ -136,7 +136,7 @@ pub fn silk_resampler_private_down_fir(s: &mut SilkResamplerStateStruct, out: &m
     let fir_order = s.fir_order as usize;
     buf[..fir_order].copy_from_slice(&s.s_fir[..fir_order]);
 
-    let coefs = s.coefs.or_panic("down-FIR resampler sets coefs in silk_resampler_init");
+    let coefs = s.coefs.or_panic("down-FIR resampler coefs unset (silk_resampler_init not run?)");
     let fir_coefs = &coefs[2..];
 
     /* Iterate over blocks of frameSizeIn input samples */

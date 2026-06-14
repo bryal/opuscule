@@ -75,7 +75,7 @@ pub fn silk_decode_indices(
     /**********************/
     /* Decode LSF Indices */
     /**********************/
-    let nlsf_cb = ps_dec.ps_nlsf_cb.or_panic("NLSF codebook is set by silk_decoder_set_fs before decoding");
+    let nlsf_cb = ps_dec.ps_nlsf_cb.or_panic("NLSF codebook unset (silk_decoder_set_fs not run?)");
     ps_dec.indices.nlsf_indices[0] = ec_dec_icdf(
         ps_range_dec,
         &nlsf_cb.cb1_icdf[(((ps_dec.indices.signal_type as i32) >> 1) * nlsf_cb.n_vectors as i32) as usize..],
@@ -123,7 +123,7 @@ pub fn silk_decode_indices(
                 (ec_dec_icdf(ps_range_dec, &SILK_PITCH_LAG_ICDF, 8) as i16) * (ps_dec.fs_khz >> 1) as i16;
             ps_dec.indices.lag_index += ec_dec_icdf(
                 ps_range_dec,
-                ps_dec.pitch_lag_low_bits_icdf.or_panic("pitch ICDF is set by silk_decoder_set_fs"),
+                ps_dec.pitch_lag_low_bits_icdf.or_panic("pitch ICDF unset (silk_decoder_set_fs not run?)"),
                 8,
             ) as i16;
         }
@@ -131,7 +131,8 @@ pub fn silk_decode_indices(
 
         /* Get countour index */
         ps_dec.indices.contour_index =
-            ec_dec_icdf(ps_range_dec, ps_dec.pitch_contour_icdf.or_panic("pitch ICDF is set by silk_decoder_set_fs"), 8) as i8;
+            ec_dec_icdf(ps_range_dec, ps_dec.pitch_contour_icdf.or_panic("pitch ICDF unset (silk_decoder_set_fs not run?)"), 8)
+                as i8;
 
         /********************/
         /* Decode LTP gains */

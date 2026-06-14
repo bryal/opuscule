@@ -477,7 +477,7 @@ fn opus_decode_frame(
     // 5 ms redundant frame for CELT->SILK
     if redundancy != 0 && celt_to_silk != 0 {
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetStartBand(0));
-        let d = data.or_panic("redundancy is only set in the data-present branch");
+        let d = data.or_panic("redundancy set but data is None");
         celt_decode_with_ec(
             &mut st.celt_dec,
             Some(d.get(len as usize..(len + redundancy_bytes) as usize).or_panic_dbg((len, redundancy_bytes))),
@@ -535,7 +535,7 @@ fn opus_decode_frame(
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::ResetState);
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetStartBand(0));
 
-        let d = data.or_panic("redundancy is only set in the data-present branch");
+        let d = data.or_panic("redundancy set but data is None");
         celt_decode_with_ec(
             &mut st.celt_dec,
             Some(d.get(len as usize..(len + redundancy_bytes) as usize).or_panic_dbg((len, redundancy_bytes))),

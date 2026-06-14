@@ -336,7 +336,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
         {
             let ch_len = (n + st.overlap) as usize;
             if cc == 2 {
-                let (c0, c1) = chans.split_at_mut_checked(1).or_panic("cc == 2 means chans holds two channel slices");
+                let (c0, c1) = chans.split_at_mut_checked(1).or_panic("chans has fewer than 2 channel slices");
                 compute_inv_mdcts(mode, 0, &freq, &mut [&mut c0[0][os..os + ch_len], &mut c1[0][os..os + ch_len]], cc, lm);
             } else {
                 compute_inv_mdcts(mode, 0, &freq, &mut [&mut chans[0][os..os + ch_len]], cc, lm);
@@ -645,7 +645,7 @@ pub fn celt_decode_with_ec<'a>(
 
     if c_channels == 1 {
         let nb = mode.nb_ebands as usize;
-        let (lo, hi) = st.old_band_e.split_at_mut_checked(nb).or_panic("old_band_e holds 2*nb_ebands entries");
+        let (lo, hi) = st.old_band_e.split_at_mut_checked(nb).or_panic("old_band_e shorter than nb");
         for (a, &b) in zip(lo, &*hi) {
             *a = max16(*a, b);
         }
@@ -776,7 +776,7 @@ pub fn celt_decode_with_ec<'a>(
     // Decode fixed codebook
     let mut collapse_masks = vec![0u8; (c_channels * mode.nb_ebands) as usize];
     {
-        let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).or_panic("x is c_channels*n long, so n <= x.len()");
+        let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).or_panic("x shorter than n");
         quant_all_bands(
             0,
             mode,
@@ -882,7 +882,7 @@ pub fn celt_decode_with_ec<'a>(
         // overlap) each, so the split at ch_size always lands on the channel-1
         // boundary; the checked split documents that and reports if it ever
         // doesn't, rather than panicking bare like split_at_mut would.
-        let (c0, c1) = st.decode_mem.split_at_mut_checked(ch_size).or_panic("decode_mem holds MAX_CHANNELS regions of ch_size");
+        let (c0, c1) = st.decode_mem.split_at_mut_checked(ch_size).or_panic("decode_mem shorter than ch_size");
         if cc == 2 {
             compute_inv_mdcts(
                 mode,
@@ -1164,7 +1164,7 @@ pub fn compute_inv_mdcts(
         buf.iter_mut().take(ov).for_each(|v| *v = 0 as OpusVal32);
 
         for b in 0..b_count {
-            let x_ch = x.get(c * nu + b as usize..(c + 1) * nu).or_panic("x holds c_channels regions of n samples");
+            let x_ch = x.get(c * nu + b as usize..(c + 1) * nu).or_panic_dbg((c * nu + b as usize, (c + 1) * nu));
             clt_mdct_backward(
                 &mode.mdct,
                 x_ch,
@@ -1208,9 +1208,9 @@ pub fn deemphasis(
     coef: &[OpusVal16],
     mem: &mut [CeltSig],
 ) {
-    let c0 = *coef.first().or_panic("deemphasis coef[0]");
-    let c1 = *coef.get(1).or_panic("deemphasis coef[1]");
-    let c3 = *coef.get(3).or_panic("deemphasis coef[3]");
+    let c0 = *coef.first().or_panic("deemphasis coef[0] out of range");
+    let c1 = *coef.get(1).or_panic("deemphasis coef[1] out of range");
+    let c3 = *coef.get(3).or_panic("deemphasis coef[3] out of range");
     // `count` deliberately carries across channels, matching the C.
     let mut count: c_int = 0;
     for (c, (&x, m_slot)) in zip(in_, mem.iter_mut()).enumerate().take(c_channels as usize) {

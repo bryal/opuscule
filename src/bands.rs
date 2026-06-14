@@ -256,7 +256,7 @@ pub fn compute_qn(n: c_int, b: c_int, offset: c_int, pulse_cap: c_int, stereo: c
     if qb < (1 << BITRES >> 1) {
         1
     } else {
-        let exp2 = *EXP2_TABLE8.get((qb as usize) & 0x7).or_panic("masked to 0..8");
+        let exp2 = *EXP2_TABLE8.get((qb as usize) & 0x7).or_panic("EXP2_TABLE8 index out of range");
         let qn = (exp2 >> (14 - (qb >> BITRES as c_int))) as c_int;
         (qn + 1) >> 1 << 1
     }
@@ -500,11 +500,10 @@ pub fn quant_band(
             if resynth {
                 let val = if sign != 0 { -NORM_SCALING } else { NORM_SCALING };
                 if c == 0 {
-                    *x_s.first_mut().or_panic("band has >= 1 sample") = val;
+                    *x_s.first_mut().or_panic("empty band") = val;
                 } else {
                     // c reaches 1 only when 1 + stereo > 1, i.e. stereo, i.e. y_s is Some.
-                    *y_s.as_mut().or_panic("stereo path implies y_s is Some").first_mut().or_panic("band has >= 1 sample") =
-                        val;
+                    *y_s.as_mut().or_panic("y_s is None on a stereo path").first_mut().or_panic("empty band") = val;
                 }
             }
             c += 1;
@@ -513,8 +512,7 @@ pub fn quant_band(
             }
         }
         if let Some(lb_out) = lowband_out {
-            *lb_out.first_mut().or_panic("lowband_out has >= 1 sample") =
-                shr16(*x_s.first().or_panic("band has >= 1 sample"), 4);
+            *lb_out.first_mut().or_panic("empty lowband_out") = shr16(*x_s.first().or_panic("empty band"), 4);
         }
         return 1;
     }
@@ -527,8 +525,8 @@ pub fn quant_band(
         if lowband.is_some() && (recombine != 0 || ((n_b & 1) == 0 && tf_change < 0) || b0 > 1) {
             // Copy the fold source somewhere we can transform it in place;
             // the scratch then *becomes* the lowband for the rest of the band.
-            let lb = lowband.take().or_panic("guarded by lowband.is_some() in the condition");
-            let scratch = lowband_scratch.take().or_panic("quant_all_bands always supplies scratch at level 0");
+            let lb = lowband.take().or_panic("lowband is None despite the is_some() guard");
+            let scratch = lowband_scratch.take().or_panic("lowband_scratch is None at level 0");
             let nb_band = n as usize;
             scratch.get_mut(..nb_band).or_panic(nb_band).copy_from_slice(lb.get(..nb_band).or_panic(nb_band));
             lowband = Some(scratch);
@@ -542,8 +540,10 @@ pub fn quant_band(
                 haar1(lb.get_mut(..(n0k * stride) as usize).or_panic((n0k * stride) as usize), n0k, stride);
             }
             // fill is an 8-bit fold mask, so both nibbles index the 16-entry table.
-            let lo = *BIT_INTERLEAVE_TABLE.get((fill & 0xF) as usize).or_panic("low nibble < 16") as c_int;
-            let hi = *BIT_INTERLEAVE_TABLE.get((fill >> 4) as usize).or_panic("high nibble < 16") as c_int;
+            let lo =
+                *BIT_INTERLEAVE_TABLE.get((fill & 0xF) as usize).or_panic("BIT_INTERLEAVE_TABLE index out of range") as c_int;
+            let hi =
+                *BIT_INTERLEAVE_TABLE.get((fill >> 4) as usize).or_panic("BIT_INTERLEAVE_TABLE index out of range") as c_int;
             fill = lo | (hi << 2);
         }
         b_blocks >>= recombine;
@@ -582,7 +582,7 @@ pub fn quant_band(
     let cache_idx = *m.cache.index.get(((lm + 1) * m.nb_ebands + i) as usize).or_panic((lm + 1) * m.nb_ebands + i) as usize;
     let cache = m.cache.bits.get(cache_idx..).or_panic(cache_idx);
     let cache_max =
-        *cache.get(*cache.first().or_panic("cache row non-empty") as usize).or_panic("cache entry in range") as c_int;
+        *cache.get(*cache.first().or_panic("empty cache row") as usize).or_panic("cache entry index out of range") as c_int;
     if stereo == 0 && lm != -1 && b > cache_max + 12 && n > 2 {
         n >>= 1;
         split = 1;
@@ -706,7 +706,7 @@ pub fn quant_band(
             }
             sign = 1 - 2 * sign;
             {
-                let y_sl = y_s.as_deref_mut().or_panic("stereo path implies y_s is Some");
+                let y_sl = y_s.as_deref_mut().or_panic("y_s is None on a stereo path");
                 let (x2, y2): (&mut [CeltNorm], &mut [CeltNorm]) =
                     if c_side != 0 { (y_sl, &mut x_s[..]) } else { (&mut x_s[..], y_sl) };
                 cm = quant_band(
@@ -736,7 +736,7 @@ pub fn quant_band(
                 y2[1] = (sign as CeltNorm) * x2[0];
             }
             if resynth {
-                let y_sl = y_s.as_deref_mut().or_panic("stereo path implies y_s is Some");
+                let y_sl = y_s.as_deref_mut().or_panic("y_s is None on a stereo path");
                 x_s[0] = mult16_16_q15(mid, x_s[0]) as CeltNorm;
                 x_s[1] = mult16_16_q15(mid, x_s[1]) as CeltNorm;
                 y_sl[0] = mult16_16_q15(side, y_sl[0]) as CeltNorm;
@@ -769,8 +769,7 @@ pub fn quant_band(
             let mut next_lowband2: Option<&mut [CeltNorm]> = None;
             if let Some(lb) = lowband.take() {
                 if stereo == 0 {
-                    let (a, b2) =
-                        lb.split_at_mut_checked(n as usize).or_panic("lowband spans the full band; n is its post-split half");
+                    let (a, b2) = lb.split_at_mut_checked(n as usize).or_panic("lowband shorter than n");
                     lowband1 = Some(a);
                     next_lowband2 = Some(b2);
                 } else {
@@ -792,9 +791,9 @@ pub fn quant_band(
                 // two halves of this band (temporary reborrow so the full
                 // band is available again for the resynthesis below).
                 let (x_part, y_part): (&mut [CeltNorm], &mut [CeltNorm]) = if stereo != 0 {
-                    (&mut x_s[..], y_s.as_deref_mut().or_panic("stereo path implies y_s is Some"))
+                    (&mut x_s[..], y_s.as_deref_mut().or_panic("y_s is None on a stereo path"))
                 } else {
-                    x_s.split_at_mut_checked(n as usize).or_panic("x_s spans the full band; n is its post-split half")
+                    x_s.split_at_mut_checked(n as usize).or_panic("x_s shorter than n")
                 };
 
                 let mut rebalance = *remaining_bits;
@@ -961,11 +960,11 @@ pub fn quant_band(
     if resynth {
         if stereo != 0 {
             if n != 2 {
-                let y_sl = y_s.as_deref_mut().or_panic("stereo path implies y_s is Some");
+                let y_sl = y_s.as_deref_mut().or_panic("y_s is None on a stereo path");
                 stereo_merge(x_s.get_mut(..n as usize).or_panic(n), y_sl.get_mut(..n as usize).or_panic(n), mid);
             }
             if inv != 0 {
-                let y_sl = y_s.as_deref_mut().or_panic("stereo path implies y_s is Some");
+                let y_sl = y_s.as_deref_mut().or_panic("y_s is None on a stereo path");
                 for yj in y_sl.get_mut(..n as usize).or_panic(n) {
                     *yj = -*yj;
                 }
@@ -996,7 +995,7 @@ pub fn quant_band(
             for k in 0..recombine {
                 const BIT_DEINTERLEAVE_TABLE: [u8; 16] =
                     [0x00, 0x03, 0x0C, 0x0F, 0x30, 0x33, 0x3C, 0x3F, 0xC0, 0xC3, 0xCC, 0xCF, 0xF0, 0xF3, 0xFC, 0xFF];
-                cm = *BIT_DEINTERLEAVE_TABLE.get(cm as usize).or_panic("cm is a 4-bit mask < 16") as u32;
+                cm = *BIT_DEINTERLEAVE_TABLE.get(cm as usize).or_panic("BIT_DEINTERLEAVE_TABLE index out of range") as u32;
                 let n0_param = n0 >> k;
                 let stride = 1 << k;
                 haar1(x_s.get_mut(..(n0_param * stride) as usize).or_panic((n0_param * stride) as usize), n0_param, stride);
@@ -1167,9 +1166,7 @@ pub fn quant_all_bands(
             };
             x_cm = {
                 let (x_band, lb_out) = if above_eff {
-                    let (nlo, nhi) = norm
-                        .split_at_mut_checked(eb_i)
-                        .or_panic("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
+                    let (nlo, nhi) = norm.split_at_mut_checked(eb_i).or_panic("eb_i past the end of the norm buffer");
                     (nlo.get_mut(..n as usize).or_panic(n), nhi.get_mut(..n as usize).or_panic(n))
                 } else {
                     (
@@ -1213,14 +1210,12 @@ pub fn quant_all_bands(
             };
             y_cm = {
                 let (y_band, lb_out) = if above_eff {
-                    let (nlo, nhi) = norm2
-                        .split_at_mut_checked(eb_i)
-                        .or_panic("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
+                    let (nlo, nhi) = norm2.split_at_mut_checked(eb_i).or_panic("eb_i past the end of the norm buffer");
                     (nlo.get_mut(..n as usize).or_panic(n), nhi.get_mut(..n as usize).or_panic(n))
                 } else {
                     (
                         y_.as_deref_mut()
-                            .or_panic("dual_stereo implies stereo: y_ is Some")
+                            .or_panic("y_ is None under dual_stereo")
                             .get_mut(eb_i..eb_i + n as usize)
                             .or_panic_dbg((eb_i, n)),
                         norm2.get_mut(eb_i..eb_i + n as usize).or_panic_dbg((eb_i, n)),
@@ -1261,9 +1256,7 @@ pub fn quant_all_bands(
                 None
             };
             x_cm = if above_eff {
-                let (nlo, nhi) = norm
-                    .split_at_mut_checked(eb_i)
-                    .or_panic("eb_i = M*ebands[i] lies within the M*ebands[nb_ebands] norm buffer");
+                let (nlo, nhi) = norm.split_at_mut_checked(eb_i).or_panic("eb_i past the end of the norm buffer");
                 quant_band(
                     encode,
                     m,
