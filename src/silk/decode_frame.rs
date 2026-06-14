@@ -6,7 +6,7 @@
 
 use crate::entcode::ec_dec;
 
-use super::CNG::silk_cng;
+use super::cng::silk_cng;
 use super::decode_core::silk_decode_core;
 use super::decode_indices::silk_decode_indices;
 use super::decode_parameters::silk_decode_parameters;

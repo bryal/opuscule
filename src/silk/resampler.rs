@@ -6,9 +6,9 @@
 //! C source for the combinations each pair of rates uses.
 
 use super::macros::{silk_lshift, silk_smulww};
-use super::resampler_private_IIR_FIR::silk_resampler_private_iir_fir;
-use super::resampler_private_down_FIR::silk_resampler_private_down_fir;
-use super::resampler_private_up2_HQ::silk_resampler_private_up2_hq_wrapper;
+use super::resampler_private_down_fir::silk_resampler_private_down_fir;
+use super::resampler_private_iir_fir::silk_resampler_private_iir_fir;
+use super::resampler_private_up2_hq::silk_resampler_private_up2_hq_wrapper;
 use super::resampler_rom::{
     RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2, SILK_RESAMPLER_1_2_COEFS,
     SILK_RESAMPLER_1_3_COEFS, SILK_RESAMPLER_1_4_COEFS, SILK_RESAMPLER_1_6_COEFS, SILK_RESAMPLER_2_3_COEFS,

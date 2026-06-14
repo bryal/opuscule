@@ -5,12 +5,12 @@
 //! decode stages consume: gains, LPC prediction coefs (with optional
 //! interpolated first half), pitch lags, LTP coefs, and LTP scale.
 
-use super::NLSF_decode::silk_nlsf_decode;
 use super::NLSF2A::silk_nlsf2a;
 use super::bwexpander::silk_bwexpander;
 use super::decode_pitch::silk_decode_pitch;
 use super::gain_quant::silk_gains_dequant;
 use super::macros::silk_lshift;
+use super::nlsf_decode::silk_nlsf_decode;
 use super::structs::{LTP_ORDER, MAX_LPC_ORDER, SilkDecoderControl, SilkDecoderState};
 use super::tables_ltp::SILK_LTP_VQ_PTRS_Q7;
 use super::tables_other::SILK_LTP_SCALES_TABLE_Q14;

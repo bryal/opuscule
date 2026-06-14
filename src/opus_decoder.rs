@@ -16,7 +16,7 @@ use crate::packet::{
     opus_packet_get_nb_frames, opus_packet_get_samples_per_frame, opus_packet_parse_impl, packet_get_bandwidth,
     packet_get_mode, packet_get_nb_channels, packet_get_samples_per_frame,
 };
-use crate::silk::dec_API::{SilkDecControlStruct, SilkDecoder, silk_decode, silk_init_decoder};
+use crate::silk::dec_api::{SilkDecControlStruct, SilkDecoder, silk_decode, silk_init_decoder};
 
 // -- Constants --
 

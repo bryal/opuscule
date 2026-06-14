@@ -6,14 +6,13 @@
 //! split in the original C only affected the SILK *encoder* (silk/float vs
 //! silk/fixed). This module is therefore feature-agnostic.
 
-pub mod CNG;
 pub mod NLSF2A;
-pub mod NLSF_decode;
 pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
+pub mod cng;
 pub mod code_signs;
-pub mod dec_API;
+pub mod dec_api;
 pub mod decode_core;
 pub mod decode_frame;
 pub mod decode_indices;
@@ -28,6 +27,7 @@ pub mod log2lin;
 pub mod lpc_analysis_filter;
 pub mod lpc_inv_pred_gain;
 pub mod macros;
+pub mod nlsf_decode;
 pub mod nlsf_stabilize;
 pub mod nlsf_unpack;
 pub mod nlsf_vq_weights_laroia;
@@ -36,10 +36,10 @@ pub mod plc;
 pub mod resampler;
 pub mod resampler_down2;
 pub mod resampler_down2_3;
-pub mod resampler_private_AR2;
-pub mod resampler_private_IIR_FIR;
-pub mod resampler_private_down_FIR;
-pub mod resampler_private_up2_HQ;
+pub mod resampler_private_ar2;
+pub mod resampler_private_down_fir;
+pub mod resampler_private_iir_fir;
+pub mod resampler_private_up2_hq;
 pub mod resampler_rom;
 pub mod shell_coder;
 pub mod sigm_q15;

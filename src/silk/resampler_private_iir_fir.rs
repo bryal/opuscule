@@ -11,7 +11,7 @@
 //! little-endian byte layout).
 
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlabb, silk_smulbb, silk_smulwb};
-use super::resampler_private_up2_HQ::silk_resampler_private_up2_hq;
+use super::resampler_private_up2_hq::silk_resampler_private_up2_hq;
 use super::resampler_rom::{RESAMPLER_ORDER_FIR_12, SILK_RESAMPLER_FRAC_FIR_12};
 use super::structs::SilkResamplerStateStruct;
 

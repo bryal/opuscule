@@ -6,7 +6,7 @@
 //! product.
 
 use super::macros::{silk_lshift, silk_rshift_round, silk_sat16, silk_smlawb, silk_smulwb};
-use super::resampler_private_AR2::silk_resampler_private_ar2;
+use super::resampler_private_ar2::silk_resampler_private_ar2;
 use super::resampler_rom::{RESAMPLER_DOWN_ORDER_FIR0, RESAMPLER_DOWN_ORDER_FIR1, RESAMPLER_DOWN_ORDER_FIR2};
 use super::structs::{SILK_RESAMPLER_MAX_FIR_ORDER, SilkResamplerStateStruct};
 
