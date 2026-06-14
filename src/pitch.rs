@@ -23,7 +23,13 @@ const SIG_SHIFT: i32 = 12;
 /// and Syy is accumulated with a yshift right-shift on each MAC.
 ///
 /// C implementation: pitch.c lines 53-106.
+///
+/// Stateful top-2 tracker with a sliding energy window (`syy` updated as
+/// a recurrence by adding `y[i+len]^2` and removing `y[i]^2`); kept as
+/// explicit indexed DSP. Indices bounded: i < max_pitch, and the window
+/// needs `y` of length len + max_pitch.
 #[cfg(not(feature = "fixed-point"))]
+#[allow(clippy::indexing_slicing)]
 fn find_best_pitch(xcorr: &[OpusVal32], y: &[OpusVal16], len: i32, max_pitch: i32, best_pitch: &mut [i32; 2]) {
     let mut syy: OpusVal32 = 1.0;
     let mut best_num: [OpusVal16; 2] = [-1.0; 2];
@@ -64,6 +70,7 @@ fn find_best_pitch(xcorr: &[OpusVal32], y: &[OpusVal16], len: i32, max_pitch: i3
 }
 
 #[cfg(feature = "fixed-point")]
+#[allow(clippy::indexing_slicing)]
 fn find_best_pitch(
     xcorr: &[OpusVal32],
     y: &[OpusVal16],
@@ -117,13 +124,7 @@ fn find_best_pitch(
 /// Matches the static inline celt_maxabs16() in mathops.h.
 #[cfg(feature = "fixed-point")]
 fn celt_maxabs16(x: &[OpusVal16], len: i32) -> OpusVal16 {
-    let mut maxval: OpusVal16 = 0;
-    for i in 0..len as usize {
-        let v = x[i];
-        let abs_v = if v < 0 { -v } else { v };
-        maxval = max16(maxval, abs_v);
-    }
-    maxval
+    x.iter().take(len as usize).fold(0, |maxval, &v| max16(maxval, v.abs()))
 }
 
 /// Two-pass pitch search: coarse search at 4x decimation, then refined
@@ -134,6 +135,14 @@ fn celt_maxabs16(x: &[OpusVal16], len: i32) -> OpusVal16 {
 /// has produced the half-rate LP-filtered signal.
 ///
 /// C implementation: pitch.c lines 159-265.
+///
+/// Dense pitch-search DSP: strided 4x/2x decimation, two cross-correlation
+/// passes (inner dot products in increasing-j order), candidate-window
+/// gating against pass-1 bests, and neighbor pseudo-interpolation
+/// (`xcorr[best_pitch[0]-1 ..= +1]`, guarded `0 < bp < max_pitch/2 - 1`).
+/// Kept as explicit indexed DSP; the dot products could be zipped on
+/// request.
+#[allow(clippy::indexing_slicing)]
 pub fn pitch_search(
     x_lp: &[OpusVal16], // LP-filtered signal (len/2 samples from pitch_downsample)
     y: &[OpusVal16],    // decode memory buffer (lag = len + max_pitch samples)
@@ -266,6 +275,11 @@ pub fn pitch_search(
 /// followed by a 1st-order highpass-ish pre-emphasis filter (0.8 at Q12).
 ///
 /// C implementation: pitch.c lines 108-157.
+///
+/// Strided 3-tap decimation (`x0[2i-1] + 2*x0[2i] + x0[2i+1]`) into the
+/// half-length `x_lp`, then autocorrelation / LPC / FIR over `x_lp[..half]`.
+/// Kept as explicit indexed DSP.
+#[allow(clippy::indexing_slicing)]
 pub fn pitch_downsample(
     x: &[&[OpusVal32]],     // channel slices, each `len` samples
     x_lp: &mut [OpusVal16], // output: len/2 samples
