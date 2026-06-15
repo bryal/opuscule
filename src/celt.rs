@@ -126,8 +126,14 @@ pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_i
 }
 
 /// Initialise a CELT decoder for a given mode and channel count.
+///
+/// # Safety
+/// `st` must be null or point to a writable `CELTDecoder`; `mode` must point
+/// to a valid `CELTMode` that outlives the decoder.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *const CELTMode, channels: c_int) -> c_int {
+    // SAFETY: `st` is null-checked below before any write; `mode` is a valid
+    // mode pointer per the contract.
     unsafe {
         if !(0..=2).contains(&channels) {
             return OPUS_BAD_ARG;
@@ -1357,8 +1363,14 @@ pub enum CeltDecCtl {
 }
 
 /// CELT decoder control — enum-based replacement for the C varargs interface.
+///
+/// # Safety
+/// `st` must point to an initialized `CELTDecoder`, and any pointer carried in
+/// `request` must be writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
+    // SAFETY: `st` is a valid initialized decoder and `request`'s out-pointers
+    // are writable, per the contract.
     unsafe {
         match request {
             CeltDecCtl::SetStartBand(value) => {

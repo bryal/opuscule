@@ -97,8 +97,14 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
 /// bytes. Everything is initialised explicitly: the header fields, the
 /// SilkDecoder super-header (which the C left to the caller's zeroed
 /// allocation), and the per-channel SILK / CELT sub-states.
+///
+/// # Safety
+/// `st` must point to a writable buffer of at least
+/// [`opus_decoder_get_size`]`(channels)` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channels: c_int) -> c_int {
+    // SAFETY: `st` points to a buffer of the required size per the contract;
+    // every field is initialized below before use.
     unsafe {
         if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2) {
             return OPUS_BAD_ARG;
@@ -149,8 +155,15 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
     }
 }
 
+/// Allocate and initialise an [`OpusDecoder`], returning a heap pointer the
+/// caller must release with [`opus_decoder_destroy`].
+///
+/// # Safety
+/// `error`, if non-null, must point to a writable `c_int`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_create(fs: i32, channels: c_int, error: *mut c_int) -> *mut OpusDecoder {
+    // SAFETY: `error` is null-checked before each write; the alloc/dealloc use
+    // a single matching `Layout`.
     unsafe {
         if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2) {
             if !error.is_null() {
@@ -180,8 +193,15 @@ pub unsafe extern "C" fn opus_decoder_create(fs: i32, channels: c_int, error: *m
     }
 }
 
+/// Free a decoder previously returned by [`opus_decoder_create`].
+///
+/// # Safety
+/// `st` must be null or a pointer returned by [`opus_decoder_create`] and not
+/// already freed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_destroy(st: *mut OpusDecoder) {
+    // SAFETY: `st` is null-checked; dealloc reconstructs the same `Layout` that
+    // create allocated with.
     unsafe {
         if st.is_null() {
             return;
@@ -692,9 +712,14 @@ pub fn opus_decode_native(
 /// # Safety
 /// `data`, if non-null, must point to at least `len` readable bytes.
 unsafe fn data_view<'a>(data: *const u8, len: c_int) -> Option<&'a [u8]> {
+    // SAFETY: per the contract, a non-null `data` is readable for `len` bytes.
     if data.is_null() { None } else { Some(unsafe { core::slice::from_raw_parts(data, len.max(0) as usize) }) }
 }
 
+/// # Safety
+/// `st` must point to an initialized `OpusDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// channels` samples.
 #[cfg(feature = "fixed-point")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decode(
@@ -705,6 +730,8 @@ pub unsafe extern "C" fn opus_decode(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
+    // wrapped into a slice of the caller-provided length.
     unsafe {
         let channels = (*st).channels;
         let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * channels) as usize);
@@ -712,6 +739,10 @@ pub unsafe extern "C" fn opus_decode(
     }
 }
 
+/// # Safety
+/// `st` must point to an initialized `OpusDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// channels` samples.
 #[cfg(not(feature = "fixed-point"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decode(
@@ -722,6 +753,8 @@ pub unsafe extern "C" fn opus_decode(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
+    // wrapped into a slice of the caller-provided length.
     unsafe {
         if frame_size < 0 {
             return OPUS_BAD_ARG;
@@ -743,6 +776,10 @@ pub unsafe extern "C" fn opus_decode(
 
 // -- opus_decode_float --
 
+/// # Safety
+/// `st` must point to an initialized `OpusDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// channels` samples.
 #[cfg(not(feature = "fixed-point"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decode_float(
@@ -753,6 +790,8 @@ pub unsafe extern "C" fn opus_decode_float(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
+    // wrapped into a slice of the caller-provided length.
     unsafe {
         let channels = (*st).channels;
         let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * channels) as usize);
@@ -760,6 +799,10 @@ pub unsafe extern "C" fn opus_decode_float(
     }
 }
 
+/// # Safety
+/// `st` must point to an initialized `OpusDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// channels` samples.
 #[cfg(feature = "fixed-point")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decode_float(
@@ -770,6 +813,8 @@ pub unsafe extern "C" fn opus_decode_float(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
+    // wrapped into a slice of the caller-provided length.
     unsafe {
         let channels = (*st).channels;
         let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * channels) as usize);
@@ -796,8 +841,15 @@ pub enum OpusDecCtl {
     GetPitch(*mut c_int) = OPUS_GET_PITCH_REQUEST,
 }
 
+/// Decoder control — enum-based replacement for the C varargs interface.
+///
+/// # Safety
+/// `st` must point to an initialized `OpusDecoder`, and any pointer carried in
+/// `request` must be writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDecCtl) -> c_int {
+    // SAFETY: `st` is a valid initialized decoder and `request`'s out-pointers
+    // are writable, per the contract.
     unsafe {
         let silk_dec: *mut SilkDecoder = &raw mut (*st).silk_dec;
         let celt_dec: *mut CELTDecoder = &raw mut (*st).celt_dec;
@@ -853,8 +905,15 @@ pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDec
 
 // -- opus_decoder_get_nb_samples --
 
+/// Number of samples an Opus packet will decode to for this decoder.
+///
+/// # Safety
+/// `dec` must point to an initialized `OpusDecoder`; `packet` must be readable
+/// for `len` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_get_nb_samples(dec: *const OpusDecoder, packet: *const u8, len: c_int) -> c_int {
+    // SAFETY: `dec` is a valid decoder and `packet` is readable for `len`
+    // bytes, per the contract.
     unsafe {
         let count = opus_packet_get_nb_frames(packet, len);
         if count < 0 {
