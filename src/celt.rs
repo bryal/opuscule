@@ -47,6 +47,8 @@ const COMBFILTER_MINPERIOD: c_int = 15;
 const OVERLAP: c_int = 120;
 const NB_EBANDS: c_int = 21;
 const MAX_CHANNELS: c_int = 2;
+/// Largest CELT frame: nb_short_mdcts (8) * short_mdct_size (120) at LM=3.
+const MAX_FRAME_SIZE: usize = 960;
 
 // Derived sizes for the trailing arrays (always sized for 2 channels).
 const DECODE_MEM_SIZE: usize = (MAX_CHANNELS * (DECODE_BUFFER_SIZE + OVERLAP)) as usize;
@@ -272,9 +274,12 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             eff_end = mode.eff_ebands;
         }
 
-        let mut freq = vec![0 as CeltSig; (cc * n) as usize];
-        let mut x = vec![0 as CeltNorm; (cc * n) as usize];
-        let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * cc) as usize];
+        let mut freq = [0 as CeltSig; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
+        let mut freq = &mut freq[..(cc * n) as usize];
+        let mut x = [0 as CeltNorm; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
+        let x = &mut x[..(cc * n) as usize];
+        let mut band_e = [0 as CeltEner; (NB_EBANDS * MAX_CHANNELS) as usize];
+        let mut band_e = &mut band_e[..(mode.nb_ebands * cc) as usize];
 
         if st.loss_count >= 5 {
             log2amp(mode, st.start, st.end, &mut band_e, &st.background_log_e, cc);
@@ -351,7 +356,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
     } else {
         // Pitch-based PLC
         if st.loss_count == 0 {
-            let mut pitch_buf = vec![0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
+            let mut pitch_buf = [0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
             let poffset: c_int = 720;
             {
                 let ch0 = &chans[0][..DECODE_BUFFER_SIZE as usize];
@@ -386,7 +391,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             let mut s1: OpusVal32 = 0 as OpusVal32;
             let mut mem = [0 as OpusVal16; LPC_ORDER as usize];
 
-            let mut e = vec![0 as OpusVal32; (MAX_PERIOD + 2 * mode.overlap) as usize];
+            let mut e = [0 as OpusVal32; (MAX_PERIOD + 2 * OVERLAP) as usize];
 
             offset = MAX_PERIOD - pitch_index;
             for i in 0..MAX_PERIOD as usize {
@@ -620,9 +625,15 @@ pub fn celt_decode_with_ec<'a>(
     }
 
     let c_channels = st.stream_channels;
-    let mut freq = vec![0 as CeltSig; (cc.max(c_channels) * n) as usize];
-    let mut x = vec![0 as CeltNorm; (c_channels * n) as usize];
-    let mut band_e = vec![0 as CeltEner; (mode.nb_ebands * c_channels) as usize];
+    let mut freq = [0 as CeltSig; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
+    let freq_len = (cc.max(c_channels) * n) as usize;
+    let mut freq = freq.get_mut(..freq_len).or_panic(freq_len);
+    let mut x = [0 as CeltNorm; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
+    let x_len = (c_channels * n) as usize;
+    let mut x = x.get_mut(..x_len).or_panic(x_len);
+    let mut band_e = [0 as CeltEner; (NB_EBANDS * MAX_CHANNELS) as usize];
+    let band_e_len = (mode.nb_ebands * c_channels) as usize;
+    let mut band_e = band_e.get_mut(..band_e_len).or_panic(band_e_len);
 
     // First/last active bin (in MDCT samples) for the start and eff_end bands.
     let band_start = (m * i32::from(*mode.ebands.get(st.start as usize).or_panic(st.start))) as usize;
@@ -781,6 +792,8 @@ pub fn celt_decode_with_ec<'a>(
 
     // Decode fixed codebook
     let mut collapse_masks = [0u8; (MAX_CHANNELS * NB_EBANDS) as usize];
+    let cm_len = (c_channels * mode.nb_ebands) as usize;
+    let mut collapse_masks = collapse_masks.get_mut(..cm_len).or_panic(cm_len);
     {
         let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).or_panic("x shorter than n");
         quant_all_bands(
