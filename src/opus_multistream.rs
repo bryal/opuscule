@@ -19,7 +19,7 @@ use crate::opus_decoder::{
 
 #[cfg(not(feature = "fixed-point"))]
 use crate::opus_decoder::float2int16;
-use crate::util::OrPanic;
+use crate::util::{OrPanic, zip};
 
 // -- Constants --
 
@@ -231,6 +231,10 @@ unsafe fn opus_multistream_decode_native(
 ) -> c_int {
     unsafe {
         let mut do_plc = 0;
+        let nb_channels = (*st).layout.nb_channels;
+        // Wrap the caller's output buffer once; `frame_size` is reassigned to
+        // each stream's `ret` below, so size the slice from the original value.
+        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
         let mut buf: Vec<OpusVal16> = vec![Default::default(); (2 * frame_size) as usize];
         let mut ptr = (st as *mut u8).add(align(std::mem::size_of::<OpusMSDecoder>()));
         let coupled_size = opus_decoder_get_size(2);
@@ -291,8 +295,8 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
-                            *buf.get((2 * i) as usize).or_panic(2 * i);
+                        let idx = (nb_channels * i + chan) as usize;
+                        *pcm.get_mut(idx).or_panic(idx) = *buf.get((2 * i) as usize).or_panic(2 * i);
                         i += 1;
                     }
                     prev = chan;
@@ -306,8 +310,8 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) =
-                            *buf.get((2 * i + 1) as usize).or_panic(2 * i + 1);
+                        let idx = (nb_channels * i + chan) as usize;
+                        *pcm.get_mut(idx).or_panic(idx) = *buf.get((2 * i + 1) as usize).or_panic(2 * i + 1);
                         i += 1;
                     }
                     prev = chan;
@@ -322,7 +326,8 @@ unsafe fn opus_multistream_decode_native(
                     }
                     let mut i = 0;
                     while i < frame_size {
-                        *pcm.offset(((*st).layout.nb_channels * i + chan) as isize) = *buf.get(i as usize).or_panic(i);
+                        let idx = (nb_channels * i + chan) as usize;
+                        *pcm.get_mut(idx).or_panic(idx) = *buf.get(i as usize).or_panic(i);
                         i += 1;
                     }
                     prev = chan;
@@ -332,11 +337,12 @@ unsafe fn opus_multistream_decode_native(
         }
         // Handle muted channels
         let mut c = 0;
-        while c < (*st).layout.nb_channels {
+        while c < nb_channels {
             if *(*st).layout.mapping.get(c as usize).or_panic(c) == 255 {
                 let mut i = 0;
                 while i < frame_size {
-                    *pcm.offset(((*st).layout.nb_channels * i + c) as isize) = Default::default();
+                    let idx = (nb_channels * i + c) as usize;
+                    *pcm.get_mut(idx).or_panic(idx) = Default::default();
                     i += 1;
                 }
             }
@@ -373,13 +379,13 @@ pub unsafe extern "C" fn opus_multistream_decode(
 ) -> c_int {
     unsafe {
         let nb_channels = (*st).layout.nb_channels;
+        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
         let mut out: Vec<f32> = vec![0.0f32; (frame_size * nb_channels) as usize];
         let ret = opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
         if ret > 0 {
-            let mut i = 0;
-            while i < ret * nb_channels {
-                *pcm.offset(i as isize) = float2int16(*out.get(i as usize).or_panic(i));
-                i += 1;
+            let n = (ret * nb_channels) as usize;
+            for (dst, &v) in zip(pcm.get_mut(..n).or_panic(n), out.get(..n).or_panic(n)) {
+                *dst = float2int16(v);
             }
         }
         ret
@@ -411,13 +417,13 @@ pub unsafe extern "C" fn opus_multistream_decode_float(
 ) -> c_int {
     unsafe {
         let nb_channels = (*st).layout.nb_channels;
+        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
         let mut out: Vec<i16> = vec![0i16; (frame_size * nb_channels) as usize];
         let ret = opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
         if ret > 0 {
-            let mut i = 0;
-            while i < ret * nb_channels {
-                *pcm.offset(i as isize) = (1.0f32 / 32768.0f32) * out[i as usize] as f32;
-                i += 1;
+            let n = (ret * nb_channels) as usize;
+            for (dst, &v) in zip(pcm.get_mut(..n).or_panic(n), out.get(..n).or_panic(n)) {
+                *dst = (1.0f32 / 32768.0f32) * v as f32;
             }
         }
         ret

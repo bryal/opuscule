@@ -728,11 +728,13 @@ pub unsafe extern "C" fn opus_decode(
         }
 
         let channels = (*st).channels;
+        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * channels) as usize);
         let mut out_buf: Vec<f32> = vec![0.0f32; (frame_size * channels) as usize];
         let ret = opus_decode_native(&mut *st, data_view(data, len), len, &mut out_buf, frame_size, decode_fec, 0, None);
         if ret > 0 {
-            for (i, &v) in out_buf.get(..(ret * channels) as usize).or_panic(ret * channels).iter().enumerate() {
-                *pcm.add(i) = float2int16(v);
+            let n = (ret * channels) as usize;
+            for (dst, &v) in zip(pcm.get_mut(..n).or_panic(n), out_buf.get(..n).or_panic(n)) {
+                *dst = float2int16(v);
             }
         }
         ret
@@ -770,13 +772,13 @@ pub unsafe extern "C" fn opus_decode_float(
 ) -> c_int {
     unsafe {
         let channels = (*st).channels;
+        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * channels) as usize);
         let mut out_buf: Vec<i16> = vec![0i16; (frame_size * channels) as usize];
         let ret = opus_decode_native(&mut *st, data_view(data, len), len, &mut out_buf, frame_size, decode_fec, 0, None);
         if ret > 0 {
-            let mut i = 0;
-            while i < ret * channels {
-                *pcm.offset(i as isize) = (1.0f32 / 32768.0f32) * out_buf[i as usize] as f32;
-                i += 1;
+            let n = (ret * channels) as usize;
+            for (dst, &v) in zip(pcm.get_mut(..n).or_panic(n), out_buf.get(..n).or_panic(n)) {
+                *dst = (1.0f32 / 32768.0f32) * v as f32;
             }
         }
         ret
