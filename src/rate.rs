@@ -378,10 +378,18 @@ pub fn compute_allocation(
         }
     }
 
-    let mut bits1_v = vec![0i32; len as usize];
-    let mut bits2_v = vec![0i32; len as usize];
-    let mut thresh_v = vec![0i32; len as usize];
-    let mut trim_offset_v = vec![0i32; len as usize];
+    // Stack scratch instead of heap: nb_ebands is 21 for the standard 48 kHz
+    // mode, so these never exceed MAX_NB_EBANDS.
+    const MAX_NB_EBANDS: usize = 21;
+    debug_assert!(len as usize <= MAX_NB_EBANDS);
+    let mut bits1_a = [0i32; MAX_NB_EBANDS];
+    let mut bits2_a = [0i32; MAX_NB_EBANDS];
+    let mut thresh_a = [0i32; MAX_NB_EBANDS];
+    let mut trim_offset_a = [0i32; MAX_NB_EBANDS];
+    let bits1_v = &mut bits1_a[..len as usize];
+    let bits2_v = &mut bits2_a[..len as usize];
+    let thresh_v = &mut thresh_a[..len as usize];
+    let trim_offset_v = &mut trim_offset_a[..len as usize];
 
     for j in start..end {
         let ju = j as usize;
@@ -460,9 +468,9 @@ pub fn compute_allocation(
         start,
         end,
         skip_start,
-        &bits1_v,
-        &bits2_v,
-        &thresh_v,
+        bits1_v,
+        bits2_v,
+        thresh_v,
         cap,
         total,
         balance,
