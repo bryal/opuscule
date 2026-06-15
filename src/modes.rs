@@ -50,6 +50,8 @@ pub struct OpusCustomMode {
 /// Matches `typedef struct OpusCustomMode CELTMode` in modes.h.
 pub type CELTMode = OpusCustomMode;
 
+// SAFETY: every field is immutable `&'static` data (slices, tables, FFT
+// states); there is no interior mutability, so sharing across threads is sound.
 unsafe impl Sync for OpusCustomMode {}
 
 // ---------------------------------------------------------------------------
@@ -77,7 +79,8 @@ pub static BAND_ALLOCATION: [u8; 231] = [
 // FFT states (one per shift level 0..3)
 // ---------------------------------------------------------------------------
 
-// Safety: KissFftState contains raw pointers to static arrays.
+// SAFETY: every field is immutable `&'static` data; there is no interior
+// mutability, so sharing across threads is sound.
 unsafe impl Sync for KissFftState {}
 
 #[cfg(not(feature = "fixed-point"))]
@@ -201,18 +204,23 @@ const OPUS_BAD_ARG: c_int = -1;
 /// Returns the standard CELTMode for the given (Fs, frame_size), or NULL.
 /// Without CUSTOM_MODES this is just a table lookup — the only valid
 /// combination is (48000, 960/480/240/120).
+///
+/// # Safety
+/// `error`, if non-null, must point to a writable `c_int`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_custom_mode_create(fs: i32, frame_size: c_int, error: *mut c_int) -> *const CELTMode {
     let mode = &MODE_48000_960_120;
     for j in 0..4 {
         if fs == mode.fs && (frame_size << j) == mode.short_mdct_size * mode.nb_short_mdcts {
             if !error.is_null() {
+                // SAFETY: `error` is non-null (just checked) and the caller guarantees it is writable.
                 unsafe { *error = OPUS_OK };
             }
             return mode as *const CELTMode;
         }
     }
     if !error.is_null() {
+        // SAFETY: `error` is non-null (just checked) and the caller guarantees it is writable.
         unsafe { *error = OPUS_BAD_ARG };
     }
     std::ptr::null()
