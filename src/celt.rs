@@ -1462,30 +1462,28 @@ pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> c_int {
 
 // -- opus_strerror / opus_get_version_string --
 
-static ERROR_STRINGS: [&[u8]; 8] = [
-    b"success\0",
-    b"invalid argument\0",
-    b"buffer too small\0",
-    b"internal error\0",
-    b"corrupted stream\0",
-    b"request not implemented\0",
-    b"invalid state\0",
-    b"memory allocation failed\0",
+static ERROR_STRINGS: [&str; 8] = [
+    "success",
+    "invalid argument",
+    "buffer too small",
+    "internal error",
+    "corrupted stream",
+    "request not implemented",
+    "invalid state",
+    "memory allocation failed",
 ];
 
-static UNKNOWN_ERROR: &[u8] = b"unknown error\0";
+static UNKNOWN_ERROR: &str = "unknown error";
 
-#[unsafe(no_mangle)]
-pub extern "C" fn opus_strerror(error: c_int) -> *const core::ffi::c_char {
+/// Human-readable message for an Opus error code (0 or negative).
+pub fn opus_strerror(error: c_int) -> &'static str {
     // A valid error in -7..=0 maps to index 0..=7; anything else (including
     // positive `error`, whose negation wraps to a huge usize) misses the
     // table and falls back to the unknown-error string.
-    ERROR_STRINGS.get((-error) as usize).unwrap_or(&UNKNOWN_ERROR).as_ptr() as *const core::ffi::c_char
+    *ERROR_STRINGS.get((-error) as usize).unwrap_or(&UNKNOWN_ERROR)
 }
 
-static VERSION_STRING: &[u8] = b"libopus 1.0.0\0";
-
-#[unsafe(no_mangle)]
-pub extern "C" fn opus_get_version_string() -> *const core::ffi::c_char {
-    VERSION_STRING.as_ptr() as *const core::ffi::c_char
+/// Library version string.
+pub fn opus_get_version_string() -> &'static str {
+    "libopus 1.0.0"
 }

@@ -10,7 +10,6 @@
 #![allow(clippy::indexing_slicing)]
 
 use opuscule::celt::{opus_get_version_string, opus_strerror};
-use opuscule::ffi;
 use opuscule::opus_decoder::{OpusDecCtl, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy};
 
 const OPUS_OK: i32 = 0;
@@ -63,10 +62,7 @@ fn main() {
         process::exit(1);
     }
 
-    // SAFETY: opus_get_version_string returns a static C string.
-    // SAFETY: opus_get_version_string returns a static C string.
-    let version = unsafe { ffi::c_str_to_str(opus_get_version_string()) };
-    eprintln!("{}", version);
+    eprintln!("{}", opus_get_version_string());
 
     let mut args = 1;
     let encode_only;
@@ -169,8 +165,7 @@ fn main() {
     // sets err to a non-OK code. We check err immediately after.
     let dec = unsafe { opus_decoder_create(sampling_rate, channels, &mut err) };
     if err != OPUS_OK {
-        // SAFETY: opus_strerror returns a static C string.
-        let msg = unsafe { ffi::c_str_to_str(opus_strerror(err)) };
+        let msg = opus_strerror(err);
         eprintln!("Cannot create decoder: {}", msg);
         process::exit(1);
     }
@@ -266,8 +261,7 @@ fn main() {
                     skip = 0;
                 }
             } else {
-                // SAFETY: opus_strerror returns a static C string.
-                let msg = unsafe { ffi::c_str_to_str(opus_strerror(output_samples)) };
+                let msg = opus_strerror(output_samples);
                 eprintln!("error decoding frame: {}", msg);
             }
         }
