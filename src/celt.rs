@@ -11,7 +11,7 @@ use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir, celt_iir};
 use crate::entcode::{BITRES, EcCtx, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::mdct::clt_mdct_backward;
-use crate::modes::{CELTMode, opus_custom_mode_create};
+use crate::modes::{CELTMode, celt_mode};
 use crate::pitch::{pitch_downsample, pitch_search};
 use crate::quant_bands::{log2amp, unquant_coarse_energy, unquant_energy_finalise, unquant_fine_energy};
 use crate::rate::compute_allocation;
@@ -115,14 +115,10 @@ pub extern "C" fn opus_custom_decoder_get_size(_mode: *const CELTMode, _channels
 
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
 pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
-    // SAFETY: `opus_custom_decoder_init` is an `extern "C"` entry point and
-    // keeps its pointer ABI; called here with a valid live reference, and
-    // `opus_custom_mode_create(48000, 960, ...)` always returns a pointer to
-    // a `'static` mode for these arguments.
-    let ret = unsafe { opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, core::ptr::null_mut()), channels) };
-    if ret != OPUS_OK {
-        return ret;
+    if !(0..=2).contains(&channels) {
+        return OPUS_BAD_ARG;
     }
+    *st = OpusCustomDecoder::new(celt_mode(), channels);
     st.downsample = resampling_factor(sampling_rate);
     if st.downsample == 0 { OPUS_BAD_ARG } else { OPUS_OK }
 }
@@ -134,25 +130,32 @@ pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_i
 /// to a valid `CELTMode` that outlives the decoder.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *const CELTMode, channels: c_int) -> c_int {
-    // SAFETY: `st` is null-checked below before any write; `mode` is a valid
-    // mode pointer per the contract.
+    if !(0..=2).contains(&channels) {
+        return OPUS_BAD_ARG;
+    }
+    if st.is_null() {
+        return OPUS_ALLOC_FAIL;
+    }
+    // SAFETY: `st` is non-null (checked) and writable, and `mode` is a valid
+    // mode pointer that outlives the decoder, per the contract.
     unsafe {
-        if !(0..=2).contains(&channels) {
-            return OPUS_BAD_ARG;
-        }
-        if st.is_null() {
-            return OPUS_ALLOC_FAIL;
-        }
+        *st = OpusCustomDecoder::new(&*mode, channels);
+    }
+    OPUS_OK
+}
 
+impl OpusCustomDecoder {
+    /// Build a fresh CELT decoder for `mode` and channel count (no heap).
+    pub fn new(mode: &'static CELTMode, channels: c_int) -> Self {
         let init_log_e = -qconst16(28.0, DB_SHIFT);
-        *st = OpusCustomDecoder {
-            mode: &*mode,
-            overlap: (*mode).overlap,
+        OpusCustomDecoder {
+            mode,
+            overlap: mode.overlap,
             channels,
             stream_channels: channels,
             downsample: 1,
             start: 0,
-            end: (*mode).eff_ebands,
+            end: mode.eff_ebands,
             signalling: 1,
             rng: 0,
             error: 0,
@@ -171,9 +174,7 @@ pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *c
             old_log_e: [init_log_e; BAND_E_SIZE],
             old_log_e2: [init_log_e; BAND_E_SIZE],
             background_log_e: [0 as OpusVal16; BAND_E_SIZE],
-        };
-
-        OPUS_OK
+        }
     }
 }
 

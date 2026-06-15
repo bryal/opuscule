@@ -194,6 +194,12 @@ static MODE_48000_960_120: CELTMode = CELTMode {
     cache: PulseCache { size: 392, index: &CACHE_INDEX50, bits: &CACHE_BITS50, caps: &CACHE_CAPS50 },
 };
 
+/// The single standard Opus mode (48 kHz, 960-sample frame). The decoder only
+/// ever uses this one; safe accessor for the otherwise-private static.
+pub fn celt_mode() -> &'static CELTMode {
+    &MODE_48000_960_120
+}
+
 // ---------------------------------------------------------------------------
 // opus_custom_mode_create — static lookup (no CUSTOM_MODES)
 // ---------------------------------------------------------------------------
