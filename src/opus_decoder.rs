@@ -103,16 +103,54 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
 /// [`opus_decoder_get_size`]`(channels)` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channels: c_int) -> c_int {
-    // SAFETY: `st` points to a buffer of the required size per the contract;
-    // every field is initialized below before use.
-    unsafe {
+    // SAFETY: `st` points to a writable, sufficiently-sized buffer per the contract.
+    unsafe { (*st).init(fs, channels) }
+}
+
+impl OpusDecoder {
+    /// Create a decoder for `sample_rate` (8/12/16/24/48 kHz) and `channels`
+    /// (1 or 2). Constructed by value — no heap allocation.
+    pub fn new(sample_rate: i32, channels: c_int) -> Result<OpusDecoder, c_int> {
+        let mut dec = OpusDecoder {
+            channels: 0,
+            fs: 0,
+            stream_channels: 0,
+            bandwidth: 0,
+            mode: 0,
+            prev_mode: 0,
+            frame_size: 0,
+            prev_redundancy: 0,
+            range_final: 0,
+            dec_control: SilkDecControlStruct {
+                n_channels_api: 0,
+                n_channels_internal: 0,
+                api_sample_rate: 0,
+                internal_sample_rate: 0,
+                payload_size_ms: 0,
+                prev_pitch_lag: 0,
+            },
+            // SAFETY: every SilkDecoder field is an integer, a POD array, a
+            // sub-struct of those, or an `Option<&'static _>` — all of which
+            // have a valid all-zero bit pattern. `init` sets the live state
+            // before any use.
+            silk_dec: unsafe { core::mem::zeroed() },
+            celt_dec: CELTDecoder::new(crate::modes::celt_mode(), 1),
+        };
+        match dec.init(sample_rate, channels) {
+            OPUS_OK => Ok(dec),
+            err => Err(err),
+        }
+    }
+
+    /// (Re)initialise the decoder in place (logic of the C `opus_decoder_init`).
+    fn init(&mut self, fs: i32, channels: c_int) -> c_int {
         if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2) {
             return OPUS_BAD_ARG;
         }
 
-        (*st).channels = channels;
-        (*st).fs = fs;
-        (*st).dec_control = SilkDecControlStruct {
+        self.channels = channels;
+        self.fs = fs;
+        self.dec_control = SilkDecControlStruct {
             n_channels_api: channels,
             n_channels_internal: 0,
             api_sample_rate: fs,
@@ -120,38 +158,43 @@ pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channe
             payload_size_ms: 0,
             prev_pitch_lag: 0,
         };
-        (*st).stream_channels = channels;
-        (*st).bandwidth = 0;
-        (*st).mode = 0;
-        (*st).prev_mode = 0;
-        (*st).frame_size = fs / 400;
-        (*st).prev_redundancy = 0;
-        (*st).range_final = 0;
+        self.stream_channels = channels;
+        self.bandwidth = 0;
+        self.mode = 0;
+        self.prev_mode = 0;
+        self.frame_size = fs / 400;
+        self.prev_redundancy = 0;
+        self.range_final = 0;
 
         // SilkDecoder super-header: the C relied on the caller's zeroed
-        // allocation for these (silk_init_decoder only resets the
-        // per-channel states, and the runtime CELT→SILK re-init path
-        // must not touch them either).
-        (*st).silk_dec.s_stereo.pred_prev_q13 = [0; 2];
-        (*st).silk_dec.s_stereo.s_mid = [0; 2];
-        (*st).silk_dec.s_stereo.s_side = [0; 2];
-        (*st).silk_dec.n_channels_api = 0;
-        (*st).silk_dec.n_channels_internal = 0;
-        (*st).silk_dec.prev_decode_only_middle = 0;
+        // allocation for these (silk_init_decoder only resets the per-channel
+        // states, and the runtime CELT→SILK re-init path must not touch them).
+        self.silk_dec.s_stereo.pred_prev_q13 = [0; 2];
+        self.silk_dec.s_stereo.s_mid = [0; 2];
+        self.silk_dec.s_stereo.s_side = [0; 2];
+        self.silk_dec.n_channels_api = 0;
+        self.silk_dec.n_channels_internal = 0;
+        self.silk_dec.prev_decode_only_middle = 0;
 
-        let ret = silk_init_decoder(&mut (*st).silk_dec);
-        if ret != 0 {
+        if silk_init_decoder(&mut self.silk_dec) != 0 {
             return OPUS_INTERNAL_ERROR;
         }
-
-        let ret = celt_decoder_init(&mut (*st).celt_dec, fs, channels);
-        if ret != OPUS_OK {
+        if celt_decoder_init(&mut self.celt_dec, fs, channels) != OPUS_OK {
             return OPUS_INTERNAL_ERROR;
         }
-
-        celt_decoder_ctl(&mut (*st).celt_dec, CeltDecCtl::SetSignalling(0));
-
+        celt_decoder_ctl(&mut self.celt_dec, CeltDecCtl::SetSignalling(0));
         OPUS_OK
+    }
+
+    /// Decode one Opus packet into `pcm` (native sample type, interleaved by
+    /// channel). `packet` is `None` for packet loss concealment. The output
+    /// capacity in samples-per-channel is taken from `pcm.len()`. Returns the
+    /// number of samples decoded per channel, or a negative Opus error code.
+    pub fn decode(&mut self, packet: Option<&[u8]>, pcm: &mut [OpusVal16], fec: bool) -> Result<usize, c_int> {
+        let frame_size = (pcm.len() / self.channels as usize) as c_int;
+        let len = packet.map_or(0, |p| p.len()) as c_int;
+        let ret = opus_decode_native(self, packet, len, pcm, frame_size, fec as c_int, 0, None);
+        if ret < 0 { Err(ret) } else { Ok(ret as usize) }
     }
 }
 
