@@ -382,25 +382,25 @@ pub fn compute_allocation(
     // mode, so these never exceed MAX_NB_EBANDS.
     const MAX_NB_EBANDS: usize = 21;
     debug_assert!(len as usize <= MAX_NB_EBANDS);
-    let mut bits1_a = [0i32; MAX_NB_EBANDS];
-    let mut bits2_a = [0i32; MAX_NB_EBANDS];
-    let mut thresh_a = [0i32; MAX_NB_EBANDS];
-    let mut trim_offset_a = [0i32; MAX_NB_EBANDS];
-    let bits1_v = &mut bits1_a[..len as usize];
-    let bits2_v = &mut bits2_a[..len as usize];
-    let thresh_v = &mut thresh_a[..len as usize];
-    let trim_offset_v = &mut trim_offset_a[..len as usize];
+    let mut bits1 = [0i32; MAX_NB_EBANDS];
+    let mut bits2 = [0i32; MAX_NB_EBANDS];
+    let mut thresh = [0i32; MAX_NB_EBANDS];
+    let mut trim_offset = [0i32; MAX_NB_EBANDS];
+    let bits1 = &mut bits1[..len as usize];
+    let bits2 = &mut bits2[..len as usize];
+    let thresh = &mut thresh[..len as usize];
+    let trim_offset = &mut trim_offset[..len as usize];
 
     for j in start..end {
         let ju = j as usize;
         let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
         // Below this threshold, we're sure not to allocate any PVQ bits
-        thresh_v[ju] = (c << bitres).max((3 * bw << lm << bitres) >> 4);
+        thresh[ju] = (c << bitres).max((3 * bw << lm << bitres) >> 4);
         // Tilt of the allocation curve
-        trim_offset_v[ju] = c * bw * (alloc_trim - 5 - lm) * (end - j - 1) * (1 << (lm + bitres)) >> 6;
+        trim_offset[ju] = c * bw * (alloc_trim - 5 - lm) * (end - j - 1) * (1 << (lm + bitres)) >> 6;
         // Giving less resolution to single-coefficient bands
         if bw << lm == 1 {
-            trim_offset_v[ju] -= c << bitres;
+            trim_offset[ju] -= c << bitres;
         }
     }
 
@@ -416,10 +416,10 @@ pub fn compute_allocation(
             let n = eb(m.ebands, j + 1) - eb(m.ebands, j);
             let mut bitsj = c * n * (m.alloc_vectors[(mid * len + j) as usize] as i32) << lm >> 2;
             if bitsj > 0 {
-                bitsj = (bitsj + trim_offset_v[ju]).max(0);
+                bitsj = (bitsj + trim_offset[ju]).max(0);
             }
             bitsj += offsets[ju];
-            if bitsj >= thresh_v[ju] || done {
+            if bitsj >= thresh[ju] || done {
                 done = true;
                 psum += bitsj.min(cap[ju]);
             } else if bitsj >= c << bitres {
@@ -446,10 +446,10 @@ pub fn compute_allocation(
             c * n * (m.alloc_vectors[(hi * len + j) as usize] as i32) << lm >> 2
         };
         if bits1j > 0 {
-            bits1j = (bits1j + trim_offset_v[ju]).max(0);
+            bits1j = (bits1j + trim_offset[ju]).max(0);
         }
         if bits2j > 0 {
-            bits2j = (bits2j + trim_offset_v[ju]).max(0);
+            bits2j = (bits2j + trim_offset[ju]).max(0);
         }
         if lo > 0 {
             bits1j += offsets[ju];
@@ -459,8 +459,8 @@ pub fn compute_allocation(
             skip_start = j;
         }
         bits2j = (bits2j - bits1j).max(0);
-        bits1_v[ju] = bits1j;
-        bits2_v[ju] = bits2j;
+        bits1[ju] = bits1j;
+        bits2[ju] = bits2j;
     }
 
     interp_bits2pulses(
@@ -468,9 +468,9 @@ pub fn compute_allocation(
         start,
         end,
         skip_start,
-        bits1_v,
-        bits2_v,
-        thresh_v,
+        bits1,
+        bits2,
+        thresh,
         cap,
         total,
         balance,
