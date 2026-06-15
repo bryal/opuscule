@@ -21,21 +21,26 @@ fn mul32_frac_q(a32: i32, b32: i32, q: i32) -> i32 {
 }
 
 /// Core inner routine — operates on coefficients already in QA domain.
+///
+/// The C swapped two raw pointers between the rows of `a_qa`; here we track
+/// the "current" row as an index instead. The two rows always have opposite
+/// parity (`new` becomes `k & 1`, `old` the previous), so reads of `old` and
+/// writes to `new` never alias.
 fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i32) -> i32 {
-    let mut anew_qa = &mut a_qa[(order & 1) as usize] as *mut [i32; SILK_MAX_ORDER_LPC] as *mut i32;
+    let mut new_idx = (order & 1) as usize;
 
     let mut inv_gain_q30: i32 = 1 << 30;
     let mut k = order - 1;
     while k > 0 {
+        let kk = k as usize;
+
         /* Check for stability */
-        unsafe {
-            if *anew_qa.offset(k as isize) > A_LIMIT || *anew_qa.offset(k as isize) < -A_LIMIT {
-                return 0;
-            }
+        if a_qa[new_idx][kk] > A_LIMIT || a_qa[new_idx][kk] < -A_LIMIT {
+            return 0;
         }
 
         /* Set RC equal to negated AR coef */
-        let rc_q31 = unsafe { -silk_lshift(*anew_qa.offset(k as isize), 31 - QA) };
+        let rc_q31 = -silk_lshift(a_qa[new_idx][kk], 31 - QA);
 
         /* rc_mult1_Q30 range: [ 1 : 2^30 ] */
         let rc_mult1_q30 = (1i32 << 30) - silk_smmul(rc_q31, rc_q31);
@@ -47,31 +52,25 @@ fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i3
         /* Update inverse gain */
         inv_gain_q30 = silk_lshift(silk_smmul(inv_gain_q30, rc_mult1_q30), 2);
 
-        /* Swap pointers */
-        let aold_qa = anew_qa;
-        anew_qa = &mut a_qa[(k & 1) as usize] as *mut [i32; SILK_MAX_ORDER_LPC] as *mut i32;
+        /* Swap rows */
+        let old_idx = new_idx;
+        new_idx = (k & 1) as usize;
 
-        /* Update AR coefficient */
-        let mut n = 0;
-        while n < k {
-            unsafe {
-                let tmp_qa = *aold_qa.offset(n as isize) - mul32_frac_q(*aold_qa.offset((k - n - 1) as isize), rc_q31, 31);
-                *anew_qa.offset(n as isize) = mul32_frac_q(tmp_qa, rc_mult2, mult2q);
-            }
-            n += 1;
+        /* Update AR coefficient (reads old row, writes new row) */
+        for n in 0..kk {
+            let tmp_qa = a_qa[old_idx][n] - mul32_frac_q(a_qa[old_idx][kk - n - 1], rc_q31, 31);
+            a_qa[new_idx][n] = mul32_frac_q(tmp_qa, rc_mult2, mult2q);
         }
         k -= 1;
     }
 
     /* Check for stability */
-    unsafe {
-        if *anew_qa.offset(0) > A_LIMIT || *anew_qa.offset(0) < -A_LIMIT {
-            return 0;
-        }
+    if a_qa[new_idx][0] > A_LIMIT || a_qa[new_idx][0] < -A_LIMIT {
+        return 0;
     }
 
     /* Set RC equal to negated AR coef */
-    let rc_q31 = unsafe { -silk_lshift(*anew_qa.offset(0), 31 - QA) };
+    let rc_q31 = -silk_lshift(a_qa[new_idx][0], 31 - QA);
 
     /* Range: [ 1 : 2^30 ] */
     let rc_mult1_q30 = (1i32 << 30) - silk_smmul(rc_q31, rc_q31);
