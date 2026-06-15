@@ -56,9 +56,14 @@ pub fn clt_mdct_backward(
     let n2 = n >> 1;
     let n4 = n >> 2;
 
-    // Allocate scratch buffers (N/2 scalars each = N/4 complex)
-    let mut f = vec![0 as OpusVal32; n2 as usize];
-    let mut f2 = vec![0 as OpusVal32; n2 as usize];
+    // Stack scratch (N/2 scalars each = N/4 complex), sliced to the current
+    // half-size. MAX_N2 = l.n (1920 for the standard mode) >> 1; `shift` only
+    // shrinks it.
+    const MAX_N2: usize = 960;
+    let mut f = [0 as OpusVal32; MAX_N2];
+    let f = &mut f[..n2 as usize];
+    let mut f2 = [0 as OpusVal32; MAX_N2];
+    let f2 = &mut f2[..n2 as usize];
 
     // sin(pi/4N) approximation: sin(x) ≈ x for small x
     #[cfg(not(feature = "fixed-point"))]

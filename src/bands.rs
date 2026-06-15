@@ -25,6 +25,12 @@ use crate::rate::{bits2pulses, get_pulses, pulses2bits};
 use crate::util::{OrPanic, zip, zip3};
 use crate::vq::{alg_unquant, renormalise_vector};
 
+// Compile-time bounds for the standard 48 kHz mode, used to put scratch on the
+// stack instead of the heap (no-alloc goal). max_lm = 3 (so M = 1<<lm <= 8).
+const MAX_CHANNELS: usize = 2;
+const MAX_FRAME_SIZE: usize = 960; // M * short_mdct_size = 8 * 120
+const MAX_BAND_SIZE: usize = 176; // M * largest eBand delta = 8 * (100 - 78)
+
 /// Linear congruential generator used for pseudo-random noise injection
 /// in the CELT decoder (PLC comfort noise, anti-collapse, spectral folding).
 /// Constants match Numerical Recipes / Knuth MMIX.
@@ -190,7 +196,8 @@ const ORDERY_TABLE: [c_int; 30] =
 #[allow(clippy::indexing_slicing)]
 pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamard: c_int) {
     let n = (n0 * stride) as usize;
-    let mut tmp = vec![0 as CeltNorm; n];
+    let mut tmp = [0 as CeltNorm; MAX_BAND_SIZE];
+    let tmp = &mut tmp[..n];
     if hadamard != 0 {
         let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
         for i in 0..stride as usize {
@@ -217,7 +224,8 @@ pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadam
 #[allow(clippy::indexing_slicing)]
 pub fn interleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamard: c_int) {
     let n = (n0 * stride) as usize;
-    let mut tmp = vec![0 as CeltNorm; n];
+    let mut tmp = [0 as CeltNorm; MAX_BAND_SIZE];
+    let tmp = &mut tmp[..n];
     if hadamard != 0 {
         let ordery = &ORDERY_TABLE[(stride - 2) as usize..];
         for i in 0..stride as usize {
@@ -1069,9 +1077,12 @@ pub fn quant_all_bands(
     let norm_len = eb(m.nb_ebands) as usize;
     let norm_size = c as usize * norm_len;
     let scratch_size = (eb(m.nb_ebands) - eb(m.nb_ebands - 1)) as usize;
-    let mut norm_buf = vec![0 as CeltNorm; norm_size];
-    let mut scratch_buf = vec![0 as CeltNorm; scratch_size];
-    let mut fold_buf = vec![0 as CeltNorm; scratch_size];
+    let mut norm_buf = [0 as CeltNorm; MAX_CHANNELS * MAX_FRAME_SIZE];
+    let norm_buf = norm_buf.get_mut(..norm_size).or_panic(norm_size);
+    let mut scratch_buf = [0 as CeltNorm; MAX_BAND_SIZE];
+    let scratch_buf = scratch_buf.get_mut(..scratch_size).or_panic(scratch_size);
+    let mut fold_buf = [0 as CeltNorm; MAX_BAND_SIZE];
+    let fold_buf = fold_buf.get_mut(..scratch_size).or_panic(scratch_size);
     let (norm, norm2) = norm_buf.split_at_mut(norm_len);
 
     let mut remaining_bits: i32;

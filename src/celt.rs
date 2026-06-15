@@ -1174,7 +1174,8 @@ pub fn compute_inv_mdcts(
     let overlap = mode.overlap;
     let nu = n as usize;
     let ov = overlap as usize;
-    let mut buf = vec![0 as OpusVal32; (n + overlap) as usize];
+    let mut buf = [0 as OpusVal32; MAX_FRAME_SIZE + OVERLAP as usize];
+    let mut buf = &mut buf[..(n + overlap) as usize];
 
     let (n2, b_count) = if short_blocks != 0 { (mode.short_mdct_size, short_blocks) } else { (n, 1) };
 

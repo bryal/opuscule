@@ -147,10 +147,16 @@ pub fn pitch_search(
     debug_assert!(max_pitch > 0);
     let lag = len + max_pitch;
 
-    // Allocate scratch for 4x-decimated signals and cross-correlation
-    let mut x_lp4 = vec![0 as OpusVal16; (len >> 2) as usize];
-    let mut y_lp4 = vec![0 as OpusVal16; (lag >> 2) as usize];
-    let mut xcorr = vec![0 as OpusVal32; (max_pitch >> 1) as usize];
+    // Stack scratch for the 4x-decimated signals and cross-correlation. The
+    // CELT PLC is the only caller; its search spans the DECODE_BUFFER_SIZE
+    // (2048) decode history, so len, lag and max_pitch all stay within it.
+    const DECODE_BUFFER_SIZE: i32 = 2048;
+    let mut x_lp4 = [0 as OpusVal16; (DECODE_BUFFER_SIZE >> 2) as usize];
+    let x_lp4 = x_lp4.get_mut(..(len >> 2) as usize).or_panic((len >> 2) as usize);
+    let mut y_lp4 = [0 as OpusVal16; (DECODE_BUFFER_SIZE >> 2) as usize];
+    let y_lp4 = y_lp4.get_mut(..(lag >> 2) as usize).or_panic((lag >> 2) as usize);
+    let mut xcorr = [0 as OpusVal32; (DECODE_BUFFER_SIZE >> 2) as usize];
+    let xcorr = xcorr.get_mut(..(max_pitch >> 1) as usize).or_panic((max_pitch >> 1) as usize);
 
     // Downsample by 2 again (from half-rate to quarter-rate)
     for (dst, &src) in zip(x_lp4.iter_mut(), x_lp.iter().step_by(2)) {
@@ -194,7 +200,7 @@ pub fn pitch_search(
     let xcorr_len = (max_pitch >> 2) as usize;
     let len4 = (len >> 2) as usize;
     for (i, xc) in xcorr.iter_mut().take(xcorr_len).enumerate() {
-        let sum = zip(&x_lp4, y_lp4.iter().skip(i)).take(len4).fold(0 as OpusVal32, |s, (&a, &b)| mac16_16(s, a, b));
+        let sum = zip(&*x_lp4, y_lp4.iter().skip(i)).take(len4).fold(0 as OpusVal32, |s, (&a, &b)| mac16_16(s, a, b));
         *xc = max32(-1 as OpusVal32, sum);
         #[cfg(feature = "fixed-point")]
         {

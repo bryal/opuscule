@@ -163,14 +163,17 @@ pub fn alg_unquant(x: &mut [CeltNorm], n: c_int, k: c_int, spread: c_int, b: c_i
     debug_assert!(n > 1, "alg_unquant() needs at least two dimensions");
 
     let n = n as usize;
-    let mut iy = vec![0i32; n];
+    // Largest CELT band: (1<<max_lm)=8 * largest eBand delta (100-78=22) = 176.
+    const MAX_BAND_SIZE: usize = 176;
+    let mut iy = [0i32; MAX_BAND_SIZE];
+    let mut iy = iy.get_mut(..n).or_panic(n);
 
     // Decode pulse vector from bitstream
     decode_pulses(&mut iy, k, dec);
 
     // Compute sum of squares: Ryy = sum(iy[i]^2)
     let mut ryy: OpusVal32 = 0 as OpusVal32;
-    for &v in &iy {
+    for &v in &*iy {
         ryy = mac16_16(ryy, v as OpusVal16, v as OpusVal16);
     }
 
