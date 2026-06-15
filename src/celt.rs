@@ -704,7 +704,7 @@ pub fn celt_decode_with_ec<'a>(
     // Get band energies
     unquant_coarse_energy(mode, st.start, st.end, &mut st.old_band_e, intra_ener, dec, c_channels, lm);
 
-    let mut tf_res = vec![0i32; mode.nb_ebands as usize];
+    let mut tf_res = [0i32; NB_EBANDS as usize];
     tf_decode(st.start, st.end, is_transient, &mut tf_res, lm, dec);
 
     tell = ec_tell(dec) as i32;
@@ -713,10 +713,10 @@ pub fn celt_decode_with_ec<'a>(
         spread_decision = ec_dec_icdf(dec, &SPREAD_ICDF, 5);
     }
 
-    let mut pulses = vec![0i32; mode.nb_ebands as usize];
-    let mut cap = vec![0i32; mode.nb_ebands as usize];
-    let mut offsets = vec![0i32; mode.nb_ebands as usize];
-    let mut fine_priority = vec![0i32; mode.nb_ebands as usize];
+    let mut pulses = [0i32; NB_EBANDS as usize];
+    let mut cap = [0i32; NB_EBANDS as usize];
+    let mut offsets = [0i32; NB_EBANDS as usize];
+    let mut fine_priority = [0i32; NB_EBANDS as usize];
 
     init_caps(mode, &mut cap, lm, c_channels);
 
@@ -747,7 +747,7 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
 
-    let mut fine_quant = vec![0i32; mode.nb_ebands as usize];
+    let mut fine_quant = [0i32; NB_EBANDS as usize];
     let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
 
     let mut bits: i32 = ((len * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
@@ -780,7 +780,7 @@ pub fn celt_decode_with_ec<'a>(
     unquant_fine_energy(mode, st.start, st.end, &mut st.old_band_e, &fine_quant, dec, c_channels);
 
     // Decode fixed codebook
-    let mut collapse_masks = vec![0u8; (c_channels * mode.nb_ebands) as usize];
+    let mut collapse_masks = [0u8; (MAX_CHANNELS * NB_EBANDS) as usize];
     {
         let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).or_panic("x shorter than n");
         quant_all_bands(
