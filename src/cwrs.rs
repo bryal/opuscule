@@ -310,10 +310,15 @@ pub fn decode_pulses(y: &mut [c_int], k: c_int, dec: &mut ec_dec) {
             cwrsi4(k, i, y);
         }
         _ => {
-            let mut u = vec![0u32; k as usize + 2];
-            let nc = ncwrs_urow(n, k as usize, &mut u);
+            // Stack scratch instead of heap. The pulse count K is capped by the
+            // standard mode's pulse cache: get_pulses(max cache[0]) = 128, so
+            // the U row (K+2 entries) never exceeds MAX_PULSES + 2.
+            const MAX_PULSES: usize = 128;
+            let mut u = [0u32; MAX_PULSES + 2];
+            let u = &mut u[..k as usize + 2];
+            let nc = ncwrs_urow(n, k as usize, u);
             let i = ec_dec_uint(dec, nc);
-            cwrsi(k, i, y, &mut u);
+            cwrsi(k, i, y, u);
         }
     }
 }
