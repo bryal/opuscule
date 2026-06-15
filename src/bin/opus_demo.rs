@@ -9,10 +9,9 @@
 // translated from the C reference isn't worth hardening like the core.
 #![allow(clippy::indexing_slicing)]
 
+use opuscule::arch::OpusVal16;
 use opuscule::celt::{opus_get_version_string, opus_strerror};
-use opuscule::opus_decoder::{OpusDecCtl, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy};
-
-const OPUS_OK: i32 = 0;
+use opuscule::opus_decoder::{OpusDecoder, sample_to_i16};
 
 use std::env;
 use std::fs::File;
@@ -160,25 +159,19 @@ fn main() {
     });
 
     // Create decoder
-    let mut err: c_int = 0;
-    // SAFETY: opus_decoder_create allocates and returns a valid decoder, or
-    // sets err to a non-OK code. We check err immediately after.
-    let dec = unsafe { opus_decoder_create(sampling_rate, channels, &mut err) };
-    if err != OPUS_OK {
-        let msg = opus_strerror(err);
-        eprintln!("Cannot create decoder: {}", msg);
+    let mut dec = OpusDecoder::new(sampling_rate, channels).unwrap_or_else(|err| {
+        eprintln!("Cannot create decoder: {}", opus_strerror(err));
         process::exit(1);
-    }
+    });
 
     eprintln!("Decoding with {} Hz output ({} channels)", sampling_rate, channels);
 
-    let mut out_buf = vec![0i16; max_frame_size * channels as usize];
+    let mut out_buf = vec![0 as OpusVal16; max_frame_size * channels as usize];
     let mut fbytes = vec![0u8; max_frame_size * channels as usize * 2];
     let mut data: [Vec<u8>; 2] =
         [vec![0u8; max_payload_bytes], if use_inbandfec { vec![0u8; max_payload_bytes] } else { Vec::new() }];
     let mut len = [0i32; 2];
     let mut enc_final_range = [0u32; 2];
-    let mut dec_final_range: u32 = 0;
     let mut toggle: usize = 0;
     let mut count: i64 = 0;
     let mut skip: i32 = 0;
@@ -222,33 +215,28 @@ fn main() {
         let lost = len[toggle] == 0 || (packet_loss_perc > 0 && (simple_rand(&mut rng_state) % 100) < packet_loss_perc as u32);
 
         if count >= use_fec_i as i64 {
-            let output_samples;
-            if use_inbandfec {
-                if lost_prev {
-                    // Attempt FEC from next packet
-                    let (ptr, plen) = if lost { (std::ptr::null(), 0) } else { (data[toggle].as_ptr(), len[toggle]) };
-                    // SAFETY: dec is a valid decoder, data buffer is valid for plen bytes,
-                    // out_buf is large enough for max_frame_size samples.
-                    output_samples = unsafe { opus_decode(dec, ptr, plen, out_buf.as_mut_ptr(), max_frame_size as c_int, 1) };
-                } else {
-                    let other = 1 - toggle;
-                    // SAFETY: same as above.
-                    output_samples = unsafe {
-                        opus_decode(dec, data[other].as_ptr(), len[other], out_buf.as_mut_ptr(), max_frame_size as c_int, 0)
-                    };
-                }
+            // Pick the packet to decode and whether to request in-band FEC,
+            // mirroring the C: when FEC is on and the previous frame was OK we
+            // decode the *next* packet normally; otherwise we decode this one
+            // (None if lost), requesting FEC only on the lost-prev recovery path.
+            let (packet, fec): (Option<&[u8]>, bool) = if use_inbandfec && !lost_prev {
+                let other = 1 - toggle;
+                (Some(&data[other][..len[other] as usize]), false)
             } else {
-                let (ptr, plen) = if lost { (std::ptr::null(), 0) } else { (data[toggle].as_ptr(), len[toggle]) };
-                // SAFETY: same as above.
-                output_samples = unsafe { opus_decode(dec, ptr, plen, out_buf.as_mut_ptr(), max_frame_size as c_int, 0) };
-            }
+                let packet = if lost { None } else { Some(&data[toggle][..len[toggle] as usize]) };
+                (packet, use_inbandfec && lost_prev)
+            };
+            let output_samples = match dec.decode(packet, &mut out_buf, fec) {
+                Ok(n) => n as c_int,
+                Err(e) => e,
+            };
 
             if output_samples > 0 {
                 if output_samples > skip {
                     let write_samples = (output_samples - skip) as usize;
                     let skip_offset = skip as usize * channels as usize;
                     for i in 0..write_samples * channels as usize {
-                        let s = out_buf[i + skip_offset];
+                        let s = sample_to_i16(out_buf[i + skip_offset]);
                         fbytes[2 * i] = (s & 0xFF) as u8;
                         fbytes[2 * i + 1] = ((s >> 8) & 0xFF) as u8;
                     }
@@ -267,10 +255,7 @@ fn main() {
         }
 
         // Get decoder final range for consistency check
-        // SAFETY: dec is valid, we pass a valid pointer to dec_final_range.
-        unsafe {
-            opus_decoder_ctl(dec, OpusDecCtl::GetFinalRange(&mut dec_final_range));
-        }
+        let dec_final_range = dec.final_range();
 
         // Compare encoder/decoder range coder states
         let range_idx = toggle ^ use_fec_i;
@@ -307,7 +292,5 @@ fn main() {
         1e-3 * (bits2 / count as f64 - bits * bits / (count as f64 * count as f64)).sqrt() * sampling_rate as f64
             / frame_size as f64
     );
-
-    // SAFETY: dec was created by opus_decoder_create and is still valid.
-    unsafe { opus_decoder_destroy(dec) };
+    // `dec` drops here — no explicit destroy needed.
 }

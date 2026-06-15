@@ -196,6 +196,24 @@ impl OpusDecoder {
         let ret = opus_decode_native(self, packet, len, pcm, frame_size, fec as c_int, 0, None);
         if ret < 0 { Err(ret) } else { Ok(ret as usize) }
     }
+
+    /// Final range-coder state of the last decoded frame (for the
+    /// encoder/decoder consistency check).
+    pub fn final_range(&self) -> u32 {
+        self.range_final
+    }
+}
+
+/// Convert one decoded native sample to clamped 16-bit PCM. In the float
+/// build this applies the standard scale + round; in the fixed-point build the
+/// native sample is already `i16`.
+#[cfg(not(feature = "fixed-point"))]
+pub fn sample_to_i16(s: OpusVal16) -> i16 {
+    float2int16(s)
+}
+#[cfg(feature = "fixed-point")]
+pub fn sample_to_i16(s: OpusVal16) -> i16 {
+    s
 }
 
 /// Allocate and initialise an [`OpusDecoder`], returning a heap pointer the
