@@ -44,6 +44,29 @@ and reviewable.
 ## Code quality
 
 - Run `cargo fmt` before every commit.
-- `.unwrap()` is banned. Unless it makes more sense to recover from the error
-  or propagate it to the caller, you should panic descriptively with e.g. `.expect(_)`.
+- Always also `cargo check --features fixed-point` (we have a float/fixed dual build).
 - All `unsafe` blocks must have `// SAFETY:` comments.
+
+### Panicking (no `.unwrap()` / `.expect()`)
+
+Both are clippy-denied. Recover or propagate where it makes sense; otherwise:
+
+- `Option`: use `util::OrPanic` - `or_panic(v)`, `or_panic_dbg(v)`, `or_panic_with(|| msg)`.
+- `Result`: `unwrap_or_else(|e| panic!("...: {e:?}"))`.
+
+The `or_panic` argument is the *failure message*, printed only when it fires -
+NOT a satisfied precondition. (Don't `s/expect/or_panic/`: `expect`'s string is
+the condition you expect to hold, which is backwards as a panic message.)
+Pass a string only if it tells you something the source line (where the
+backtrace points) doesn't; otherwise pass the non-obvious runtime values, no
+`let` temps. Tuples are fine: `or_panic_dbg(("bad x", x))`.
+
+### Indexing (no panicking `x[i]` / `x[a..b]`)
+
+`indexing_slicing` is clippy-denied (both element and range forms). Default to
+*rewriting* the loop: `chunks`/`chunks_mut`, `split_at_mut(_checked)`,
+`util::zip`/`zip3`/`zip4` (preferred over `a.iter().zip(b)`), `windows`,
+`copy_from_slice`/`fill`/`first(_mut)`. Sub-ranges: `xs.get(a..b)`, never
+`iter().take(b).skip(a)` (silently swallows OOB). Reserve `#[allow]` for genuine
+math kernels (FFT/MDCT butterflies, Levinson, Givens, cwrs); dense SILK kernels
+may take a module-wide `#![allow]` (voice path deprioritized vs CELT).
