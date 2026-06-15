@@ -5,6 +5,10 @@
 // reads a custom bitstream format (4-byte length, 4-byte final range,
 // then payload) and writes raw PCM16 to the output file.
 
+// Dev/test driver, not the decoder library: the index-heavy buffer juggling
+// translated from the C reference isn't worth hardening like the core.
+#![allow(clippy::indexing_slicing)]
+
 use opuscule::celt::{opus_get_version_string, opus_strerror};
 use opuscule::ffi;
 use opuscule::opus_decoder::{OpusDecCtl, opus_decode, opus_decoder_create, opus_decoder_ctl, opus_decoder_destroy};

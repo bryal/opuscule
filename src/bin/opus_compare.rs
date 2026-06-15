@@ -5,6 +5,11 @@
 // psychoacoustic masking (frequency, temporal, cross-talk), and produces
 // a quality metric (pseudo-NMR on Bark-derived CELT bands).
 
+// Dev/test quality-metric tool, not the decoder library: the index-heavy DFT
+// and masking loops translated from the C reference aren't worth hardening
+// like the core.
+#![allow(clippy::indexing_slicing)]
+
 use std::env;
 use std::fs::File;
 use std::io::Read;
