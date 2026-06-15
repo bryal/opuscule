@@ -260,7 +260,10 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
     // out_syn[c] at DECODE_BUFFER_SIZE - n within each channel.
     let ch_size = (DECODE_BUFFER_SIZE + st.overlap) as usize;
     const OM: usize = (DECODE_BUFFER_SIZE - MAX_PERIOD) as usize;
-    let mut chans: Vec<&mut [CeltSig]> = st.decode_mem.chunks_mut(ch_size).take(cc as usize).collect();
+    // decode_mem holds exactly MAX_CHANNELS regions of ch_size; split into a
+    // fixed array of channel slices (mono leaves the second region unused).
+    let (ch0, ch1) = st.decode_mem.split_at_mut(ch_size);
+    let mut chans: [&mut [CeltSig]; MAX_CHANNELS as usize] = [ch0, ch1];
     let os = (DECODE_BUFFER_SIZE - n) as usize; // out_syn offset
 
     let len = n + mode.overlap;
