@@ -13,32 +13,25 @@ goals, limitations, build instructions, development status, etc.
 
 ## Goals
 
-Faithfully translate the reference Opus decoder from C to Rust.
-This gives us a reference point for later optimization and idiomatic Rust rewrites.
+The C→Rust translation of the reference Opus decoder is **done**: this is now a
+pure-Rust crate (no C left). The current phase is making it idiomatic, safe Rust
+while keeping decode output **bit-exact** - prefer iterators/slices over index
+loops, and don't anchor on the old C structure anymore.
 
-We also want to *build knowledge*. Whenever applicable, we should reference
-RFC sections/paragraphs in doc comments. A little bit like if we were doing Literate Programming.
-We want to onboarding for future maintainers to be as smooth as possible.
+We also want to *build knowledge*. Whenever applicable, reference RFC
+sections/paragraphs in doc comments, a little like Literate Programming, so
+onboarding future maintainers is smooth.
 
 
 ## Process
 
-At first, there will only be the C reference decoder.
-The resulting build artifacts will naturally pass all tests.
-Then, we'll translate this program from C to Rust, function by function,
-all while preserving correctness and passing all preexisting tests along every step of the way.
-
-To clarify, the entrypoints will be the `opus_compare` and `opus_demo` binaries.
-These, along with everything else, will come from the C at first,
-but they will probably be the first targets to translate to Rust.
-
-The Opus library will be a composite. Originally, it will consist only of object files
-produced by compiling the C. However, very early on we'll also get a Rust static lib,
-which will be linked together with the C object files to produce the composite Opus library.
-Meaning Rust will call C functions and vice versa. There will be lots of FFI.
-
-Generally we'll translate one function per commit, to keep our changes "atomic"
-and reviewable.
+- Pure-Rust crate; `opus_compare` and `opus_demo` are Rust bins. No C objects,
+  no `build.rs`. FFI remains only as the C-ABI surface we *expose* (`extern "C"`).
+- Small, atomic, reviewable commits with detailed messages - one logical change
+  at a time.
+- Every change must stay bit-exact: run `bash tests/run_vectors.sh` (serially -
+  it shares a scratch file), and tests must pass on both float and fixed-point.
+  Investigate any quality delta; never edit `tests/quality_baseline.txt` to mask one.
 
 
 ## Code quality
@@ -64,7 +57,7 @@ backtrace points) doesn't; otherwise pass the non-obvious runtime values, no
 ### Indexing (no panicking `x[i]` / `x[a..b]`)
 
 `indexing_slicing` is clippy-denied (both element and range forms). Default to
-*rewriting* the loop: `chunks`/`chunks_mut`, `split_at_mut(_checked)`,
+*rewriting* the loop: `chunks`/`chunks_mut`, `split_at(_mut)_checked`,
 `util::zip`/`zip3`/`zip4` (preferred over `a.iter().zip(b)`), `windows`,
 `copy_from_slice`/`fill`/`first(_mut)`. Sub-ranges: `xs.get(a..b)`, never
 `iter().take(b).skip(a)` (silently swallows OOB). Reserve `#[allow]` for genuine
