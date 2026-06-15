@@ -120,6 +120,12 @@ pub extern "C" fn opus_multistream_decoder_get_size(nb_streams: c_int, nb_couple
         + (nb_streams - nb_coupled_streams) as usize * align(mono_size as usize)) as i32
 }
 
+/// Initialise a multistream decoder in caller-provided storage.
+///
+/// # Safety
+/// `st` must point to a writable buffer of at least
+/// [`opus_multistream_decoder_get_size`]`(streams, coupled_streams)` bytes;
+/// `mapping` must be readable for `channels` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decoder_init(
     st: *mut OpusMSDecoder,
@@ -129,6 +135,9 @@ pub unsafe extern "C" fn opus_multistream_decoder_init(
     coupled_streams: c_int,
     mapping: *const u8,
 ) -> c_int {
+    // SAFETY: `st` is a buffer of the required size and `mapping` is readable
+    // for `channels` bytes, per the contract; sub-decoders are laid out within
+    // `st` by the same size formula as get_size.
     unsafe {
         (*st).layout.nb_channels = channels;
         (*st).layout.nb_streams = streams;
@@ -167,6 +176,12 @@ pub unsafe extern "C" fn opus_multistream_decoder_init(
 }
 
 #[unsafe(no_mangle)]
+/// Allocate and initialise a multistream decoder; release with
+/// [`opus_multistream_decoder_destroy`].
+///
+/// # Safety
+/// `mapping` must be readable for `channels` bytes; `error`, if non-null, must
+/// point to a writable `c_int`.
 pub unsafe extern "C" fn opus_multistream_decoder_create(
     fs: i32,
     channels: c_int,
@@ -175,6 +190,8 @@ pub unsafe extern "C" fn opus_multistream_decoder_create(
     mapping: *const u8,
     error: *mut c_int,
 ) -> *mut OpusMSDecoder {
+    // SAFETY: `mapping`/`error` satisfy the contract; `error` is null-checked
+    // before each write and alloc/dealloc share one matching `Layout`.
     unsafe {
         let size = opus_multistream_decoder_get_size(streams, coupled_streams);
         if size == 0 {
@@ -204,8 +221,15 @@ pub unsafe extern "C" fn opus_multistream_decoder_create(
     }
 }
 
+/// Free a decoder previously returned by [`opus_multistream_decoder_create`].
+///
+/// # Safety
+/// `st` must be null or a pointer returned by
+/// [`opus_multistream_decoder_create`] and not already freed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decoder_destroy(st: *mut OpusMSDecoder) {
+    // SAFETY: `st` is null-checked; dealloc reconstructs the same `Layout` that
+    // create allocated with.
     unsafe {
         if st.is_null() {
             return;
@@ -219,6 +243,10 @@ pub unsafe extern "C" fn opus_multistream_decoder_destroy(st: *mut OpusMSDecoder
 
 // -- decode_native --
 
+/// # Safety
+/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// nb_channels` samples.
 unsafe fn opus_multistream_decode_native(
     st: *mut OpusMSDecoder,
     mut data: *const u8,
@@ -227,6 +255,9 @@ unsafe fn opus_multistream_decode_native(
     mut frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the contract; the per-stream sub-decoder
+    // pointers are walked within `st`'s allocation, the input `data` advances by
+    // each stream's consumed bytes, and `pcm` is wrapped into a sized slice.
     unsafe {
         let mut do_plc = 0;
         let nb_channels = (*st).layout.nb_channels;
@@ -352,6 +383,10 @@ unsafe fn opus_multistream_decode_native(
 
 // -- decode / decode_float --
 
+/// # Safety
+/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// nb_channels` samples.
 #[cfg(feature = "fixed-point")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decode(
@@ -362,9 +397,14 @@ pub unsafe extern "C" fn opus_multistream_decode(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract.
     unsafe { opus_multistream_decode_native(st, data, len, pcm, frame_size, decode_fec) }
 }
 
+/// # Safety
+/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// nb_channels` samples.
 #[cfg(not(feature = "fixed-point"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decode(
@@ -375,6 +415,8 @@ pub unsafe extern "C" fn opus_multistream_decode(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
+    // wrapped into a slice of the caller-provided length.
     unsafe {
         let nb_channels = (*st).layout.nb_channels;
         let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
@@ -390,6 +432,10 @@ pub unsafe extern "C" fn opus_multistream_decode(
     }
 }
 
+/// # Safety
+/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// nb_channels` samples.
 #[cfg(not(feature = "fixed-point"))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decode_float(
@@ -400,9 +446,14 @@ pub unsafe extern "C" fn opus_multistream_decode_float(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract.
     unsafe { opus_multistream_decode_native(st, data, len, pcm, frame_size, decode_fec) }
 }
 
+/// # Safety
+/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
+/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
+/// nb_channels` samples.
 #[cfg(feature = "fixed-point")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decode_float(
@@ -413,6 +464,8 @@ pub unsafe extern "C" fn opus_multistream_decode_float(
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
+    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
+    // wrapped into a slice of the caller-provided length.
     unsafe {
         let nb_channels = (*st).layout.nb_channels;
         let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
@@ -439,8 +492,15 @@ pub enum OpusMSDecCtl {
     GetDecoderState(c_int, *mut *mut OpusDecoder) = OPUS_MULTISTREAM_GET_DECODER_STATE_REQUEST,
 }
 
+/// Multistream decoder control — enum-based replacement for the C varargs API.
+///
+/// # Safety
+/// `st` must point to an initialized `OpusMSDecoder`, and any pointer carried
+/// in `request` must be writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_multistream_decoder_ctl(st: *mut OpusMSDecoder, request: OpusMSDecCtl) -> c_int {
+    // SAFETY: `st` is a valid initialized decoder and `request`'s out-pointers
+    // are writable; sub-decoder pointers are walked within `st`'s allocation.
     unsafe {
         let coupled_size = opus_decoder_get_size(2);
         let mono_size = opus_decoder_get_size(1);
