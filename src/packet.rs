@@ -39,8 +39,12 @@ pub fn packet_get_mode(toc: u8) -> c_int {
 
 /// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
 /// RFC 6716 Section 3.1, Table 2.
+///
+/// # Safety
+/// `data` must point to at least one readable byte (the TOC byte).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_mode(data: *const u8) -> c_int {
+    // SAFETY: `data` points to at least the TOC byte, per the contract.
     packet_get_mode(unsafe { *data })
 }
 
@@ -59,8 +63,12 @@ pub fn packet_get_bandwidth(toc: u8) -> c_int {
 
 /// Return the bandwidth of an Opus packet from its TOC byte.
 /// RFC 6716 Section 3.1, Table 2.
+///
+/// # Safety
+/// `data` must point to at least one readable byte (the TOC byte).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
+    // SAFETY: `data` points to at least the TOC byte, per the contract.
     packet_get_bandwidth(unsafe { *data })
 }
 
@@ -80,8 +88,12 @@ pub fn packet_get_samples_per_frame(toc: u8, fs: i32) -> c_int {
 
 /// Return the number of samples per frame from the TOC byte and sample rate.
 /// RFC 6716 Section 3.1.
+///
+/// # Safety
+/// `data` must point to at least one readable byte (the TOC byte).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: i32) -> c_int {
+    // SAFETY: `data` points to at least the TOC byte, per the contract.
     packet_get_samples_per_frame(unsafe { *data }, fs)
 }
 
@@ -94,18 +106,26 @@ pub fn packet_get_nb_channels(toc: u8) -> c_int {
 
 /// Return the number of channels encoded in a packet (1 or 2).
 /// RFC 6716 Section 3.1 (stereo bit = bit 2 of TOC).
+///
+/// # Safety
+/// `data` must point to at least one readable byte (the TOC byte).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_nb_channels(data: *const u8) -> c_int {
+    // SAFETY: `data` points to at least the TOC byte, per the contract.
     packet_get_nb_channels(unsafe { *data })
 }
 
 /// Return the number of frames in an Opus packet.
 /// RFC 6716 Section 3.2.
+///
+/// # Safety
+/// `packet` must be readable for `len` bytes.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_get_nb_frames(packet: *const u8, len: c_int) -> c_int {
     if len < 1 {
         return OPUS_BAD_ARG;
     }
+    // SAFETY: `len >= 1` (checked), so the TOC byte is readable per the contract.
     let toc = unsafe { *packet };
     let count = toc & 0x3;
     if count == 0 {
@@ -115,6 +135,7 @@ pub unsafe extern "C" fn opus_packet_get_nb_frames(packet: *const u8, len: c_int
     } else if len < 2 {
         OPUS_INVALID_PACKET
     } else {
+        // SAFETY: `len >= 2` (checked), so the second byte is readable.
         (unsafe { *packet.add(1) } & 0x3F) as c_int
     }
 }
@@ -351,6 +372,11 @@ fn opus_packet_parse_native(
 ///
 /// Thin C-ABI shell: it only converts the raw pointer arguments into safe
 /// references and slices, then defers to [`opus_packet_parse_native`].
+///
+/// # Safety
+/// `data` must be readable for `len` bytes; `size` and (if non-null) `frames`
+/// must be writable for 48 entries; `out_toc` and `payload_offset`, if
+/// non-null, must be writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opus_packet_parse(
     data: *const u8,
@@ -360,6 +386,9 @@ pub unsafe extern "C" fn opus_packet_parse(
     size: *mut i16,
     payload_offset: *mut c_int,
 ) -> c_int {
+    // SAFETY: the pointers satisfy the documented contract; `size`/`frames` hold
+    // the 48-entry maximum the parser can write, and the out-params are
+    // null-checked before being turned into references.
     unsafe {
         if size.is_null() {
             return OPUS_BAD_ARG;
@@ -380,6 +409,11 @@ pub unsafe extern "C" fn opus_packet_parse(
 
 #[cfg(test)]
 mod tests {
+    // These tests call the `unsafe extern "C"` query functions with pointers to
+    // local stack values / arrays whose validity is obvious at the call site; a
+    // `// SAFETY:` comment on each would be pure noise.
+    #![allow(clippy::undocumented_unsafe_blocks)]
+
     use super::*;
 
     #[test]
