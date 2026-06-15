@@ -1,3 +1,9 @@
+// Faithful numeric mirror of the C `static_modes_float.h` window/twiddle
+// tables. The `0.70710678` entries are just the 45-degree FFT twiddles; they
+// are kept verbatim (not replaced with `FRAC_1_SQRT_2`) so the table stays an
+// exact copy of the reference.
+#![allow(clippy::approx_constant)]
+
 use crate::arch::OpusVal16;
 use crate::kiss_fft::KissTwiddleCpx;
 

@@ -232,14 +232,14 @@ mod float_ops {
     /// #define celt_log2(x) ((float)(1.442695040888963387*log(x)))
     #[inline(always)]
     pub fn celt_log2(x: f32) -> f32 {
-        (1.442695040888963387 * (x as f64).ln()) as f32
+        (std::f64::consts::LOG2_E * (x as f64).ln()) as f32
     }
 
     /// Base-2 exponential. Matches the C macro:
     /// #define celt_exp2(x) ((float)exp(0.6931471805599453094*(x)))
     #[inline(always)]
     pub fn celt_exp2(x: f32) -> f32 {
-        (0.6931471805599453094 * (x as f64)).exp() as f32
+        (std::f64::consts::LN_2 * (x as f64)).exp() as f32
     }
 }
 

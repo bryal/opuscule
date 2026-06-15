@@ -377,7 +377,7 @@ pub fn anti_collapse(
                 {
                     let mut rv = 2.0 * celt_exp2(-ediff);
                     if lm == 3 {
-                        rv *= 1.41421356;
+                        rv *= std::f32::consts::SQRT_2;
                     }
                     rv = rv.min(thresh);
                     r = rv * sqrt_1;

@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io::Read;
 use std::process;
 
-const OPUS_PI: f32 = 3.14159265;
+const OPUS_PI: f32 = std::f32::consts::PI;
 
 const NBANDS: usize = 21;
 const NFREQS: usize = 240;

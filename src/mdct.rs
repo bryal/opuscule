@@ -67,6 +67,8 @@ pub fn clt_mdct_backward(
     let sine: OpusVal16 = {
         // TRIG_UPSCALE * (QCONST16(0.7853981, 15) + N2) / N
         // TRIG_UPSCALE = 1 in the default fixed-point build
+        // The 0.7853981 literal mirrors the C QCONST16 argument verbatim.
+        #[allow(clippy::approx_constant)]
         let q = (0.7853981 * 32768.0 + 0.5) as i32; // QCONST16(0.7853981, 15)
         ((q + n2) / n) as i16
     };
