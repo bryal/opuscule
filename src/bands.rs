@@ -5,8 +5,8 @@
 //
 // Functions are translated incrementally, innermost helpers first.
 
-use std::f32::consts::FRAC_1_SQRT_2;
-use std::os::raw::c_int;
+use core::f32::consts::FRAC_1_SQRT_2;
+use core::ffi::c_int;
 
 use crate::arch::{CeltEner, CeltNorm, CeltSig, EPSILON, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE, qconst16, qconst32};
 use crate::arch::{
@@ -377,7 +377,7 @@ pub fn anti_collapse(
                 {
                     let mut rv = 2.0 * celt_exp2(-ediff);
                     if lm == 3 {
-                        rv *= std::f32::consts::SQRT_2;
+                        rv *= core::f32::consts::SQRT_2;
                     }
                     rv = rv.min(thresh);
                     r = rv * sqrt_1;

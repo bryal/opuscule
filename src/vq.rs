@@ -11,7 +11,7 @@
 //
 // See RFC 6716 Section 4.3.4.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::arch::*;
 use crate::cwrs::decode_pulses;

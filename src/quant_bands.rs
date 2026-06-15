@@ -11,7 +11,7 @@
 // - log2Amp: convert log-domain energies to linear amplitudes
 // - amp2Log2: convert linear amplitudes to log-domain energies
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::arch::*;
 use crate::entcode::EcCtx;

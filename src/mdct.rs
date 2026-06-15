@@ -9,7 +9,7 @@
 
 use crate::arch::*;
 use crate::kiss_fft::{KissFftCpx, KissFftState, opus_ifft, s_mul};
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 /// mdct_lookup: the MDCT state struct. Matches C's mdct_lookup in mdct.h.
 pub struct MdctLookup {
@@ -62,7 +62,7 @@ pub fn clt_mdct_backward(
 
     // sin(pi/4N) approximation: sin(x) ≈ x for small x
     #[cfg(not(feature = "fixed-point"))]
-    let sine: OpusVal16 = 2.0 * std::f32::consts::PI * 0.125 / n as f32;
+    let sine: OpusVal16 = 2.0 * core::f32::consts::PI * 0.125 / n as f32;
     #[cfg(feature = "fixed-point")]
     let sine: OpusVal16 = {
         // TRIG_UPSCALE * (QCONST16(0.7853981, 15) + N2) / N

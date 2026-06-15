@@ -7,7 +7,7 @@
 // from the front of the buffer (range-coded part) and raw bits from the
 // end of the buffer, meeting in the middle.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::entcode::{
     EC_CODE_BITS, EC_CODE_EXTRA, EC_CODE_TOP, EC_SYM_BITS, EC_SYM_MAX, EC_UINT_BITS, EC_WINDOW_SIZE, EcCtx, ec_dec, ec_ilog,

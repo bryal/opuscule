@@ -7,7 +7,7 @@
 use crate::arch::OpusVal16;
 use crate::kiss_fft::KissFftState;
 use crate::mdct::MdctLookup;
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 #[cfg(feature = "fixed-point")]
 use crate::static_modes_fixed::*;
@@ -223,5 +223,5 @@ pub unsafe extern "C" fn opus_custom_mode_create(fs: i32, frame_size: c_int, err
         // SAFETY: `error` is non-null (just checked) and the caller guarantees it is writable.
         unsafe { *error = OPUS_BAD_ARG };
     }
-    std::ptr::null()
+    core::ptr::null()
 }

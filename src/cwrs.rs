@@ -18,7 +18,7 @@
 // indexed math under a module-wide allow rather than contrived rewrites.
 #![allow(clippy::indexing_slicing)]
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_uint;

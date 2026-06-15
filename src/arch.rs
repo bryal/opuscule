@@ -217,7 +217,7 @@ mod float_ops {
     }
     #[inline(always)]
     pub fn celt_cos_norm(x: f32) -> f32 {
-        (0.5 * std::f32::consts::PI * x).cos()
+        (0.5 * core::f32::consts::PI * x).cos()
     }
     #[inline(always)]
     pub fn div32_16(a: f32, b: f32) -> f32 {
@@ -232,14 +232,14 @@ mod float_ops {
     /// #define celt_log2(x) ((float)(1.442695040888963387*log(x)))
     #[inline(always)]
     pub fn celt_log2(x: f32) -> f32 {
-        (std::f64::consts::LOG2_E * (x as f64).ln()) as f32
+        (core::f64::consts::LOG2_E * (x as f64).ln()) as f32
     }
 
     /// Base-2 exponential. Matches the C macro:
     /// #define celt_exp2(x) ((float)exp(0.6931471805599453094*(x)))
     #[inline(always)]
     pub fn celt_exp2(x: f32) -> f32 {
-        (std::f64::consts::LN_2 * (x as f64)).exp() as f32
+        (core::f64::consts::LN_2 * (x as f64)).exp() as f32
     }
 }
 

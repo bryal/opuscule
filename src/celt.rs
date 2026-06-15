@@ -3,7 +3,7 @@
 // CELT decoder core: helper functions and the main decode entry point.
 // Functions are translated incrementally, innermost helpers first.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::arch::*;
 use crate::bands::{SPREAD_NORMAL, anti_collapse, celt_lcg_rand, denormalise_bands, quant_all_bands};
@@ -102,13 +102,13 @@ pub type CELTDecoder = OpusCustomDecoder;
 
 /// Return the size in bytes of a CELT decoder for the standard Opus mode.
 pub fn celt_decoder_get_size(_channels: c_int) -> c_int {
-    std::mem::size_of::<OpusCustomDecoder>() as c_int
+    core::mem::size_of::<OpusCustomDecoder>() as c_int
 }
 
 /// Return the size in bytes of a CELT decoder for a given mode.
 #[unsafe(no_mangle)]
 pub extern "C" fn opus_custom_decoder_get_size(_mode: *const CELTMode, _channels: c_int) -> c_int {
-    std::mem::size_of::<OpusCustomDecoder>() as c_int
+    core::mem::size_of::<OpusCustomDecoder>() as c_int
 }
 
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
@@ -117,7 +117,7 @@ pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_i
     // keeps its pointer ABI; called here with a valid live reference, and
     // `opus_custom_mode_create(48000, 960, ...)` always returns a pointer to
     // a `'static` mode for these arguments.
-    let ret = unsafe { opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, std::ptr::null_mut()), channels) };
+    let ret = unsafe { opus_custom_decoder_init(st, opus_custom_mode_create(48000, 960, core::ptr::null_mut()), channels) };
     if ret != OPUS_OK {
         return ret;
     }
@@ -1458,16 +1458,16 @@ static ERROR_STRINGS: [&[u8]; 8] = [
 static UNKNOWN_ERROR: &[u8] = b"unknown error\0";
 
 #[unsafe(no_mangle)]
-pub extern "C" fn opus_strerror(error: c_int) -> *const std::os::raw::c_char {
+pub extern "C" fn opus_strerror(error: c_int) -> *const core::ffi::c_char {
     // A valid error in -7..=0 maps to index 0..=7; anything else (including
     // positive `error`, whose negation wraps to a huge usize) misses the
     // table and falls back to the unknown-error string.
-    ERROR_STRINGS.get((-error) as usize).unwrap_or(&UNKNOWN_ERROR).as_ptr() as *const std::os::raw::c_char
+    ERROR_STRINGS.get((-error) as usize).unwrap_or(&UNKNOWN_ERROR).as_ptr() as *const core::ffi::c_char
 }
 
 static VERSION_STRING: &[u8] = b"libopus 1.0.0\0";
 
 #[unsafe(no_mangle)]
-pub extern "C" fn opus_get_version_string() -> *const std::os::raw::c_char {
-    VERSION_STRING.as_ptr() as *const std::os::raw::c_char
+pub extern "C" fn opus_get_version_string() -> *const core::ffi::c_char {
+    VERSION_STRING.as_ptr() as *const core::ffi::c_char
 }

@@ -3,7 +3,7 @@
 //! `zip(&mut xs, &ys)` reads more clearly than `xs.iter_mut().zip(ys.iter())`
 //! and puts the inputs — and which are read vs mutated — on the `for` line.
 
-use std::fmt::{Debug, Display};
+use core::fmt::{Debug, Display};
 
 /// Unwrap an `Option` or panic with context — our replacement for the banned
 /// `.expect()`.
@@ -44,7 +44,7 @@ impl<A> OrPanic for Option<A> {
 }
 
 /// Zip two iterables.
-pub fn zip<X, Y>(xs: X, ys: Y) -> std::iter::Zip<X::IntoIter, Y::IntoIter>
+pub fn zip<X, Y>(xs: X, ys: Y) -> core::iter::Zip<X::IntoIter, Y::IntoIter>
 where
     X: IntoIterator,
     Y: IntoIterator,

@@ -4,7 +4,7 @@
 // channel count, frame count. Pure bitfield reads with no
 // float/fixed-point dependency.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::util::{OrPanic, zip};
 

@@ -8,7 +8,7 @@
 // - celt_iir: IIR filter (used for PLC synthesis)
 // - _celt_autocorr: Windowed autocorrelation
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::arch::*;
 use crate::util::{OrPanic, zip};

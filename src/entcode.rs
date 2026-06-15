@@ -3,7 +3,7 @@
 // Range coder shared state and utility functions.
 // See RFC 6716 Section 4.1 for the range coding scheme.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 // -- Constants from mfrngcod.h --
 

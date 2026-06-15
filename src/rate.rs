@@ -21,7 +21,7 @@
 // per-band arrays are nb_ebands long, and LOG2_FRAC_TABLE indices < 24.
 #![allow(clippy::indexing_slicing)]
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::entcode::{BITRES, EcCtx};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_uint};

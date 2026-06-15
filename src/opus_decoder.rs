@@ -6,7 +6,7 @@
 //
 // SILK is kept as a C unit and called via FFI. CELT is fully in Rust.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::arch::*;
 use crate::celt::{CELTDecoder, CeltDecCtl, celt_decode_with_ec, celt_decoder_ctl, celt_decoder_init};
@@ -49,7 +49,7 @@ const CELT_SIG_SCALE: f32 = 32768.0;
 // -- Alignment helper (matches C align()) --
 
 pub(crate) fn align(i: usize) -> usize {
-    (i + std::mem::size_of::<*const ()>() - 1) & !(std::mem::size_of::<*const ()>() - 1)
+    (i + core::mem::size_of::<*const ()>() - 1) & !(core::mem::size_of::<*const ()>() - 1)
 }
 
 // -- OpusDecoder struct --
@@ -88,7 +88,7 @@ pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
     if !(1..=2).contains(&channels) {
         return 0;
     }
-    std::mem::size_of::<OpusDecoder>() as c_int
+    core::mem::size_of::<OpusDecoder>() as c_int
 }
 
 /// Initialise a previously-allocated `OpusDecoder`.
@@ -169,17 +169,17 @@ pub unsafe extern "C" fn opus_decoder_create(fs: i32, channels: c_int, error: *m
             if !error.is_null() {
                 *error = OPUS_BAD_ARG;
             }
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
         let size = opus_decoder_get_size(channels) as usize;
-        let layout = std::alloc::Layout::from_size_align(size, std::mem::align_of::<OpusDecoder>())
+        let layout = std::alloc::Layout::from_size_align(size, core::mem::align_of::<OpusDecoder>())
             .unwrap_or_else(|e| panic!("invalid layout for OpusDecoder: {e:?}"));
         let ptr = std::alloc::alloc_zeroed(layout) as *mut OpusDecoder;
         if ptr.is_null() {
             if !error.is_null() {
                 *error = OPUS_ALLOC_FAIL;
             }
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
         let ret = opus_decoder_init(ptr, fs, channels);
         if !error.is_null() {
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn opus_decoder_create(fs: i32, channels: c_int, error: *m
         }
         if ret != OPUS_OK {
             std::alloc::dealloc(ptr as *mut u8, layout);
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
         ptr
     }
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn opus_decoder_destroy(st: *mut OpusDecoder) {
         }
         let channels = (*st).channels;
         let size = opus_decoder_get_size(channels) as usize;
-        let layout = std::alloc::Layout::from_size_align(size, std::mem::align_of::<OpusDecoder>())
+        let layout = std::alloc::Layout::from_size_align(size, core::mem::align_of::<OpusDecoder>())
             .unwrap_or_else(|e| panic!("invalid layout for OpusDecoder: {e:?}"));
         std::alloc::dealloc(st as *mut u8, layout);
     }

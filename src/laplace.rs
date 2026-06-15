@@ -8,7 +8,7 @@
 // Only the decode function is translated; encoding is not needed for
 // a decode-only implementation.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::entcode::ec_dec;
 use crate::entdec::{ec_dec_update, ec_decode_bin};

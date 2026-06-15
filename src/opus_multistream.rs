@@ -10,7 +10,7 @@
 // Nothing in our test harness exercises multistream — this exists so that
 // the API surface is available, not because it has been validated.
 
-use std::os::raw::c_int;
+use core::ffi::c_int;
 
 use crate::arch::*;
 use crate::opus_decoder::{
@@ -115,7 +115,7 @@ pub extern "C" fn opus_multistream_decoder_get_size(nb_streams: c_int, nb_couple
     }
     let coupled_size = opus_decoder_get_size(2);
     let mono_size = opus_decoder_get_size(1);
-    (align(std::mem::size_of::<OpusMSDecoder>())
+    (align(core::mem::size_of::<OpusMSDecoder>())
         + nb_coupled_streams as usize * align(coupled_size as usize)
         + (nb_streams - nb_coupled_streams) as usize * align(mono_size as usize)) as i32
 }
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_init(
             return OPUS_BAD_ARG;
         }
 
-        let mut ptr = (st as *mut u8).add(align(std::mem::size_of::<OpusMSDecoder>()));
+        let mut ptr = (st as *mut u8).add(align(core::mem::size_of::<OpusMSDecoder>()));
         let coupled_size = opus_decoder_get_size(2);
         let mono_size = opus_decoder_get_size(1);
 
@@ -198,16 +198,16 @@ pub unsafe extern "C" fn opus_multistream_decoder_create(
             if !error.is_null() {
                 *error = OPUS_BAD_ARG;
             }
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
-        let layout = std::alloc::Layout::from_size_align(size as usize, std::mem::align_of::<OpusMSDecoder>())
+        let layout = std::alloc::Layout::from_size_align(size as usize, core::mem::align_of::<OpusMSDecoder>())
             .unwrap_or_else(|e| panic!("invalid layout for OpusMSDecoder: {e:?}"));
         let ptr = std::alloc::alloc_zeroed(layout) as *mut OpusMSDecoder;
         if ptr.is_null() {
             if !error.is_null() {
                 *error = OPUS_ALLOC_FAIL;
             }
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
         let ret = opus_multistream_decoder_init(ptr, fs, channels, streams, coupled_streams, mapping);
         if !error.is_null() {
@@ -215,7 +215,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_create(
         }
         if ret != OPUS_OK {
             std::alloc::dealloc(ptr as *mut u8, layout);
-            return std::ptr::null_mut();
+            return core::ptr::null_mut();
         }
         ptr
     }
@@ -235,7 +235,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_destroy(st: *mut OpusMSDecoder
             return;
         }
         let size = opus_multistream_decoder_get_size((*st).layout.nb_streams, (*st).layout.nb_coupled_streams);
-        let layout = std::alloc::Layout::from_size_align(size as usize, std::mem::align_of::<OpusMSDecoder>())
+        let layout = std::alloc::Layout::from_size_align(size as usize, core::mem::align_of::<OpusMSDecoder>())
             .unwrap_or_else(|e| panic!("invalid layout for OpusMSDecoder: {e:?}"));
         std::alloc::dealloc(st as *mut u8, layout);
     }
@@ -265,7 +265,7 @@ unsafe fn opus_multistream_decode_native(
         // each stream's `ret` below, so size the slice from the original value.
         let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
         let mut buf: Vec<OpusVal16> = vec![Default::default(); (2 * frame_size) as usize];
-        let mut ptr = (st as *mut u8).add(align(std::mem::size_of::<OpusMSDecoder>()));
+        let mut ptr = (st as *mut u8).add(align(core::mem::size_of::<OpusMSDecoder>()));
         let coupled_size = opus_decoder_get_size(2);
         let mono_size = opus_decoder_get_size(1);
 
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn opus_multistream_decoder_ctl(st: *mut OpusMSDecoder, re
     unsafe {
         let coupled_size = opus_decoder_get_size(2);
         let mono_size = opus_decoder_get_size(1);
-        let mut ptr = (st as *mut u8).add(align(std::mem::size_of::<OpusMSDecoder>()));
+        let mut ptr = (st as *mut u8).add(align(core::mem::size_of::<OpusMSDecoder>()));
 
         match request {
             OpusMSDecCtl::GetBandwidth(value) => {
