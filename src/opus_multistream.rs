@@ -134,11 +134,9 @@ pub unsafe extern "C" fn opus_multistream_decoder_init(
         (*st).layout.nb_streams = streams;
         (*st).layout.nb_coupled_streams = coupled_streams;
 
-        let mut i = 0;
-        while i < (*st).layout.nb_channels {
-            *(*st).layout.mapping.get_mut(i as usize).or_panic(i) = *mapping.offset(i as isize);
-            i += 1;
-        }
+        let n = channels.max(0) as usize;
+        let mapping = core::slice::from_raw_parts(mapping, n);
+        (*st).layout.mapping.get_mut(..n).or_panic(n).copy_from_slice(mapping);
         if validate_layout(&(*st).layout) == 0 {
             return OPUS_BAD_ARG;
         }
