@@ -1,38 +1,33 @@
-// Translated from c/src/opus_multistream.c (RFC 6716).
+// Translated from c/src/opus_multistream.c (RFC 6716), then reworked off the
+// C ABI into idiomatic Rust.
 //
 // Multistream Opus decoder: handles audio with more than 2 channels (e.g.
-// 5.1 surround) by managing an array of regular OpusDecoder instances and
-// routing PCM samples per a channel mapping table. Sub-decoders are
-// embedded at byte offsets after the OpusMSDecoder header in a single
-// allocation, matching the C layout.
+// 5.1 surround) by driving an array of regular `OpusDecoder`s and routing PCM
+// samples per a channel mapping table.
+//
+// Unlike the C (and our earlier translation), the sub-decoders are NOT embedded
+// in one allocation. The stream count is a runtime value (up to 255), so an
+// inline array would be enormous and a `Vec` would defeat the no-alloc goal;
+// instead the caller owns the `[OpusDecoder]` storage and passes it in. The
+// `OpusMSDecoder` itself is just the channel layout.
 //
 // Decoder-only: the encoder half of opus_multistream.c is not translated.
-// Nothing in our test harness exercises multistream — this exists so that
-// the API surface is available, not because it has been validated.
 
 use core::ffi::c_int;
 
 use crate::arch::*;
-use crate::opus_decoder::{
-    OpusDecCtl, OpusDecoder, align, opus_decode_native, opus_decoder_ctl, opus_decoder_get_size, opus_decoder_init,
-};
-
-#[cfg(not(feature = "fixed-point"))]
-use crate::opus_decoder::float2int16;
-use crate::util::{OrPanic, zip};
+use crate::opus_decoder::{OpusDecoder, opus_decode_native};
+use crate::util::OrPanic;
 
 // -- Constants --
 
-const OPUS_OK: c_int = 0;
 const OPUS_BAD_ARG: c_int = -1;
 const OPUS_BUFFER_TOO_SMALL: c_int = -2;
 const OPUS_INVALID_PACKET: c_int = -4;
-const OPUS_ALLOC_FAIL: c_int = -7;
 
-const OPUS_GET_BANDWIDTH_REQUEST: c_int = 4009;
-const OPUS_GET_FINAL_RANGE_REQUEST: c_int = 4031;
-const OPUS_RESET_STATE: c_int = 4028;
-const OPUS_MULTISTREAM_GET_DECODER_STATE_REQUEST: c_int = 5122;
+/// Largest decodable frame, in samples per channel (120 ms @ 48 kHz). Sizes the
+/// per-stream decode scratch.
+const MAX_FRAME: usize = 5760;
 
 // -- ChannelLayout --
 
@@ -45,32 +40,28 @@ pub struct ChannelLayout {
 
 // -- OpusMSDecoder --
 
-/// Multistream Opus decoder state.
-///
-/// Sub-decoders (one OpusDecoder per stream) live at byte offsets after
-/// this header within the same allocation, just as in the C version.
+/// Multistream Opus decoder: the channel layout plus routing logic. The
+/// per-stream sub-decoders are supplied by the caller (see [`OpusMSDecoder::decode`]).
 pub struct OpusMSDecoder {
     pub layout: ChannelLayout,
-    // Decoder states go here
 }
 
 // -- Layout helpers --
 
-fn validate_layout(layout: &ChannelLayout) -> c_int {
+fn validate_layout(layout: &ChannelLayout) -> bool {
     let max_channel = layout.nb_streams + layout.nb_coupled_streams;
     if max_channel > 255 {
-        return 0;
+        return false;
     }
     let mut i = 0;
     while i < layout.nb_channels {
-        if *layout.mapping.get(i as usize).or_panic(i) as c_int >= max_channel
-            && *layout.mapping.get(i as usize).or_panic(i) != 255
-        {
-            return 0;
+        let m = *layout.mapping.get(i as usize).or_panic(i) as c_int;
+        if m >= max_channel && m != 255 {
+            return false;
         }
         i += 1;
     }
-    1
+    true
 }
 
 fn get_left_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
@@ -106,468 +97,222 @@ fn get_mono_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_
     -1
 }
 
-// -- get_size / init / create / destroy --
-
-#[unsafe(no_mangle)]
-pub extern "C" fn opus_multistream_decoder_get_size(nb_streams: c_int, nb_coupled_streams: c_int) -> i32 {
-    if nb_streams < 1 || nb_coupled_streams > nb_streams || nb_coupled_streams < 0 {
-        return 0;
+impl OpusMSDecoder {
+    /// Build a multistream decoder from a channel mapping. `mapping` gives, for
+    /// each of `channels` output channels, the sub-stream channel index that
+    /// feeds it (255 = silence). The caller must then create `streams`
+    /// sub-decoders (see [`OpusMSDecoder::stream_channels`]) to pass to
+    /// [`decode`](OpusMSDecoder::decode).
+    pub fn new(channels: c_int, streams: c_int, coupled_streams: c_int, mapping: &[u8]) -> Result<OpusMSDecoder, c_int> {
+        if streams < 1 || coupled_streams > streams || coupled_streams < 0 || channels < 1 {
+            return Err(OPUS_BAD_ARG);
+        }
+        let n = channels as usize;
+        let mut layout = ChannelLayout {
+            nb_channels: channels,
+            nb_streams: streams,
+            nb_coupled_streams: coupled_streams,
+            mapping: [0u8; 256],
+        };
+        layout.mapping.get_mut(..n).or_panic(n).copy_from_slice(mapping.get(..n).or_panic(n));
+        if !validate_layout(&layout) {
+            return Err(OPUS_BAD_ARG);
+        }
+        Ok(OpusMSDecoder { layout })
     }
-    let coupled_size = opus_decoder_get_size(2);
-    let mono_size = opus_decoder_get_size(1);
-    (align(core::mem::size_of::<OpusMSDecoder>())
-        + nb_coupled_streams as usize * align(coupled_size as usize)
-        + (nb_streams - nb_coupled_streams) as usize * align(mono_size as usize)) as i32
-}
 
-/// Initialise a multistream decoder in caller-provided storage.
-///
-/// # Safety
-/// `st` must point to a writable buffer of at least
-/// [`opus_multistream_decoder_get_size`]`(streams, coupled_streams)` bytes;
-/// `mapping` must be readable for `channels` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decoder_init(
-    st: *mut OpusMSDecoder,
-    fs: i32,
-    channels: c_int,
-    streams: c_int,
-    coupled_streams: c_int,
-    mapping: *const u8,
-) -> c_int {
-    // SAFETY: `st` is a buffer of the required size and `mapping` is readable
-    // for `channels` bytes, per the contract; sub-decoders are laid out within
-    // `st` by the same size formula as get_size.
-    unsafe {
-        (*st).layout.nb_channels = channels;
-        (*st).layout.nb_streams = streams;
-        (*st).layout.nb_coupled_streams = coupled_streams;
-
-        let n = channels.max(0) as usize;
-        let mapping = core::slice::from_raw_parts(mapping, n);
-        (*st).layout.mapping.get_mut(..n).or_panic(n).copy_from_slice(mapping);
-        if validate_layout(&(*st).layout) == 0 {
-            return OPUS_BAD_ARG;
-        }
-
-        let mut ptr = (st as *mut u8).add(align(core::mem::size_of::<OpusMSDecoder>()));
-        let coupled_size = opus_decoder_get_size(2);
-        let mono_size = opus_decoder_get_size(1);
-
-        let mut i = 0;
-        while i < (*st).layout.nb_coupled_streams {
-            let ret = opus_decoder_init(ptr as *mut OpusDecoder, fs, 2);
-            if ret != OPUS_OK {
-                return ret;
-            }
-            ptr = ptr.add(align(coupled_size as usize));
-            i += 1;
-        }
-        while i < (*st).layout.nb_streams {
-            let ret = opus_decoder_init(ptr as *mut OpusDecoder, fs, 1);
-            if ret != OPUS_OK {
-                return ret;
-            }
-            ptr = ptr.add(align(mono_size as usize));
-            i += 1;
-        }
-        OPUS_OK
+    /// Number of sub-streams (the required length of the `decoders` slice).
+    pub fn nb_streams(&self) -> usize {
+        self.layout.nb_streams as usize
     }
-}
 
-#[unsafe(no_mangle)]
-/// Allocate and initialise a multistream decoder; release with
-/// [`opus_multistream_decoder_destroy`].
-///
-/// # Safety
-/// `mapping` must be readable for `channels` bytes; `error`, if non-null, must
-/// point to a writable `c_int`.
-pub unsafe extern "C" fn opus_multistream_decoder_create(
-    fs: i32,
-    channels: c_int,
-    streams: c_int,
-    coupled_streams: c_int,
-    mapping: *const u8,
-    error: *mut c_int,
-) -> *mut OpusMSDecoder {
-    // SAFETY: `mapping`/`error` satisfy the contract; `error` is null-checked
-    // before each write and alloc/dealloc share one matching `Layout`.
-    unsafe {
-        let size = opus_multistream_decoder_get_size(streams, coupled_streams);
-        if size == 0 {
-            if !error.is_null() {
-                *error = OPUS_BAD_ARG;
-            }
-            return core::ptr::null_mut();
-        }
-        let layout = std::alloc::Layout::from_size_align(size as usize, core::mem::align_of::<OpusMSDecoder>())
-            .unwrap_or_else(|e| panic!("invalid layout for OpusMSDecoder: {e:?}"));
-        let ptr = std::alloc::alloc_zeroed(layout) as *mut OpusMSDecoder;
-        if ptr.is_null() {
-            if !error.is_null() {
-                *error = OPUS_ALLOC_FAIL;
-            }
-            return core::ptr::null_mut();
-        }
-        let ret = opus_multistream_decoder_init(ptr, fs, channels, streams, coupled_streams, mapping);
-        if !error.is_null() {
-            *error = ret;
-        }
-        if ret != OPUS_OK {
-            std::alloc::dealloc(ptr as *mut u8, layout);
-            return core::ptr::null_mut();
-        }
-        ptr
+    /// Channel count for sub-decoder stream `s`: 2 for a coupled stream, else 1.
+    /// Use this to construct each sub-decoder, e.g.
+    /// `OpusDecoder::new(fs, ms.stream_channels(s))`.
+    pub fn stream_channels(&self, s: usize) -> c_int {
+        if (s as c_int) < self.layout.nb_coupled_streams { 2 } else { 1 }
     }
-}
 
-/// Free a decoder previously returned by [`opus_multistream_decoder_create`].
-///
-/// # Safety
-/// `st` must be null or a pointer returned by
-/// [`opus_multistream_decoder_create`] and not already freed.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decoder_destroy(st: *mut OpusMSDecoder) {
-    // SAFETY: `st` is null-checked; dealloc reconstructs the same `Layout` that
-    // create allocated with.
-    unsafe {
-        if st.is_null() {
-            return;
+    /// Decode one multistream packet (`None` = packet loss) into `pcm`
+    /// (native sample type, interleaved by output channel). `decoders` is the
+    /// caller-owned per-stream sub-decoder array; it must hold at least
+    /// [`nb_streams`](OpusMSDecoder::nb_streams) decoders, each created with the
+    /// matching [`stream_channels`](OpusMSDecoder::stream_channels). The output
+    /// capacity in samples-per-channel is taken from `pcm.len()`. Returns the
+    /// number of samples decoded per channel, or a negative Opus error code.
+    pub fn decode(
+        &mut self,
+        decoders: &mut [OpusDecoder],
+        packet: Option<&[u8]>,
+        pcm: &mut [OpusVal16],
+        fec: bool,
+    ) -> Result<usize, c_int> {
+        let nb_channels = self.layout.nb_channels;
+        let nb_streams = self.layout.nb_streams;
+        if (decoders.len() as c_int) < nb_streams {
+            return Err(OPUS_BAD_ARG);
         }
-        let size = opus_multistream_decoder_get_size((*st).layout.nb_streams, (*st).layout.nb_coupled_streams);
-        let layout = std::alloc::Layout::from_size_align(size as usize, core::mem::align_of::<OpusMSDecoder>())
-            .unwrap_or_else(|e| panic!("invalid layout for OpusMSDecoder: {e:?}"));
-        std::alloc::dealloc(st as *mut u8, layout);
-    }
-}
+        let frame_size_cap = pcm.len() / nb_channels.max(1) as usize;
+        if frame_size_cap > MAX_FRAME {
+            return Err(OPUS_BAD_ARG);
+        }
+        let mut frame_size = frame_size_cap as c_int;
+        let decode_fec = fec as c_int;
 
-// -- decode_native --
+        let total_len = packet.map_or(0, |p| p.len()) as c_int;
+        let do_plc = total_len == 0;
+        if !do_plc && total_len < 2 * nb_streams - 1 {
+            return Err(OPUS_INVALID_PACKET);
+        }
 
-/// # Safety
-/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
-/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
-/// nb_channels` samples.
-unsafe fn opus_multistream_decode_native(
-    st: *mut OpusMSDecoder,
-    mut data: *const u8,
-    mut len: c_int,
-    pcm: *mut OpusVal16,
-    mut frame_size: c_int,
-    decode_fec: c_int,
-) -> c_int {
-    // SAFETY: `st`/`data`/`pcm` satisfy the contract; the per-stream sub-decoder
-    // pointers are walked within `st`'s allocation, the input `data` advances by
-    // each stream's consumed bytes, and `pcm` is wrapped into a sized slice.
-    unsafe {
-        let mut do_plc = 0;
-        let nb_channels = (*st).layout.nb_channels;
-        // Wrap the caller's output buffer once; `frame_size` is reassigned to
-        // each stream's `ret` below, so size the slice from the original value.
-        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
-        let mut buf: Vec<OpusVal16> = vec![Default::default(); (2 * frame_size) as usize];
-        let mut ptr = (st as *mut u8).add(align(core::mem::size_of::<OpusMSDecoder>()));
-        let coupled_size = opus_decoder_get_size(2);
-        let mono_size = opus_decoder_get_size(1);
+        // Per-stream decode scratch (one stream's 1- or 2-channel output),
+        // sliced to the original frame size (each stream decodes the same).
+        let mut buf = [0 as OpusVal16; 2 * MAX_FRAME];
+        let buf = buf.get_mut(..2 * frame_size_cap).or_panic(frame_size_cap);
 
-        if len == 0 {
-            do_plc = 1;
-        }
-        if len < 0 {
-            return OPUS_BAD_ARG;
-        }
-        if do_plc == 0 && len < 2 * (*st).layout.nb_streams - 1 {
-            return OPUS_INVALID_PACKET;
-        }
+        let mut off = 0usize; // bytes consumed from `packet`
+        let mut len = total_len; // bytes remaining
         let mut s = 0;
-        while s < (*st).layout.nb_streams {
-            let dec = ptr as *mut OpusDecoder;
-            ptr = ptr.add(if s < (*st).layout.nb_coupled_streams {
-                align(coupled_size as usize)
-            } else {
-                align(mono_size as usize)
-            });
-
-            if do_plc == 0 && len <= 0 {
-                return OPUS_INVALID_PACKET;
+        while s < nb_streams {
+            if !do_plc && len <= 0 {
+                return Err(OPUS_INVALID_PACKET);
             }
+            // All but the last stream are self-delimited within the packet.
+            let self_delimited = if s != nb_streams - 1 { 1 } else { 0 };
+            let data_view: Option<&[u8]> = packet.map(|p| p.get(off..).or_panic(off));
             let mut packet_offset: c_int = 0;
-            let data_view = if data.is_null() { None } else { Some(core::slice::from_raw_parts(data, len.max(0) as usize)) };
             let ret = opus_decode_native(
-                &mut *dec,
+                decoders.get_mut(s as usize).or_panic(s),
                 data_view,
                 len,
-                &mut buf,
+                buf,
                 frame_size,
                 decode_fec,
-                if s != (*st).layout.nb_streams - 1 { 1 } else { 0 },
+                self_delimited,
                 Some(&mut packet_offset),
             );
-            data = data.offset(packet_offset as isize);
+            off += packet_offset as usize;
             len -= packet_offset;
             if ret > frame_size {
-                return OPUS_BUFFER_TOO_SMALL;
+                return Err(OPUS_BUFFER_TOO_SMALL);
             }
             if s > 0 && ret != frame_size {
-                return OPUS_INVALID_PACKET;
+                return Err(OPUS_INVALID_PACKET);
             }
             if ret <= 0 {
-                return ret;
+                return Err(ret);
             }
             frame_size = ret;
-            if s < (*st).layout.nb_coupled_streams {
+
+            if s < self.layout.nb_coupled_streams {
+                // Coupled: scatter the stream's interleaved L/R to its channels.
                 let mut prev = -1;
-                // Copy "left" audio to the channel(s) where it belongs
                 loop {
-                    let chan = get_left_channel(&(*st).layout, s, prev);
+                    let chan = get_left_channel(&self.layout, s, prev);
                     if chan == -1 {
                         break;
                     }
-                    let mut i = 0;
-                    while i < frame_size {
+                    for i in 0..frame_size {
                         let idx = (nb_channels * i + chan) as usize;
                         *pcm.get_mut(idx).or_panic(idx) = *buf.get((2 * i) as usize).or_panic(2 * i);
-                        i += 1;
                     }
                     prev = chan;
                 }
                 let mut prev = -1;
-                // Copy "right" audio to the channel(s) where it belongs
                 loop {
-                    let chan = get_right_channel(&(*st).layout, s, prev);
+                    let chan = get_right_channel(&self.layout, s, prev);
                     if chan == -1 {
                         break;
                     }
-                    let mut i = 0;
-                    while i < frame_size {
+                    for i in 0..frame_size {
                         let idx = (nb_channels * i + chan) as usize;
                         *pcm.get_mut(idx).or_panic(idx) = *buf.get((2 * i + 1) as usize).or_panic(2 * i + 1);
-                        i += 1;
                     }
                     prev = chan;
                 }
             } else {
+                // Mono: copy the stream to its channel(s).
                 let mut prev = -1;
-                // Copy audio to the channel(s) where it belongs
                 loop {
-                    let chan = get_mono_channel(&(*st).layout, s, prev);
+                    let chan = get_mono_channel(&self.layout, s, prev);
                     if chan == -1 {
                         break;
                     }
-                    let mut i = 0;
-                    while i < frame_size {
+                    for i in 0..frame_size {
                         let idx = (nb_channels * i + chan) as usize;
                         *pcm.get_mut(idx).or_panic(idx) = *buf.get(i as usize).or_panic(i);
-                        i += 1;
                     }
                     prev = chan;
                 }
             }
             s += 1;
         }
-        // Handle muted channels
+
+        // Silence any muted output channels (mapping == 255).
         let mut c = 0;
         while c < nb_channels {
-            if *(*st).layout.mapping.get(c as usize).or_panic(c) == 255 {
-                let mut i = 0;
-                while i < frame_size {
+            if *self.layout.mapping.get(c as usize).or_panic(c) == 255 {
+                for i in 0..frame_size {
                     let idx = (nb_channels * i + c) as usize;
-                    *pcm.get_mut(idx).or_panic(idx) = Default::default();
-                    i += 1;
+                    *pcm.get_mut(idx).or_panic(idx) = 0 as OpusVal16;
                 }
             }
             c += 1;
         }
-        frame_size
+        Ok(frame_size as usize)
+    }
+
+    /// Combined final range-coder state across all sub-streams (XOR), for the
+    /// encoder/decoder consistency check.
+    pub fn final_range(&self, decoders: &[OpusDecoder]) -> u32 {
+        decoders.iter().take(self.nb_streams()).fold(0u32, |acc, d| acc ^ d.final_range())
     }
 }
 
-// -- decode / decode_float --
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::opus_decoder::OpusDecoder;
 
-/// # Safety
-/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
-/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
-/// nb_channels` samples.
-#[cfg(feature = "fixed-point")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decode(
-    st: *mut OpusMSDecoder,
-    data: *const u8,
-    len: c_int,
-    pcm: *mut i16,
-    frame_size: c_int,
-    decode_fec: c_int,
-) -> c_int {
-    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract.
-    unsafe { opus_multistream_decode_native(st, data, len, pcm, frame_size, decode_fec) }
-}
-
-/// # Safety
-/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
-/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
-/// nb_channels` samples.
-#[cfg(not(feature = "fixed-point"))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decode(
-    st: *mut OpusMSDecoder,
-    data: *const u8,
-    len: c_int,
-    pcm: *mut i16,
-    frame_size: c_int,
-    decode_fec: c_int,
-) -> c_int {
-    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
-    // wrapped into a slice of the caller-provided length.
-    unsafe {
-        let nb_channels = (*st).layout.nb_channels;
-        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
-        let mut out: Vec<f32> = vec![0.0f32; (frame_size * nb_channels) as usize];
-        let ret = opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
-        if ret > 0 {
-            let n = (ret * nb_channels) as usize;
-            for (dst, &v) in zip(pcm.get_mut(..n).or_panic(n), out.get(..n).or_panic(n)) {
-                *dst = float2int16(v);
-            }
-        }
-        ret
+    #[test]
+    fn new_validates_args() {
+        assert!(OpusMSDecoder::new(2, 1, 1, &[0, 1]).is_ok());
+        assert_eq!(OpusMSDecoder::new(2, 0, 0, &[0, 1]).err(), Some(OPUS_BAD_ARG)); // streams < 1
+        assert_eq!(OpusMSDecoder::new(2, 1, 2, &[0, 1]).err(), Some(OPUS_BAD_ARG)); // coupled > streams
+        // mapping references a channel beyond the stream count
+        assert_eq!(OpusMSDecoder::new(2, 1, 0, &[0, 9]).err(), Some(OPUS_BAD_ARG));
     }
-}
 
-/// # Safety
-/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
-/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
-/// nb_channels` samples.
-#[cfg(not(feature = "fixed-point"))]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decode_float(
-    st: *mut OpusMSDecoder,
-    data: *const u8,
-    len: c_int,
-    pcm: *mut f32,
-    frame_size: c_int,
-    decode_fec: c_int,
-) -> c_int {
-    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract.
-    unsafe { opus_multistream_decode_native(st, data, len, pcm, frame_size, decode_fec) }
-}
-
-/// # Safety
-/// `st` must point to an initialized `OpusMSDecoder`; `data`, if non-null, must
-/// be readable for `len` bytes; `pcm` must be writable for `frame_size *
-/// nb_channels` samples.
-#[cfg(feature = "fixed-point")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decode_float(
-    st: *mut OpusMSDecoder,
-    data: *const u8,
-    len: c_int,
-    pcm: *mut f32,
-    frame_size: c_int,
-    decode_fec: c_int,
-) -> c_int {
-    // SAFETY: `st`/`data`/`pcm` satisfy the documented contract; `pcm` is
-    // wrapped into a slice of the caller-provided length.
-    unsafe {
-        let nb_channels = (*st).layout.nb_channels;
-        let pcm = core::slice::from_raw_parts_mut(pcm, (frame_size.max(0) * nb_channels) as usize);
-        let mut out: Vec<i16> = vec![0i16; (frame_size * nb_channels) as usize];
-        let ret = opus_multistream_decode_native(st, data, len, out.as_mut_ptr(), frame_size, decode_fec);
-        if ret > 0 {
-            let n = (ret * nb_channels) as usize;
-            for (dst, &v) in zip(pcm.get_mut(..n).or_panic(n), out.get(..n).or_panic(n)) {
-                *dst = (1.0f32 / 32768.0f32) * v as f32;
-            }
-        }
-        ret
+    #[test]
+    fn stream_layout_queries() {
+        // 3 channels: 1 coupled stream (2 ch) + 1 mono stream.
+        let ms = OpusMSDecoder::new(3, 2, 1, &[0, 1, 2]).unwrap();
+        assert_eq!(ms.nb_streams(), 2);
+        assert_eq!(ms.stream_channels(0), 2); // coupled
+        assert_eq!(ms.stream_channels(1), 1); // mono
     }
-}
 
-// -- decoder_ctl --
+    #[test]
+    fn ms_coupled_plc_matches_plain_stereo() {
+        // One coupled stream with identity mapping is just a stereo decoder, so
+        // a PLC frame must come out byte-identical to a plain stereo decoder's
+        // PLC frame (no encoder needed to produce a packet).
+        let mut ms = OpusMSDecoder::new(2, 1, 1, &[0, 1]).unwrap();
+        let mut decoders = [OpusDecoder::new(48000, ms.stream_channels(0)).unwrap()];
+        let mut plain = OpusDecoder::new(48000, 2).unwrap();
 
-/// FFI-safe tagged enum for multistream decoder CTL requests.
-#[repr(C, i32)]
-pub enum OpusMSDecCtl {
-    GetBandwidth(*mut c_int) = OPUS_GET_BANDWIDTH_REQUEST,
-    GetFinalRange(*mut u32) = OPUS_GET_FINAL_RANGE_REQUEST,
-    ResetState = OPUS_RESET_STATE,
-    GetDecoderState(c_int, *mut *mut OpusDecoder) = OPUS_MULTISTREAM_GET_DECODER_STATE_REQUEST,
-}
+        let mut ms_pcm = [0 as OpusVal16; 960 * 2];
+        let mut plain_pcm = [0 as OpusVal16; 960 * 2];
 
-/// Multistream decoder control — enum-based replacement for the C varargs API.
-///
-/// # Safety
-/// `st` must point to an initialized `OpusMSDecoder`, and any pointer carried
-/// in `request` must be writable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_multistream_decoder_ctl(st: *mut OpusMSDecoder, request: OpusMSDecCtl) -> c_int {
-    // SAFETY: `st` is a valid initialized decoder and `request`'s out-pointers
-    // are writable; sub-decoder pointers are walked within `st`'s allocation.
-    unsafe {
-        let coupled_size = opus_decoder_get_size(2);
-        let mono_size = opus_decoder_get_size(1);
-        let mut ptr = (st as *mut u8).add(align(core::mem::size_of::<OpusMSDecoder>()));
+        let ms_ret = ms.decode(&mut decoders, None, &mut ms_pcm, false).unwrap();
+        let plain_ret = plain.decode(None, &mut plain_pcm, false).unwrap();
 
-        match request {
-            OpusMSDecCtl::GetBandwidth(value) => {
-                // For int32* GET params, just query the first stream
-                let dec = ptr as *mut OpusDecoder;
-                opus_decoder_ctl(dec, OpusDecCtl::GetBandwidth(value))
-            }
-            OpusMSDecCtl::GetFinalRange(value) => {
-                let mut tmp: u32 = 0;
-                *value = 0;
-                let mut s = 0;
-                let mut ret = OPUS_OK;
-                while s < (*st).layout.nb_streams {
-                    let dec = ptr as *mut OpusDecoder;
-                    ptr = ptr.add(if s < (*st).layout.nb_coupled_streams {
-                        align(coupled_size as usize)
-                    } else {
-                        align(mono_size as usize)
-                    });
-                    ret = opus_decoder_ctl(dec, OpusDecCtl::GetFinalRange(&mut tmp));
-                    if ret != OPUS_OK {
-                        break;
-                    }
-                    *value ^= tmp;
-                    s += 1;
-                }
-                ret
-            }
-            OpusMSDecCtl::ResetState => {
-                let mut s = 0;
-                let mut ret = OPUS_OK;
-                while s < (*st).layout.nb_streams {
-                    let dec = ptr as *mut OpusDecoder;
-                    ptr = ptr.add(if s < (*st).layout.nb_coupled_streams {
-                        align(coupled_size as usize)
-                    } else {
-                        align(mono_size as usize)
-                    });
-                    ret = opus_decoder_ctl(dec, OpusDecCtl::ResetState);
-                    if ret != OPUS_OK {
-                        break;
-                    }
-                    s += 1;
-                }
-                ret
-            }
-            OpusMSDecCtl::GetDecoderState(stream_id, value) => {
-                let mut ret = OPUS_OK;
-                if stream_id < 0 || stream_id >= (*st).layout.nb_streams {
-                    ret = OPUS_BAD_ARG;
-                }
-                let mut s = 0;
-                while s < stream_id {
-                    ptr = ptr.add(if s < (*st).layout.nb_coupled_streams {
-                        align(coupled_size as usize)
-                    } else {
-                        align(mono_size as usize)
-                    });
-                    s += 1;
-                }
-                *value = ptr as *mut OpusDecoder;
-                ret
-            }
-        }
+        // A fresh-decoder PLC yields the default frame (fs/400); the exact size
+        // doesn't matter here — what matters is that the multistream routing
+        // produces byte-identical output to the plain stereo decoder.
+        assert!(ms_ret > 0);
+        assert_eq!(ms_ret, plain_ret);
+        assert_eq!(ms_pcm, plain_pcm);
+        assert_eq!(ms.final_range(&decoders), plain.final_range());
     }
 }

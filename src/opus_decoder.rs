@@ -44,12 +44,6 @@ const OPUS_GET_PITCH_REQUEST: c_int = 4033;
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
 
-// -- Alignment helper (matches C align()) --
-
-pub(crate) fn align(i: usize) -> usize {
-    (i + core::mem::size_of::<*const ()>() - 1) & !(core::mem::size_of::<*const ()>() - 1)
-}
-
 // -- OpusDecoder struct --
 
 /// Top-level Opus decoder state.
