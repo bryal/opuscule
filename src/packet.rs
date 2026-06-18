@@ -37,17 +37,6 @@ pub fn packet_get_mode(toc: u8) -> c_int {
     }
 }
 
-/// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
-/// RFC 6716 Section 3.1, Table 2.
-///
-/// # Safety
-/// `data` must point to at least one readable byte (the TOC byte).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_mode(data: *const u8) -> c_int {
-    // SAFETY: `data` points to at least the TOC byte, per the contract.
-    packet_get_mode(unsafe { *data })
-}
-
 /// Return the bandwidth of an Opus packet from its TOC byte.
 /// RFC 6716 Section 3.1, Table 2. (Safe core of [`opus_packet_get_bandwidth`].)
 pub fn packet_get_bandwidth(toc: u8) -> c_int {
@@ -59,17 +48,6 @@ pub fn packet_get_bandwidth(toc: u8) -> c_int {
     } else {
         OPUS_BANDWIDTH_NARROWBAND + ((toc >> 5) & 0x3) as c_int
     }
-}
-
-/// Return the bandwidth of an Opus packet from its TOC byte.
-/// RFC 6716 Section 3.1, Table 2.
-///
-/// # Safety
-/// `data` must point to at least one readable byte (the TOC byte).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_bandwidth(data: *const u8) -> c_int {
-    // SAFETY: `data` points to at least the TOC byte, per the contract.
-    packet_get_bandwidth(unsafe { *data })
 }
 
 /// Return the number of samples per frame from the TOC byte and sample rate.
@@ -86,17 +64,6 @@ pub fn packet_get_samples_per_frame(toc: u8, fs: i32) -> c_int {
     }
 }
 
-/// Return the number of samples per frame from the TOC byte and sample rate.
-/// RFC 6716 Section 3.1.
-///
-/// # Safety
-/// `data` must point to at least one readable byte (the TOC byte).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_samples_per_frame(data: *const u8, fs: i32) -> c_int {
-    // SAFETY: `data` points to at least the TOC byte, per the contract.
-    packet_get_samples_per_frame(unsafe { *data }, fs)
-}
-
 /// Return the number of channels encoded in a packet (1 or 2).
 /// RFC 6716 Section 3.1 (stereo bit = bit 2 of TOC).
 /// (Safe core of [`opus_packet_get_nb_channels`].)
@@ -104,39 +71,23 @@ pub fn packet_get_nb_channels(toc: u8) -> c_int {
     if toc & 0x4 != 0 { 2 } else { 1 }
 }
 
-/// Return the number of channels encoded in a packet (1 or 2).
-/// RFC 6716 Section 3.1 (stereo bit = bit 2 of TOC).
-///
-/// # Safety
-/// `data` must point to at least one readable byte (the TOC byte).
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_nb_channels(data: *const u8) -> c_int {
-    // SAFETY: `data` points to at least the TOC byte, per the contract.
-    packet_get_nb_channels(unsafe { *data })
-}
-
-/// Return the number of frames in an Opus packet.
-/// RFC 6716 Section 3.2.
-///
-/// # Safety
-/// `packet` must be readable for `len` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_get_nb_frames(packet: *const u8, len: c_int) -> c_int {
-    if len < 1 {
+/// Number of frames in an Opus packet (RFC 6716 Section 3.2), or a negative
+/// error code (`OPUS_BAD_ARG` for empty, `OPUS_INVALID_PACKET` for a truncated
+/// code-3 packet).
+pub fn packet_get_nb_frames(packet: &[u8]) -> c_int {
+    let &[toc, ..] = packet else {
         return OPUS_BAD_ARG;
-    }
-    // SAFETY: `len >= 1` (checked), so the TOC byte is readable per the contract.
-    let toc = unsafe { *packet };
+    };
     let count = toc & 0x3;
     if count == 0 {
         1
     } else if count != 3 {
         2
-    } else if len < 2 {
-        OPUS_INVALID_PACKET
     } else {
-        // SAFETY: `len >= 2` (checked), so the second byte is readable.
-        (unsafe { *packet.add(1) } & 0x3F) as c_int
+        match packet.get(1) {
+            Some(&b) => (b & 0x3F) as c_int,
+            None => OPUS_INVALID_PACKET,
+        }
     }
 }
 
@@ -336,159 +287,62 @@ pub fn opus_packet_parse_impl(
     count
 }
 
-/// Parse an Opus packet (non-self-delimited), RFC 6716 Section 3.2.
-///
-/// Safe core of [`opus_packet_parse`]. `opus_packet_parse_impl` reports
-/// frames as byte offsets into `data`; here we turn each offset back into a
-/// pointer into `data` for the C-ABI caller, using `wrapping_add` (a safe
-/// pointer op) rather than indexing.
-fn opus_packet_parse_native(
-    data: &[u8],
-    out_toc: Option<&mut u8>,
-    frames: Option<&mut [*const u8]>,
-    size: &mut [i16],
-    payload_offset: Option<&mut c_int>,
-) -> c_int {
-    let mut frame_offsets = [0 as c_int; 48];
-    let count = opus_packet_parse_impl(
-        data,
-        0,
-        out_toc,
-        if frames.is_some() { Some(&mut frame_offsets[..]) } else { None },
-        size,
-        payload_offset,
-    );
-    if count > 0 {
-        if let Some(frames) = frames {
-            for (frame, &off) in frames.iter_mut().zip(&frame_offsets).take(count as usize) {
-                *frame = data.as_ptr().wrapping_add(off as usize);
-            }
-        }
-    }
-    count
-}
-
-/// Parse an Opus packet (non-self-delimited), RFC 6716 Section 3.2.
-///
-/// Thin C-ABI shell: it only converts the raw pointer arguments into safe
-/// references and slices, then defers to [`opus_packet_parse_native`].
-///
-/// # Safety
-/// `data` must be readable for `len` bytes; `size` and (if non-null) `frames`
-/// must be writable for 48 entries; `out_toc` and `payload_offset`, if
-/// non-null, must be writable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_packet_parse(
-    data: *const u8,
-    len: c_int,
-    out_toc: *mut u8,
-    frames: *mut *const u8,
-    size: *mut i16,
-    payload_offset: *mut c_int,
-) -> c_int {
-    // SAFETY: the pointers satisfy the documented contract; `size`/`frames` hold
-    // the 48-entry maximum the parser can write, and the out-params are
-    // null-checked before being turned into references.
-    unsafe {
-        if size.is_null() {
-            return OPUS_BAD_ARG;
-        }
-        // A negative length is meaningless; parse it into the slice length once.
-        let Ok(len) = usize::try_from(len) else {
-            return OPUS_BAD_ARG;
-        };
-        opus_packet_parse_native(
-            core::slice::from_raw_parts(data, len),
-            if out_toc.is_null() { None } else { Some(&mut *out_toc) },
-            if frames.is_null() { None } else { Some(core::slice::from_raw_parts_mut(frames, 48)) },
-            core::slice::from_raw_parts_mut(size, 48),
-            if payload_offset.is_null() { None } else { Some(&mut *payload_offset) },
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    // These tests call the `unsafe extern "C"` query functions with pointers to
-    // local stack values / arrays whose validity is obvious at the call site; a
-    // `// SAFETY:` comment on each would be pure noise.
-    #![allow(clippy::undocumented_unsafe_blocks)]
-
     use super::*;
 
     #[test]
     fn test_get_mode() {
         // SILK-only: bit 7 = 0, bits 6..5 != 11
-        assert_eq!(unsafe { opus_packet_get_mode(&0x00u8) }, MODE_SILK_ONLY);
-        assert_eq!(unsafe { opus_packet_get_mode(&0x40u8) }, MODE_SILK_ONLY);
+        assert_eq!(packet_get_mode(0x00), MODE_SILK_ONLY);
+        assert_eq!(packet_get_mode(0x40), MODE_SILK_ONLY);
         // Hybrid: bits 7..5 = 011
-        assert_eq!(unsafe { opus_packet_get_mode(&0x60u8) }, MODE_HYBRID);
-        assert_eq!(unsafe { opus_packet_get_mode(&0x70u8) }, MODE_HYBRID);
+        assert_eq!(packet_get_mode(0x60), MODE_HYBRID);
+        assert_eq!(packet_get_mode(0x70), MODE_HYBRID);
         // CELT-only: bit 7 = 1
-        assert_eq!(unsafe { opus_packet_get_mode(&0x80u8) }, MODE_CELT_ONLY);
-        assert_eq!(unsafe { opus_packet_get_mode(&0xFFu8) }, MODE_CELT_ONLY);
+        assert_eq!(packet_get_mode(0x80), MODE_CELT_ONLY);
+        assert_eq!(packet_get_mode(0xFF), MODE_CELT_ONLY);
     }
 
     #[test]
     fn test_get_nb_channels() {
-        assert_eq!(unsafe { opus_packet_get_nb_channels(&0x00u8) }, 1);
-        assert_eq!(unsafe { opus_packet_get_nb_channels(&0x04u8) }, 2);
-        assert_eq!(unsafe { opus_packet_get_nb_channels(&0xFBu8) }, 1);
-        assert_eq!(unsafe { opus_packet_get_nb_channels(&0xFFu8) }, 2);
+        assert_eq!(packet_get_nb_channels(0x00), 1);
+        assert_eq!(packet_get_nb_channels(0x04), 2);
+        assert_eq!(packet_get_nb_channels(0xFB), 1);
+        assert_eq!(packet_get_nb_channels(0xFF), 2);
     }
 
     #[test]
     fn test_get_nb_frames() {
-        // Code 0: 1 frame
-        assert_eq!(unsafe { opus_packet_get_nb_frames([0x00].as_ptr(), 1) }, 1);
-        // Code 1: 2 frames
-        assert_eq!(unsafe { opus_packet_get_nb_frames([0x01].as_ptr(), 1) }, 2);
-        // Code 2: 2 frames
-        assert_eq!(unsafe { opus_packet_get_nb_frames([0x02].as_ptr(), 1) }, 2);
-        // Code 3: count from second byte
-        assert_eq!(unsafe { opus_packet_get_nb_frames([0x03, 0x05].as_ptr(), 2) }, 5);
-        // Code 3, len < 2
-        assert_eq!(unsafe { opus_packet_get_nb_frames([0x03].as_ptr(), 1) }, OPUS_INVALID_PACKET);
-        // Empty
-        assert_eq!(unsafe { opus_packet_get_nb_frames([0x00].as_ptr(), 0) }, OPUS_BAD_ARG);
+        assert_eq!(packet_get_nb_frames(&[0x00]), 1); // code 0: 1 frame
+        assert_eq!(packet_get_nb_frames(&[0x01]), 2); // code 1: 2 frames
+        assert_eq!(packet_get_nb_frames(&[0x02]), 2); // code 2: 2 frames
+        assert_eq!(packet_get_nb_frames(&[0x03, 0x05]), 5); // code 3: count from 2nd byte
+        assert_eq!(packet_get_nb_frames(&[0x03]), OPUS_INVALID_PACKET); // code 3, truncated
+        assert_eq!(packet_get_nb_frames(&[]), OPUS_BAD_ARG); // empty
     }
 
     #[test]
     fn test_get_bandwidth() {
-        // SILK NB
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x00u8) }, OPUS_BANDWIDTH_NARROWBAND);
-        // SILK MB
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x20u8) }, OPUS_BANDWIDTH_MEDIUMBAND);
-        // SILK WB
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x40u8) }, OPUS_BANDWIDTH_WIDEBAND);
-        // Hybrid SWB
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x60u8) }, OPUS_BANDWIDTH_SUPERWIDEBAND);
-        // Hybrid FB
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x70u8) }, OPUS_BANDWIDTH_FULLBAND);
-        // CELT NB (bits 6..5 = 00 maps to MEDIUMBAND then corrected to NB)
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0x80u8) }, OPUS_BANDWIDTH_NARROWBAND);
-        // CELT WB
-        assert_eq!(unsafe { opus_packet_get_bandwidth(&0xA0u8) }, OPUS_BANDWIDTH_WIDEBAND);
+        assert_eq!(packet_get_bandwidth(0x00), OPUS_BANDWIDTH_NARROWBAND); // SILK NB
+        assert_eq!(packet_get_bandwidth(0x20), OPUS_BANDWIDTH_MEDIUMBAND); // SILK MB
+        assert_eq!(packet_get_bandwidth(0x40), OPUS_BANDWIDTH_WIDEBAND); // SILK WB
+        assert_eq!(packet_get_bandwidth(0x60), OPUS_BANDWIDTH_SUPERWIDEBAND); // Hybrid SWB
+        assert_eq!(packet_get_bandwidth(0x70), OPUS_BANDWIDTH_FULLBAND); // Hybrid FB
+        assert_eq!(packet_get_bandwidth(0x80), OPUS_BANDWIDTH_NARROWBAND); // CELT NB
+        assert_eq!(packet_get_bandwidth(0xA0), OPUS_BANDWIDTH_WIDEBAND); // CELT WB
     }
 
     #[test]
     fn test_get_samples_per_frame() {
-        // SILK 10ms @ 48kHz
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x00u8, 48000) }, 480);
-        // SILK 20ms
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x08u8, 48000) }, 960);
-        // SILK 40ms
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x10u8, 48000) }, 1920);
-        // SILK 60ms
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x18u8, 48000) }, 2880);
-        // CELT 2.5ms @ 48kHz
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x80u8, 48000) }, 120);
-        // CELT 20ms
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x98u8, 48000) }, 960);
-        // Hybrid 10ms
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x60u8, 48000) }, 480);
-        // Hybrid 20ms
-        assert_eq!(unsafe { opus_packet_get_samples_per_frame(&0x68u8, 48000) }, 960);
+        assert_eq!(packet_get_samples_per_frame(0x00, 48000), 480); // SILK 10ms
+        assert_eq!(packet_get_samples_per_frame(0x08, 48000), 960); // SILK 20ms
+        assert_eq!(packet_get_samples_per_frame(0x10, 48000), 1920); // SILK 40ms
+        assert_eq!(packet_get_samples_per_frame(0x18, 48000), 2880); // SILK 60ms
+        assert_eq!(packet_get_samples_per_frame(0x80, 48000), 120); // CELT 2.5ms
+        assert_eq!(packet_get_samples_per_frame(0x98, 48000), 960); // CELT 20ms
+        assert_eq!(packet_get_samples_per_frame(0x60, 48000), 480); // Hybrid 10ms
+        assert_eq!(packet_get_samples_per_frame(0x68, 48000), 960); // Hybrid 20ms
     }
 
     #[test]
@@ -518,13 +372,11 @@ mod tests {
         // Code 0 = one frame, CELT 2.5ms NB (TOC = 0x80)
         let pkt = [0x80u8, 0xAA, 0xBB, 0xCC];
         let mut toc: u8 = 0;
-        let mut frames: [*const u8; 48] = [core::ptr::null(); 48];
-        let mut sizes: [i16; 48] = [0; 48];
+        let mut offsets = [0 as c_int; 48];
+        let mut sizes = [0i16; 48];
         let mut offset: c_int = 0;
 
-        let count = unsafe {
-            opus_packet_parse(pkt.as_ptr(), pkt.len() as c_int, &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset)
-        };
+        let count = opus_packet_parse_impl(&pkt, 0, Some(&mut toc), Some(&mut offsets), &mut sizes, Some(&mut offset));
         assert_eq!(count, 1);
         assert_eq!(toc, 0x80);
         assert_eq!(sizes[0], 3); // 4 bytes total - 1 byte TOC = 3
@@ -533,17 +385,14 @@ mod tests {
 
     #[test]
     fn test_packet_parse_code1_two_cbr() {
-        // Code 1 = two CBR frames, CELT 2.5ms NB
-        // TOC = 0x81 (CELT, code 1), 6 bytes payload → 3 bytes each
+        // Code 1 = two CBR frames, CELT 2.5ms NB; 6 bytes payload -> 3 each
         let pkt = [0x81u8, 1, 2, 3, 4, 5, 6];
         let mut toc: u8 = 0;
-        let mut frames: [*const u8; 48] = [core::ptr::null(); 48];
-        let mut sizes: [i16; 48] = [0; 48];
+        let mut offsets = [0 as c_int; 48];
+        let mut sizes = [0i16; 48];
         let mut offset: c_int = 0;
 
-        let count = unsafe {
-            opus_packet_parse(pkt.as_ptr(), pkt.len() as c_int, &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset)
-        };
+        let count = opus_packet_parse_impl(&pkt, 0, Some(&mut toc), Some(&mut offsets), &mut sizes, Some(&mut offset));
         assert_eq!(count, 2);
         assert_eq!(toc, 0x81);
         assert_eq!(sizes[0], 3);
@@ -555,33 +404,21 @@ mod tests {
     fn test_packet_parse_code1_odd_length_rejected() {
         // Code 1 with odd payload length (3 bytes) → OPUS_INVALID_PACKET
         let pkt = [0x81u8, 1, 2, 3];
-        let mut sizes: [i16; 48] = [0; 48];
-        let count = unsafe {
-            opus_packet_parse(
-                pkt.as_ptr(),
-                pkt.len() as c_int,
-                core::ptr::null_mut(),
-                core::ptr::null_mut(),
-                sizes.as_mut_ptr(),
-                core::ptr::null_mut(),
-            )
-        };
+        let mut sizes = [0i16; 48];
+        let count = opus_packet_parse_impl(&pkt, 0, None, None, &mut sizes, None);
         assert_eq!(count, OPUS_INVALID_PACKET);
     }
 
     #[test]
     fn test_packet_parse_code2_two_vbr() {
-        // Code 2 = two VBR frames
-        // TOC = 0x82, size[0] = 2 (single-byte), remaining = last frame
+        // Code 2 = two VBR frames; size[0] = 2 (single-byte), remaining = last
         let pkt = [0x82u8, 2, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE];
         let mut toc: u8 = 0;
-        let mut frames: [*const u8; 48] = [core::ptr::null(); 48];
-        let mut sizes: [i16; 48] = [0; 48];
+        let mut offsets = [0 as c_int; 48];
+        let mut sizes = [0i16; 48];
         let mut offset: c_int = 0;
 
-        let count = unsafe {
-            opus_packet_parse(pkt.as_ptr(), pkt.len() as c_int, &mut toc, frames.as_mut_ptr(), sizes.as_mut_ptr(), &mut offset)
-        };
+        let count = opus_packet_parse_impl(&pkt, 0, Some(&mut toc), Some(&mut offsets), &mut sizes, Some(&mut offset));
         assert_eq!(count, 2);
         assert_eq!(sizes[0], 2);
         // 7 total - 1 TOC - 1 size byte = 5 payload; 5 - 2 = 3 for last
@@ -590,42 +427,17 @@ mod tests {
     }
 
     #[test]
-    fn test_packet_parse_null_size_returns_bad_arg() {
-        let pkt = [0x80u8, 0xAA];
-        let count = unsafe {
-            opus_packet_parse(
-                pkt.as_ptr(),
-                pkt.len() as c_int,
-                core::ptr::null_mut(),
-                core::ptr::null_mut(),
-                core::ptr::null_mut(),
-                core::ptr::null_mut(),
-            )
-        };
-        assert_eq!(count, OPUS_BAD_ARG);
-    }
-
-    #[test]
-    fn test_packet_parse_frames_null_no_advance() {
-        // When frames is NULL, data should NOT be advanced past frame data,
-        // so payload_offset only covers header bytes.
+    fn test_packet_parse_frames_none_no_advance() {
+        // With no frames out-param, the cursor is not advanced past the frame
+        // data, so payload_offset only covers header bytes.
         let pkt = [0x80u8, 0xAA, 0xBB];
-        let mut sizes: [i16; 48] = [0; 48];
+        let mut sizes = [0i16; 48];
         let mut offset: c_int = 0;
 
-        let count = unsafe {
-            opus_packet_parse(
-                pkt.as_ptr(),
-                pkt.len() as c_int,
-                core::ptr::null_mut(),
-                core::ptr::null_mut(),
-                sizes.as_mut_ptr(),
-                &mut offset,
-            )
-        };
+        let count = opus_packet_parse_impl(&pkt, 0, None, None, &mut sizes, Some(&mut offset));
         assert_eq!(count, 1);
         assert_eq!(sizes[0], 2);
-        // frames=NULL → data not advanced past frames → offset = 1 (TOC only)
+        // frames=None → data not advanced past frames → offset = 1 (TOC only)
         assert_eq!(offset, 1);
     }
 }
