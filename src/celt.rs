@@ -35,8 +35,6 @@ const DB_SHIFT: c_int = 10;
 const OPUS_OK: c_int = 0;
 const OPUS_BAD_ARG: c_int = -1;
 const OPUS_INTERNAL_ERROR: c_int = -3;
-const OPUS_ALLOC_FAIL: c_int = -7;
-const OPUS_RESET_STATE: c_int = 4028;
 
 const COMBFILTER_MINPERIOD: c_int = 15;
 
@@ -107,12 +105,6 @@ pub fn celt_decoder_get_size(_channels: c_int) -> c_int {
     core::mem::size_of::<OpusCustomDecoder>() as c_int
 }
 
-/// Return the size in bytes of a CELT decoder for a given mode.
-#[unsafe(no_mangle)]
-pub extern "C" fn opus_custom_decoder_get_size(_mode: *const CELTMode, _channels: c_int) -> c_int {
-    core::mem::size_of::<OpusCustomDecoder>() as c_int
-}
-
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
 pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
     if !(0..=2).contains(&channels) {
@@ -121,27 +113,6 @@ pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_i
     *st = OpusCustomDecoder::new(celt_mode(), channels);
     st.downsample = resampling_factor(sampling_rate);
     if st.downsample == 0 { OPUS_BAD_ARG } else { OPUS_OK }
-}
-
-/// Initialise a CELT decoder for a given mode and channel count.
-///
-/// # Safety
-/// `st` must be null or point to a writable `CELTDecoder`; `mode` must point
-/// to a valid `CELTMode` that outlives the decoder.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_custom_decoder_init(st: *mut CELTDecoder, mode: *const CELTMode, channels: c_int) -> c_int {
-    if !(0..=2).contains(&channels) {
-        return OPUS_BAD_ARG;
-    }
-    if st.is_null() {
-        return OPUS_ALLOC_FAIL;
-    }
-    // SAFETY: `st` is non-null (checked) and writable, and `mode` is a valid
-    // mode pointer that outlives the decoder, per the contract.
-    unsafe {
-        *st = OpusCustomDecoder::new(&*mode, channels);
-    }
-    OPUS_OK
 }
 
 impl OpusCustomDecoder {
@@ -175,6 +146,11 @@ impl OpusCustomDecoder {
             old_log_e2: [init_log_e; BAND_E_SIZE],
             background_log_e: [0 as OpusVal16; BAND_E_SIZE],
         }
+    }
+
+    /// Final range-coder state of the last decoded frame.
+    pub fn final_range(&self) -> u32 {
+        self.rng
     }
 }
 
@@ -1347,117 +1323,46 @@ pub fn comb_filter(
     }
 }
 
-// -- opus_custom_decoder_ctl --
+// -- celt_decoder_ctl --
 
-// Request codes (from opus_defines.h and celt/celt.h)
-const OPUS_GET_LOOKAHEAD_REQUEST: c_int = 4027;
-const OPUS_GET_FINAL_RANGE_REQUEST: c_int = 4031;
-const OPUS_GET_PITCH_REQUEST: c_int = 4033;
-const CELT_SET_START_BAND_REQUEST: c_int = 10010;
-const CELT_SET_END_BAND_REQUEST: c_int = 10012;
-const CELT_GET_AND_CLEAR_ERROR_REQUEST: c_int = 10007;
-const CELT_SET_CHANNELS_REQUEST: c_int = 10008;
-const CELT_GET_MODE_REQUEST: c_int = 10015;
-const CELT_SET_SIGNALLING_REQUEST: c_int = 10016;
-
-/// FFI-safe tagged enum for CELT decoder CTL requests.
-///
-/// Replaces the C varargs interface. Each variant corresponds to one
-/// request code. The discriminant values match the C `*_REQUEST` constants.
-///
-/// Layout: `#[repr(C, i32)]` gives a C-compatible struct { i32 tag; union payload; }.
-#[repr(C, i32)]
+/// CELT decoder control requests (the subset the Opus decoder actually uses).
 pub enum CeltDecCtl {
-    SetStartBand(c_int) = CELT_SET_START_BAND_REQUEST,
-    SetEndBand(c_int) = CELT_SET_END_BAND_REQUEST,
-    SetChannels(c_int) = CELT_SET_CHANNELS_REQUEST,
-    SetSignalling(c_int) = CELT_SET_SIGNALLING_REQUEST,
-    GetAndClearError(*mut c_int) = CELT_GET_AND_CLEAR_ERROR_REQUEST,
-    GetLookahead(*mut c_int) = OPUS_GET_LOOKAHEAD_REQUEST,
-    GetPitch(*mut c_int) = OPUS_GET_PITCH_REQUEST,
-    GetFinalRange(*mut u32) = OPUS_GET_FINAL_RANGE_REQUEST,
-    GetMode(*mut *const CELTMode) = CELT_GET_MODE_REQUEST,
-    ResetState = OPUS_RESET_STATE,
+    SetStartBand(c_int),
+    SetEndBand(c_int),
+    SetChannels(c_int),
+    SetSignalling(c_int),
+    ResetState,
 }
 
-/// CELT decoder control — enum-based replacement for the C varargs interface.
-///
-/// # Safety
-/// `st` must point to an initialized `CELTDecoder`, and any pointer carried in
-/// `request` must be writable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_custom_decoder_ctl(st: *mut CELTDecoder, request: CeltDecCtl) -> c_int {
-    // SAFETY: `st` is a valid initialized decoder and `request`'s out-pointers
-    // are writable, per the contract.
-    unsafe {
-        match request {
-            CeltDecCtl::SetStartBand(value) => {
-                if value < 0 || value >= (*st).mode.nb_ebands {
-                    return OPUS_BAD_ARG;
-                }
-                (*st).start = value;
-            }
-            CeltDecCtl::SetEndBand(value) => {
-                if value < 1 || value > (*st).mode.nb_ebands {
-                    return OPUS_BAD_ARG;
-                }
-                (*st).end = value;
-            }
-            CeltDecCtl::SetChannels(value) => {
-                if !(1..=2).contains(&value) {
-                    return OPUS_BAD_ARG;
-                }
-                (*st).stream_channels = value;
-            }
-            CeltDecCtl::SetSignalling(value) => {
-                (*st).signalling = value;
-            }
-            CeltDecCtl::GetAndClearError(ptr) => {
-                if ptr.is_null() {
-                    return OPUS_BAD_ARG;
-                }
-                *ptr = (*st).error;
-                (*st).error = 0;
-            }
-            CeltDecCtl::GetLookahead(ptr) => {
-                if ptr.is_null() {
-                    return OPUS_BAD_ARG;
-                }
-                *ptr = (*st).overlap / (*st).downsample;
-            }
-            CeltDecCtl::GetPitch(ptr) => {
-                if ptr.is_null() {
-                    return OPUS_BAD_ARG;
-                }
-                *ptr = (*st).postfilter_period;
-            }
-            CeltDecCtl::GetFinalRange(ptr) => {
-                if ptr.is_null() {
-                    return OPUS_BAD_ARG;
-                }
-                *ptr = (*st).rng;
-            }
-            CeltDecCtl::GetMode(ptr) => {
-                if ptr.is_null() {
-                    return OPUS_BAD_ARG;
-                }
-                *ptr = (*st).mode;
-            }
-            CeltDecCtl::ResetState => {
-                celt_decoder_reset(&mut *st);
-            }
-        }
-        OPUS_OK
-    }
-}
-
-/// Convenience wrapper matching the old `celt_decoder_ctl` name.
+/// Apply a CELT decoder control request. Returns `OPUS_OK` or an error code.
 pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> c_int {
-    // SAFETY: `opus_custom_decoder_ctl` is the `extern "C"` entry point and
-    // keeps its `*mut CELTDecoder` ABI; we forward a live `&mut` reference
-    // via reference-to-pointer coercion. The `CeltDecCtl` variants that
-    // carry raw out-pointers are still the caller's responsibility.
-    unsafe { opus_custom_decoder_ctl(st, request) }
+    match request {
+        CeltDecCtl::SetStartBand(value) => {
+            if value < 0 || value >= st.mode.nb_ebands {
+                return OPUS_BAD_ARG;
+            }
+            st.start = value;
+        }
+        CeltDecCtl::SetEndBand(value) => {
+            if value < 1 || value > st.mode.nb_ebands {
+                return OPUS_BAD_ARG;
+            }
+            st.end = value;
+        }
+        CeltDecCtl::SetChannels(value) => {
+            if !(1..=2).contains(&value) {
+                return OPUS_BAD_ARG;
+            }
+            st.stream_channels = value;
+        }
+        CeltDecCtl::SetSignalling(value) => {
+            st.signalling = value;
+        }
+        CeltDecCtl::ResetState => {
+            celt_decoder_reset(st);
+        }
+    }
+    OPUS_OK
 }
 
 // -- opus_strerror / opus_get_version_string --

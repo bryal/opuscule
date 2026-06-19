@@ -36,11 +36,6 @@ const OPUS_BANDWIDTH_WIDEBAND: c_int = 1103;
 const OPUS_BANDWIDTH_SUPERWIDEBAND: c_int = 1104;
 const OPUS_BANDWIDTH_FULLBAND: c_int = 1105;
 
-const OPUS_GET_BANDWIDTH_REQUEST: c_int = 4009;
-const OPUS_GET_FINAL_RANGE_REQUEST: c_int = 4031;
-const OPUS_RESET_STATE: c_int = 4028;
-const OPUS_GET_PITCH_REQUEST: c_int = 4033;
-
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
 
@@ -74,30 +69,6 @@ pub struct OpusDecoder {
 }
 
 // -- Public API --
-
-#[unsafe(no_mangle)]
-pub extern "C" fn opus_decoder_get_size(channels: c_int) -> c_int {
-    if !(1..=2).contains(&channels) {
-        return 0;
-    }
-    core::mem::size_of::<OpusDecoder>() as c_int
-}
-
-/// Initialise a previously-allocated `OpusDecoder`.
-///
-/// The buffer pointed to by `st` must be [`opus_decoder_get_size`]
-/// bytes. Everything is initialised explicitly: the header fields, the
-/// SilkDecoder super-header (which the C left to the caller's zeroed
-/// allocation), and the per-channel SILK / CELT sub-states.
-///
-/// # Safety
-/// `st` must point to a writable buffer of at least
-/// [`opus_decoder_get_size`]`(channels)` bytes.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_decoder_init(st: *mut OpusDecoder, fs: i32, channels: c_int) -> c_int {
-    // SAFETY: `st` points to a writable, sufficiently-sized buffer per the contract.
-    unsafe { (*st).init(fs, channels) }
-}
 
 impl OpusDecoder {
     /// Create a decoder for `sample_rate` (8/12/16/24/48 kHz) and `channels`
@@ -500,7 +471,7 @@ fn opus_decode_frame(
             f5,
             None,
         );
-        celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
+        redundant_rng = st.celt_dec.final_range();
     }
 
     // MUST be after PLC
@@ -558,7 +529,7 @@ fn opus_decode_frame(
             f5,
             None,
         );
-        celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::GetFinalRange(&mut redundant_rng));
+        redundant_rng = st.celt_dec.final_range();
         let off = (channels * (frame_size - f2_5)) as usize;
         smooth_fade(
             None,
@@ -695,77 +666,4 @@ pub fn opus_decode_native(
         *po = tot_offset;
     }
     nb_samples
-}
-
-// -- opus_decoder_ctl --
-
-/// FFI-safe tagged enum for Opus decoder CTL requests.
-#[repr(C, i32)]
-pub enum OpusDecCtl {
-    GetBandwidth(*mut c_int) = OPUS_GET_BANDWIDTH_REQUEST,
-    GetFinalRange(*mut u32) = OPUS_GET_FINAL_RANGE_REQUEST,
-    ResetState = OPUS_RESET_STATE,
-    GetPitch(*mut c_int) = OPUS_GET_PITCH_REQUEST,
-}
-
-/// Decoder control — enum-based replacement for the C varargs interface.
-///
-/// # Safety
-/// `st` must point to an initialized `OpusDecoder`, and any pointer carried in
-/// `request` must be writable.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn opus_decoder_ctl(st: *mut OpusDecoder, request: OpusDecCtl) -> c_int {
-    // SAFETY: `st` is a valid initialized decoder and `request`'s out-pointers
-    // are writable, per the contract.
-    unsafe {
-        let silk_dec: *mut SilkDecoder = &raw mut (*st).silk_dec;
-        let celt_dec: *mut CELTDecoder = &raw mut (*st).celt_dec;
-
-        match request {
-            OpusDecCtl::GetBandwidth(value) => {
-                *value = (*st).bandwidth;
-            }
-            OpusDecCtl::GetFinalRange(value) => {
-                *value = (*st).range_final;
-            }
-            OpusDecCtl::ResetState => {
-                let OpusDecoder {
-                    channels,
-                    fs,
-                    dec_control: _,
-                    stream_channels,
-                    bandwidth,
-                    mode,
-                    prev_mode,
-                    frame_size,
-                    prev_redundancy,
-                    range_final,
-                    silk_dec: _,
-                    celt_dec: _,
-                } = &mut *st;
-
-                *bandwidth = 0;
-                *mode = 0;
-                *prev_mode = 0;
-                *prev_redundancy = 0;
-                *range_final = 0;
-                *stream_channels = *channels;
-                *frame_size = *fs / 400;
-
-                celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::ResetState);
-                silk_init_decoder(&mut *silk_dec);
-            }
-            OpusDecCtl::GetPitch(value) => {
-                if value.is_null() {
-                    return OPUS_BAD_ARG;
-                }
-                if (*st).prev_mode == MODE_CELT_ONLY {
-                    celt_decoder_ctl(&mut *celt_dec, CeltDecCtl::GetPitch(value));
-                } else {
-                    *value = (*st).dec_control.prev_pitch_lag;
-                }
-            }
-        }
-        OPUS_OK
-    }
 }
