@@ -4,7 +4,7 @@
 // mediumband/wideband voice) and CELT (fullband audio), handling hybrid mode,
 // redundancy frames, mode transitions, and packet loss concealment.
 //
-// SILK is kept as a C unit and called via FFI. CELT is fully in Rust.
+// SILK and CELT are both fully in Rust.
 
 use core::ffi::c_int;
 
@@ -43,11 +43,10 @@ const CELT_SIG_SCALE: f32 = 32768.0;
 
 /// Top-level Opus decoder state.
 ///
-/// The C version embeds SILK and CELT decoder sub-states at computed byte
-/// offsets within a single allocation (`silk_dec_offset` /
-/// `celt_dec_offset`). Here they are plain struct fields; the public
-/// C-style API (get_size / init / create) still treats the whole thing
-/// as one allocation, but no offset arithmetic remains.
+/// The C version embeds the SILK and CELT decoder sub-states at computed byte
+/// offsets within a single allocation (`silk_dec_offset` / `celt_dec_offset`).
+/// Here they are plain struct fields and the whole decoder is constructed by
+/// value via [`OpusDecoder::new`] — no allocation, no offset arithmetic.
 pub struct OpusDecoder {
     pub channels: c_int,
     pub fs: i32,

@@ -1,8 +1,8 @@
 // Translated from c/celt/modes.c, c/celt/modes.h, and the static_modes headers (RFC 6716).
 //
 // Defines the CELTMode struct and the single standard Opus mode
-// (48 kHz, 960 samples). Custom modes are not supported — only the
-// static lookup path is implemented.
+// (48 kHz, 960 samples), exposed via `celt_mode()`. Custom modes are not
+// supported.
 
 use crate::arch::OpusVal16;
 use crate::kiss_fft::KissFftState;
