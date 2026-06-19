@@ -36,6 +36,12 @@ const OPUS_BANDWIDTH_WIDEBAND: c_int = 1103;
 const OPUS_BANDWIDTH_SUPERWIDEBAND: c_int = 1104;
 const OPUS_BANDWIDTH_FULLBAND: c_int = 1105;
 
+// Stack-scratch bounds for the no-alloc decode-frame buffers (largest values
+// occur at 48 kHz, 2 channels).
+const MAX_CHANNELS: usize = 2;
+const MAX_F5: usize = 240; // 5 ms frame (fs/200)
+const MAX_FRAME_DEC: usize = 2880; // largest single Opus frame: 60 ms (fs*60/1000)
+
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
 
@@ -314,7 +320,9 @@ fn opus_decode_frame(
         return frame_size;
     }
 
-    let mut pcm_transition_buf: Vec<OpusVal16> = vec![0 as OpusVal16; (f5 * channels) as usize];
+    let mut pcm_transition_buf = [0 as OpusVal16; MAX_F5 * MAX_CHANNELS];
+    let nt = (f5 * channels) as usize;
+    let mut pcm_transition_buf = pcm_transition_buf.get_mut(..nt).or_panic(nt);
 
     if data.is_some()
         && st.prev_mode > 0
@@ -333,8 +341,12 @@ fn opus_decode_frame(
         frame_size = audiosize;
     }
 
-    let mut pcm_silk_buf: Vec<i16> = vec![0i16; (f10.max(frame_size) * channels) as usize];
-    let mut redundant_audio_buf: Vec<OpusVal16> = vec![0 as OpusVal16; (f5 * channels) as usize];
+    let mut pcm_silk_buf = [0i16; MAX_FRAME_DEC * MAX_CHANNELS];
+    let ns = (f10.max(frame_size) * channels) as usize;
+    let pcm_silk_buf = pcm_silk_buf.get_mut(..ns).or_panic(ns);
+    let mut redundant_audio_buf = [0 as OpusVal16; MAX_F5 * MAX_CHANNELS];
+    let nr = (f5 * channels) as usize;
+    let mut redundant_audio_buf = redundant_audio_buf.get_mut(..nr).or_panic(nr);
 
     let mut redundant_rng: u32 = 0;
 
