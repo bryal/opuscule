@@ -10,7 +10,15 @@ name = "opus_compare"
 name = "opus_demo"
 
 [features]
+default = ["std"]
+# Use the standard library (and its system math for the float build). Turn off
+# (`--no-default-features`) for a no_std build; then either `fixed-point`
+# (integer kernels, no math dep) or `libm` (pure-Rust float math) is required.
+std = []
+# Fixed-point decoder: integer kernels only, no float math — no_std for free.
 fixed-point = []
+# Pure-Rust float math via the `libm` crate, for a no_std floating-point build.
+libm = ["dep:libm"]
 
 [lints.clippy]
 # Exceptions: lints we find tend to make this codebase worse, not better.
@@ -29,5 +37,6 @@ indexing_slicing = "deny"
 unwrap_used = "deny"
 
 [dependencies]
+libm = { version = "0.2", optional = true }
 
 [dev-dependencies]

@@ -9,16 +9,14 @@ use core::fmt::{Debug, Display};
 /// `.expect()`.
 ///
 /// Unlike `expect`, the argument is *context for the panic*, not a sentence
-/// about expectations, and the `_dbg`/`_with` variants make it easy to fold
-/// runtime values (breadcrumbs) into the message.
+/// about expectations, and the `_dbg` variant makes it easy to fold runtime
+/// values (breadcrumbs) into the message.
 pub trait OrPanic {
     type A;
     /// Panic with `breadcrumbs` (via `Display`) if the option is `None`.
     fn or_panic(self, breadcrumbs: impl Display) -> Self::A;
     /// Panic with `breadcrumbs` (via `Debug`) if the option is `None`.
     fn or_panic_dbg(self, breadcrumbs: impl Debug) -> Self::A;
-    /// Panic with a lazily-built message if the option is `None`.
-    fn or_panic_with(self, mk_msg: impl FnOnce() -> String) -> Self::A;
 }
 
 impl<A> OrPanic for Option<A> {
@@ -33,12 +31,6 @@ impl<A> OrPanic for Option<A> {
         match self {
             Some(x) => x,
             None => panic!("{breadcrumbs:?}"),
-        }
-    }
-    fn or_panic_with(self, mk_msg: impl FnOnce() -> String) -> A {
-        match self {
-            Some(x) => x,
-            None => panic!("{}", mk_msg()),
         }
     }
 }

@@ -216,6 +216,9 @@ fn smooth_fade(
 
 // -- FLOAT2INT16 (float mode only) --
 
+#[cfg(all(not(feature = "std"), not(feature = "fixed-point")))]
+use crate::arch::FloatMath;
+
 #[cfg(not(feature = "fixed-point"))]
 pub(crate) fn float2int16(x: f32) -> i16 {
     let x = x * CELT_SIG_SCALE;

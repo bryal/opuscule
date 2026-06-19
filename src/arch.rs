@@ -7,6 +7,57 @@
 //
 // Only the subset needed by the decoder is translated here.
 
+// In a no_std float build, `f32`/`f64` have no inherent `sqrt`/`cos`/`ln`/
+// `exp`/`floor` (those live in std), so provide them via the pure-Rust `libm`
+// crate. With `std` the inherent methods are used and this trait isn't compiled;
+// the fixed-point build doesn't touch float math at all.
+#[cfg(all(not(feature = "std"), not(feature = "fixed-point")))]
+pub(crate) trait FloatMath {
+    fn sqrt(self) -> Self;
+    fn cos(self) -> Self;
+    fn ln(self) -> Self;
+    fn exp(self) -> Self;
+    fn floor(self) -> Self;
+}
+
+#[cfg(all(not(feature = "std"), not(feature = "fixed-point")))]
+impl FloatMath for f32 {
+    fn sqrt(self) -> f32 {
+        libm::sqrtf(self)
+    }
+    fn cos(self) -> f32 {
+        libm::cosf(self)
+    }
+    fn ln(self) -> f32 {
+        libm::logf(self)
+    }
+    fn exp(self) -> f32 {
+        libm::expf(self)
+    }
+    fn floor(self) -> f32 {
+        libm::floorf(self)
+    }
+}
+
+#[cfg(all(not(feature = "std"), not(feature = "fixed-point")))]
+impl FloatMath for f64 {
+    fn sqrt(self) -> f64 {
+        libm::sqrt(self)
+    }
+    fn cos(self) -> f64 {
+        libm::cos(self)
+    }
+    fn ln(self) -> f64 {
+        libm::log(self)
+    }
+    fn exp(self) -> f64 {
+        libm::exp(self)
+    }
+    fn floor(self) -> f64 {
+        libm::floor(self)
+    }
+}
+
 // -- Type aliases --
 
 #[cfg(not(feature = "fixed-point"))]
@@ -83,6 +134,9 @@ pub fn qconst32(x: f32, bits: i32) -> i32 {
 
 #[cfg(not(feature = "fixed-point"))]
 mod float_ops {
+    #[cfg(not(feature = "std"))]
+    use super::FloatMath;
+
     #[inline(always)]
     pub fn mult16_16(a: f32, b: f32) -> f32 {
         a * b
