@@ -25,19 +25,39 @@ onboarding future maintainers is smooth.
 
 ## Process
 
-- Pure-Rust crate; `opus_compare` and `opus_demo` are Rust bins. No C objects,
-  no `build.rs`. FFI remains only as the C-ABI surface we *expose* (`extern "C"`).
+- Pure idiomatic-Rust crate: no C objects, no `build.rs`, no C ABI (`extern "C"`
+  / `#[no_mangle]`), no heap allocation in the decode path. The public API is
+  `OpusDecoder::new`/`decode`; `opus_compare` and `opus_demo` are Rust bins.
 - Small, atomic, reviewable commits with detailed messages - one logical change
   at a time.
 - Every change must stay bit-exact: run `bash tests/run_vectors.sh` (serially -
   it shares a scratch file), and tests must pass on both float and fixed-point.
   Investigate any quality delta; never edit `tests/quality_baseline.txt` to mask one.
 
+### Build configurations
+
+Cargo features are additive, so `no_std` = turning off the default `std`:
+
+- `cargo build` — default: floating-point, `std` (system math). The run_vectors
+  baseline.
+- `--no-default-features --features fixed-point` — `no_std`, integer kernels, no
+  math dependency.
+- `--no-default-features --features libm` — `no_std` floating-point, math via the
+  pure-Rust `libm` crate.
+- `--no-default-features` (float, no math lib) — a `compile_error!` explains the
+  choices.
+
+The float-via-`libm` path is not vector-checked and may differ by an ULP from
+the system libm (different implementation); fixed-point and std-float are
+bit-exact.
+
 
 ## Code quality
 
 - Run `cargo fmt` before every commit.
-- Always also `cargo check --features fixed-point` (we have a float/fixed dual build).
+- Always also `cargo check --features fixed-point` (the float/fixed dual build).
+  When touching `no_std`/feature-gated or math code, also check
+  `--no-default-features --features fixed-point` and `--features libm`.
 - All `unsafe` blocks must have `// SAFETY:` comments.
 
 ### Panicking (no `.unwrap()` / `.expect()`)
