@@ -105,17 +105,23 @@ pub fn clt_mdct_backward(
     }
 
     // --- Inverse N/4 complex FFT ---
-    // This should NOT downscale even in fixed-point.
+    // This should NOT downscale even in fixed-point. opus_ifft works on
+    // complex slices, while f/f2 are scalar buffers holding interleaved
+    // (re, im) pairs, so bridge through dedicated complex scratch: each
+    // adjacent scalar pair maps to one complex value. MAX_N4 = MAX_N2 / 2.
+    const MAX_N4: usize = MAX_N2 / 2;
     let nfft = (n2 / 2) as usize;
-    // SAFETY: KissFftCpx is repr(C) { r: OpusVal32, i: OpusVal32 }, so a
-    // [OpusVal32] slice of even length 2*nfft has exactly the layout of
-    // [KissFftCpx; nfft]; both slices are distinct local Vecs.
-    unsafe {
-        opus_ifft(
-            l.kfft[shift as usize],
-            core::slice::from_raw_parts(f2.as_ptr() as *const KissFftCpx, nfft),
-            core::slice::from_raw_parts_mut(f.as_mut_ptr() as *mut KissFftCpx, nfft),
-        );
+    let mut fft_in = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; MAX_N4];
+    let mut fft_out = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; MAX_N4];
+    let fft_in = &mut fft_in[..nfft];
+    let fft_out = &mut fft_out[..nfft];
+    for (c, pair) in fft_in.iter_mut().zip(f2.chunks_exact(2)) {
+        *c = KissFftCpx { r: pair[0], i: pair[1] };
+    }
+    opus_ifft(l.kfft[shift as usize], fft_in, fft_out);
+    for (c, pair) in fft_out.iter().zip(f.chunks_exact_mut(2)) {
+        pair[0] = c.r;
+        pair[1] = c.i;
     }
 
     // --- Post-rotate ---
