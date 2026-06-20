@@ -58,7 +58,11 @@ bit-exact.
 - Always also `cargo check --features fixed-point` (the float/fixed dual build).
   When touching `no_std`/feature-gated or math code, also check
   `--no-default-features --features fixed-point` and `--features libm`.
-- All `unsafe` blocks must have `// SAFETY:` comments.
+- The crate is `#![forbid(unsafe_code)]` - there is no `unsafe` anywhere, and
+  any you add is a hard compile error. Find a safe construction instead (e.g.
+  `Default`/`array::from_fn` rather than `mem::zeroed`, explicit copies rather
+  than slice transmutes). Relax the lint to `deny` only if a vetted unsafe
+  block ever genuinely earns its place.
 
 ### Panicking (no `.unwrap()` / `.expect()`)
 
