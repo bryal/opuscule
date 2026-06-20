@@ -6,7 +6,6 @@
 //! split in the original C only affected the SILK *encoder* (silk/float vs
 //! silk/fixed). This module is therefore feature-agnostic.
 
-pub mod biquad_alt;
 pub mod bwexpander;
 pub mod bwexpander_32;
 pub mod cng;
@@ -21,7 +20,6 @@ pub mod decode_pulses;
 pub mod decoder_set_fs;
 pub mod gain_quant;
 pub mod init_decoder;
-pub mod lin2log;
 pub mod log2lin;
 pub mod lpc_analysis_filter;
 pub mod lpc_inv_pred_gain;
@@ -34,15 +32,12 @@ pub mod nlsf_vq_weights_laroia;
 pub mod pitch_est_tables;
 pub mod plc;
 pub mod resampler;
-pub mod resampler_down2;
-pub mod resampler_down2_3;
 pub mod resampler_private_ar2;
 pub mod resampler_private_down_fir;
 pub mod resampler_private_iir_fir;
 pub mod resampler_private_up2_hq;
 pub mod resampler_rom;
 pub mod shell_coder;
-pub mod sigm_q15;
 pub mod sort;
 pub mod sqrt_approx;
 pub mod stereo_decode_pred;

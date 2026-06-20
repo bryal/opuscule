@@ -1,6 +1,7 @@
 //! Translated from `c/silk/log2lin.c` (RFC 6716, section 4.2 / silk).
 //!
-//! Approximation of `2^(inLog_Q7 / 128)` — the inverse of [`silk_lin2log`].
+//! Approximation of `2^(inLog_Q7 / 128)` - the inverse of the (encoder-only,
+//! not translated) `silk_lin2log`.
 
 use super::macros::{silk_lshift, silk_smlawb, silk_smulbb};
 
