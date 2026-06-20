@@ -50,10 +50,6 @@ pub struct OpusCustomMode {
 /// Matches `typedef struct OpusCustomMode CELTMode` in modes.h.
 pub type CELTMode = OpusCustomMode;
 
-// SAFETY: every field is immutable `&'static` data (slices, tables, FFT
-// states); there is no interior mutability, so sharing across threads is sound.
-unsafe impl Sync for OpusCustomMode {}
-
 // ---------------------------------------------------------------------------
 // Data arrays from modes.c
 // ---------------------------------------------------------------------------
@@ -78,10 +74,6 @@ pub static BAND_ALLOCATION: [u8; 231] = [
 // ---------------------------------------------------------------------------
 // FFT states (one per shift level 0..3)
 // ---------------------------------------------------------------------------
-
-// SAFETY: every field is immutable `&'static` data; there is no interior
-// mutability, so sharing across threads is sound.
-unsafe impl Sync for KissFftState {}
 
 #[cfg(not(feature = "fixed-point"))]
 static FFT_STATE_0: KissFftState = KissFftState {
