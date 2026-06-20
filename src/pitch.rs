@@ -124,8 +124,8 @@ fn find_best_pitch(
 /// Maximum absolute value of a val16 array (fixed-point only).
 /// Matches the static inline celt_maxabs16() in mathops.h.
 #[cfg(feature = "fixed-point")]
-fn celt_maxabs16(x: &[OpusVal16], len: i32) -> OpusVal16 {
-    x.iter().take(len as usize).fold(0, |maxval, &v| max16(maxval, v.abs()))
+fn celt_maxabs16(x: &[OpusVal16]) -> OpusVal16 {
+    x.iter().fold(0, |maxval, &v| max16(maxval, v.abs()))
 }
 
 /// Two-pass pitch search: coarse search at 4x decimation, then refined
@@ -169,8 +169,8 @@ pub fn pitch_search(
     // Fixed-point: normalize to prevent overflow in MAC
     #[cfg(feature = "fixed-point")]
     let shift = {
-        let max_x = celt_maxabs16(&x_lp4, len >> 2);
-        let max_y = celt_maxabs16(&y_lp4, lag >> 2);
+        let max_x = celt_maxabs16(&x_lp4);
+        let max_y = celt_maxabs16(&y_lp4);
         let max_val = max16(1, max16(max_x, max_y));
         let s = celt_ilog2(max_val as i32) as i32 - 11;
         if s > 0 {

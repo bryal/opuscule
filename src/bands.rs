@@ -926,7 +926,7 @@ pub fn quant_band(
 
         if q != 0 {
             let k = get_pulses(q);
-            cm = alg_unquant(x_s.get_mut(..n as usize).or_panic(n), n, k, spread, b_blocks, ec, gain);
+            cm = alg_unquant(x_s.get_mut(..n as usize).or_panic(n), k, spread, b_blocks, ec, gain);
         } else {
             // If there's no pulse, fill the band anyway
             if resynth {
