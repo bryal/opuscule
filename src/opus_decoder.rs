@@ -45,6 +45,70 @@ const MAX_FRAME_DEC: usize = 2880; // largest single Opus frame: 60 ms (fs*60/10
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
 
+// -- Public configuration types --
+
+/// Output sample rate. Opus decodes to one of five rates; the enum makes any
+/// other value unrepresentable, so decoder construction cannot fail on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SampleRate {
+    Hz8000,
+    Hz12000,
+    Hz16000,
+    Hz24000,
+    Hz48000,
+}
+
+impl SampleRate {
+    /// The rate in Hz.
+    pub fn hz(self) -> i32 {
+        match self {
+            SampleRate::Hz8000 => 8000,
+            SampleRate::Hz12000 => 12000,
+            SampleRate::Hz16000 => 16000,
+            SampleRate::Hz24000 => 24000,
+            SampleRate::Hz48000 => 48000,
+        }
+    }
+
+    /// Convert a raw Hz value into a `SampleRate`, or `None` if unsupported.
+    pub fn from_hz(hz: i32) -> Option<SampleRate> {
+        Some(match hz {
+            8000 => SampleRate::Hz8000,
+            12000 => SampleRate::Hz12000,
+            16000 => SampleRate::Hz16000,
+            24000 => SampleRate::Hz24000,
+            48000 => SampleRate::Hz48000,
+            _ => return None,
+        })
+    }
+}
+
+/// Channel layout: mono or stereo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Channels {
+    Mono,
+    Stereo,
+}
+
+impl Channels {
+    /// Number of channels (1 for mono, 2 for stereo).
+    pub fn count(self) -> usize {
+        match self {
+            Channels::Mono => 1,
+            Channels::Stereo => 2,
+        }
+    }
+
+    /// Convert a raw channel count (1 or 2) into a `Channels`, or `None`.
+    pub fn from_count(count: usize) -> Option<Channels> {
+        match count {
+            1 => Some(Channels::Mono),
+            2 => Some(Channels::Stereo),
+            _ => None,
+        }
+    }
+}
+
 // -- OpusDecoder struct --
 
 /// Top-level Opus decoder state.
@@ -76,9 +140,10 @@ pub struct OpusDecoder {
 // -- Public API --
 
 impl OpusDecoder {
-    /// Create a decoder for `sample_rate` (8/12/16/24/48 kHz) and `channels`
-    /// (1 or 2). Constructed by value — no heap allocation.
-    pub fn new(sample_rate: i32, channels: c_int) -> Result<OpusDecoder, c_int> {
+    /// Create a decoder for the given output sample rate and channel layout.
+    /// Constructed by value (no heap allocation) and infallible: the typed
+    /// arguments make every configuration valid.
+    pub fn new(sample_rate: SampleRate, channels: Channels) -> OpusDecoder {
         let mut dec = OpusDecoder {
             channels: 0,
             fs: 0,
@@ -103,10 +168,13 @@ impl OpusDecoder {
             silk_dec: SilkDecoder::default(),
             celt_dec: CELTDecoder::new(crate::modes::celt_mode(), 1),
         };
-        match dec.init(sample_rate, channels) {
-            OPUS_OK => Ok(dec),
-            err => Err(err),
-        }
+        // The typed arguments are always valid, so init cannot fail.
+        assert_eq!(
+            dec.init(sample_rate.hz(), channels.count() as c_int),
+            OPUS_OK,
+            "decoder init failed for a valid configuration"
+        );
+        dec
     }
 
     /// (Re)initialise the decoder in place (logic of the C `opus_decoder_init`).

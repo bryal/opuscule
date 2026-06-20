@@ -52,5 +52,5 @@ mod static_modes_float;
 // fixed-point); decode writes interleaved samples of this type.
 pub use arch::OpusVal16;
 pub use celt::{opus_get_version_string, opus_strerror};
-pub use opus_decoder::{OpusDecoder, sample_to_i16};
+pub use opus_decoder::{Channels, OpusDecoder, SampleRate, sample_to_i16};
 pub use opus_multistream::{ChannelLayout, OpusMSDecoder};

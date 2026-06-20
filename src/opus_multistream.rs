@@ -272,7 +272,7 @@ impl OpusMSDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::opus_decoder::OpusDecoder;
+    use crate::opus_decoder::{Channels, OpusDecoder, SampleRate};
 
     #[test]
     fn new_validates_args() {
@@ -298,8 +298,9 @@ mod tests {
         // a PLC frame must come out byte-identical to a plain stereo decoder's
         // PLC frame (no encoder needed to produce a packet).
         let mut ms = OpusMSDecoder::new(2, 1, 1, &[0, 1]).unwrap();
-        let mut decoders = [OpusDecoder::new(48000, ms.stream_channels(0)).unwrap()];
-        let mut plain = OpusDecoder::new(48000, 2).unwrap();
+        let mut decoders =
+            [OpusDecoder::new(SampleRate::Hz48000, Channels::from_count(ms.stream_channels(0) as usize).unwrap())];
+        let mut plain = OpusDecoder::new(SampleRate::Hz48000, Channels::Stereo);
 
         let mut ms_pcm = [0 as OpusVal16; 960 * 2];
         let mut plain_pcm = [0 as OpusVal16; 960 * 2];
