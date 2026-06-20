@@ -2,6 +2,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(const_trait_impl, const_array)]
+// The decoder is implemented entirely in safe Rust. `forbid` (not `deny`)
+// makes reintroducing `unsafe` a hard error that cannot be locally
+// overridden; relax to `deny` if a vetted unsafe block ever earns its place.
+#![forbid(unsafe_code)]
 
 // The floating-point decoder needs a math library (sqrt/cos/ln/exp/floor):
 // `std` provides it, or the `libm` feature pulls in the pure-Rust `libm` crate
