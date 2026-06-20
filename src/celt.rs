@@ -1359,10 +1359,3 @@ pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> c_int {
     }
     OPUS_OK
 }
-
-// -- opus_get_version_string --
-
-/// Library version string.
-pub fn opus_get_version_string() -> &'static str {
-    "libopus 1.0.0"
-}

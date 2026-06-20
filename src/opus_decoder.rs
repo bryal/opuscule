@@ -110,15 +110,15 @@ impl Channels {
     }
 }
 
-// -- OpusDecoder struct --
+// -- Decoder struct --
 
 /// Top-level Opus decoder state.
 ///
 /// The C version embeds the SILK and CELT decoder sub-states at computed byte
 /// offsets within a single allocation (`silk_dec_offset` / `celt_dec_offset`).
 /// Here they are plain struct fields and the whole decoder is constructed by
-/// value via [`OpusDecoder::new`] — no allocation, no offset arithmetic.
-pub struct OpusDecoder {
+/// value via [`Decoder::new`] — no allocation, no offset arithmetic.
+pub struct Decoder {
     pub channels: c_int,
     pub fs: i32,
     pub dec_control: SilkDecControlStruct,
@@ -140,12 +140,12 @@ pub struct OpusDecoder {
 
 // -- Public API --
 
-impl OpusDecoder {
+impl Decoder {
     /// Create a decoder for the given output sample rate and channel layout.
     /// Constructed by value (no heap allocation) and infallible: the typed
     /// arguments make every configuration valid.
-    pub fn new(sample_rate: SampleRate, channels: Channels) -> OpusDecoder {
-        let mut dec = OpusDecoder {
+    pub fn new(sample_rate: SampleRate, channels: Channels) -> Decoder {
+        let mut dec = Decoder {
             channels: 0,
             fs: 0,
             stream_channels: 0,
@@ -311,7 +311,7 @@ fn sat16(x: i32) -> i16 {
 // -- opus_decode_frame --
 
 fn opus_decode_frame(
-    st: &mut OpusDecoder,
+    st: &mut Decoder,
     data: Option<&[u8]>,
     len: c_int,
     pcm: &mut [OpusVal16],
@@ -670,7 +670,7 @@ fn opus_decode_frame(
 // -- opus_decode_native --
 
 pub fn opus_decode_native(
-    st: &mut OpusDecoder,
+    st: &mut Decoder,
     data: Option<&[u8]>,
     len: c_int,
     pcm: &mut [OpusVal16],

@@ -9,7 +9,7 @@
 // translated from the C reference isn't worth hardening like the core.
 #![allow(clippy::indexing_slicing)]
 
-use opuscule::{Channels, OpusDecoder, OpusVal16, SampleRate, opus_get_version_string, sample_to_i16};
+use opuscule::{Channels, Decoder, OpusVal16, SampleRate, sample_to_i16, version};
 
 use std::env;
 use std::fs::File;
@@ -59,7 +59,7 @@ fn main() {
         process::exit(1);
     }
 
-    eprintln!("{}", opus_get_version_string());
+    eprintln!("{}", version());
 
     let mut args = 1;
     let encode_only;
@@ -165,7 +165,7 @@ fn main() {
         eprintln!("Unsupported channel count: {channels}");
         process::exit(1);
     });
-    let mut dec = OpusDecoder::new(rate, chans);
+    let mut dec = Decoder::new(rate, chans);
 
     eprintln!("Decoding with {} Hz output ({} channels)", sampling_rate, channels);
 

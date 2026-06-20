@@ -2,7 +2,7 @@
 //!
 //! Initialises a `SilkDecoderState` to its reset value. The reset value
 //! lives in the `Default` impl on `SilkDecoderState` (see `structs.rs`),
-//! shared with the placeholder the parent `OpusDecoder` constructs.
+//! shared with the placeholder the parent `Decoder` constructs.
 
 use super::structs::SilkDecoderState;
 
