@@ -1,10 +1,8 @@
 //! Translated from `c/silk/dec_API.c` (RFC 6716).
 //!
 //! Top-level SILK decoder entry points:
-//! - [`silk_Get_Decoder_Size`] — report sizeof(silk_decoder) to callers
 //! - [`silk_InitDecoder`] — reset all channel states
 //! - [`silk_Decode`] — decode one frame (possibly stereo, possibly lost)
-//! - [`silk_get_TOC`] — extract per-packet VAD/FEC flags
 
 #![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
 
@@ -17,7 +15,7 @@ use super::decode_frame::silk_decode_frame;
 use super::decode_indices::silk_decode_indices;
 use super::decode_pulses::silk_decode_pulses;
 use super::decoder_set_fs::silk_decoder_set_fs;
-use super::macros::{silk_lshift, silk_smulbb};
+use super::macros::silk_smulbb;
 use super::resampler::silk_resampler;
 use super::stereo_decode_pred::{silk_stereo_decode_mid_only, silk_stereo_decode_pred};
 use super::stereo_ms_to_lr::silk_stereo_ms_to_lr;
@@ -60,17 +58,8 @@ pub struct SilkDecControlStruct {
     pub prev_pitch_lag: c_int,
 }
 
-/// `silk_TOC_struct` — table of contents for one Opus packet
-/// (`c/silk/API.h:49`).
-pub struct SilkTocStruct {
-    pub vad_flag: c_int,
-    pub vad_flags: [c_int; SILK_MAX_FRAMES_PER_PACKET],
-    pub inband_fec_flag: c_int,
-}
-
 /// `silk_decoder` super-struct wrapping the N per-channel states plus
-/// shared stereo state and channel counts. The parent `opus_decoder`
-/// treats this as an opaque blob sized by [`silk_Get_Decoder_Size`].
+/// shared stereo state and channel counts.
 #[derive(Default)]
 pub struct SilkDecoder {
     pub channel_state: [SilkDecoderState; DECODER_NUM_CHANNELS],
@@ -78,12 +67,6 @@ pub struct SilkDecoder {
     pub n_channels_api: c_int,
     pub n_channels_internal: c_int,
     pub prev_decode_only_middle: c_int,
-}
-
-/// `silk_Get_Decoder_Size` — report sizeof(silk_decoder).
-pub fn silk_get_decoder_size(dec_size_bytes: &mut c_int) -> c_int {
-    *dec_size_bytes = core::mem::size_of::<SilkDecoder>() as c_int;
-    SILK_NO_ERROR
 }
 
 /// `silk_InitDecoder` — reset the per-channel states.
@@ -396,40 +379,6 @@ pub fn silk_decode(
     } else {
         ps_dec.prev_decode_only_middle = decode_only_middle;
     }
-    ret
-}
-
-/// `silk_get_TOC` — extract per-packet VAD / inband-FEC flags.
-pub fn silk_get_toc(payload: &[u8], n_bytes_in: i32, n_frames_per_payload: i32, silk_toc: &mut SilkTocStruct) -> i32 {
-    let ret = SILK_NO_ERROR;
-    if n_bytes_in < 1 {
-        return -1;
-    }
-    if !(0..=3).contains(&n_frames_per_payload) {
-        return -1;
-    }
-
-    /* C: silk_memset( Silk_TOC, 0, sizeof( Silk_TOC ) )
-     * — this is an RFC bug: Silk_TOC is a pointer, so sizeof yields the
-     * pointer size (typically 8), not the struct size. Only the first 8
-     * bytes — vad_flag and vad_flags[0] in the C layout — get cleared;
-     * the rest of the struct keeps whatever the caller had in it. We
-     * mirror that field-for-field. */
-    silk_toc.vad_flag = 0;
-    silk_toc.vad_flags[0] = 0;
-
-    /* For stereo, extract the flags for the mid channel */
-    let mut flags = (payload[0] as i32 >> (7 - n_frames_per_payload)) & (silk_lshift(1, n_frames_per_payload + 1) - 1);
-
-    silk_toc.inband_fec_flag = flags & 1;
-    let mut i = n_frames_per_payload - 1;
-    while i >= 0 {
-        flags >>= 1;
-        silk_toc.vad_flags[i as usize] = flags & 1;
-        silk_toc.vad_flag |= flags & 1;
-        i -= 1;
-    }
-
     ret
 }
 
