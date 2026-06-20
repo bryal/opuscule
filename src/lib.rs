@@ -17,29 +17,40 @@ compile_error!(
      add the `libm` feature for a no_std float build, or build `--features fixed-point`"
 );
 
-pub mod arch;
-pub mod bands;
-pub mod celt;
-pub mod celt_lpc;
-pub mod cwrs;
-pub mod entcode;
-pub mod entdec;
-pub mod kiss_fft;
-pub mod laplace;
-pub mod mathops;
-pub mod mdct;
-pub mod modes;
-pub mod opus_decoder;
-pub mod opus_multistream;
-pub mod packet;
-pub mod pitch;
-pub mod quant_bands;
-pub mod rate;
-pub mod silk;
-pub mod util;
-pub mod vq;
+// Everything below is decoder internals - private to the crate. The public
+// API is the curated re-export list at the bottom of this file.
+mod arch;
+mod bands;
+mod celt;
+mod celt_lpc;
+mod cwrs;
+mod entcode;
+mod entdec;
+mod kiss_fft;
+mod laplace;
+mod mathops;
+mod mdct;
+mod modes;
+mod opus_decoder;
+mod opus_multistream;
+mod packet;
+mod pitch;
+mod quant_bands;
+mod rate;
+mod silk;
+mod util;
+mod vq;
 
 #[cfg(feature = "fixed-point")]
-pub mod static_modes_fixed;
+mod static_modes_fixed;
 #[cfg(not(feature = "fixed-point"))]
-pub mod static_modes_float;
+mod static_modes_float;
+
+// -- Public API --
+//
+// The decoder's native sample type (`f32` for the float build, `i16` for
+// fixed-point); decode writes interleaved samples of this type.
+pub use arch::OpusVal16;
+pub use celt::{opus_get_version_string, opus_strerror};
+pub use opus_decoder::{OpusDecoder, sample_to_i16};
+pub use opus_multistream::{ChannelLayout, OpusMSDecoder};

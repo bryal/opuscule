@@ -9,9 +9,7 @@
 // translated from the C reference isn't worth hardening like the core.
 #![allow(clippy::indexing_slicing)]
 
-use opuscule::arch::OpusVal16;
-use opuscule::celt::{opus_get_version_string, opus_strerror};
-use opuscule::opus_decoder::{OpusDecoder, sample_to_i16};
+use opuscule::{OpusDecoder, OpusVal16, opus_get_version_string, opus_strerror, sample_to_i16};
 
 use std::env;
 use std::fs::File;
