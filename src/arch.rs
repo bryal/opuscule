@@ -95,11 +95,6 @@ pub const EPSILON: f32 = 1e-15;
 pub const EPSILON: i32 = 1;
 
 #[cfg(not(feature = "fixed-point"))]
-pub const VERY_LARGE16: f32 = 1e15;
-#[cfg(feature = "fixed-point")]
-pub const VERY_LARGE16: i16 = 32767;
-
-#[cfg(not(feature = "fixed-point"))]
 pub const NORM_SCALING: f32 = 1.0;
 #[cfg(feature = "fixed-point")]
 pub const NORM_SCALING: CeltNorm = 16384;
@@ -151,10 +146,6 @@ mod float_ops {
     }
     #[inline(always)]
     pub fn mult16_16_p15(a: f32, b: f32) -> f32 {
-        a * b
-    }
-    #[inline(always)]
-    pub fn mult16_32_q16(a: f32, b: f32) -> f32 {
         a * b
     }
     #[inline(always)]
@@ -218,16 +209,8 @@ mod float_ops {
         a.max(b)
     }
     #[inline(always)]
-    pub fn min32(a: f32, b: f32) -> f32 {
-        a.min(b)
-    }
-    #[inline(always)]
     pub fn max32(a: f32, b: f32) -> f32 {
         a.max(b)
-    }
-    #[inline(always)]
-    pub fn mult16_16_q14(a: f32, b: f32) -> f32 {
-        a * b
     }
     #[inline(always)]
     pub fn celt_rsqrt(x: f32) -> f32 {
@@ -273,22 +256,6 @@ mod float_ops {
     pub fn celt_cos_norm(x: f32) -> f32 {
         (0.5 * core::f32::consts::PI * x).cos()
     }
-    #[inline(always)]
-    pub fn div32_16(a: f32, b: f32) -> f32 {
-        a / b
-    }
-    #[inline(always)]
-    pub fn celt_rcp(x: f32) -> f32 {
-        1.0 / x
-    }
-
-    /// Base-2 logarithm. Matches the C macro:
-    /// #define celt_log2(x) ((float)(1.442695040888963387*log(x)))
-    #[inline(always)]
-    pub fn celt_log2(x: f32) -> f32 {
-        (core::f64::consts::LOG2_E * (x as f64).ln()) as f32
-    }
-
     /// Base-2 exponential. Matches the C macro:
     /// #define celt_exp2(x) ((float)exp(0.6931471805599453094*(x)))
     #[inline(always)]
@@ -327,10 +294,6 @@ mod fixed_ops {
     #[inline(always)]
     fn mult16_16su(a: i16, b: u16) -> i32 {
         (a as i32) * (b as i32)
-    }
-    #[inline(always)]
-    pub fn mult16_32_q16(a: i16, b: i32) -> i32 {
-        mult16_16(a, (b >> 16) as i16) + (mult16_16su(a, (b & 0xffff) as u16) >> 16)
     }
     #[inline(always)]
     pub fn mult16_32_q15(a: i16, b: i32) -> i32 {
@@ -427,22 +390,12 @@ mod fixed_ops {
         x >> 1
     }
 
-    #[inline(always)]
-    pub fn div32_16(a: i32, b: i16) -> i16 {
-        (a / (b as i32)) as i16
-    }
-
     // Fixed-point math functions from mathops.c/h
 
     #[inline(always)]
     pub fn celt_ilog2(x: i32) -> i16 {
         debug_assert!(x > 0);
         (ec_ilog(x as u32) - 1) as i16
-    }
-
-    #[inline(always)]
-    pub fn celt_zlog2(x: i32) -> i16 {
-        if x <= 0 { 0 } else { celt_ilog2(x) }
     }
 
     /// Reciprocal sqrt approximation (Q16 in, Q14 out).
@@ -549,29 +502,6 @@ mod fixed_ops {
         result
     }
 
-    /// Base-2 log approximation (Q16 input, Q10.DB_SHIFT output).
-    /// C: celt_log2() in mathops.h (fixed-point path).
-    pub fn celt_log2(x: i32) -> i16 {
-        const DB_SHIFT: i32 = 10;
-        const C: [i16; 5] = [-6801 + (1 << (13 - DB_SHIFT)), 15746, -5217, 2545, -1401];
-        if x == 0 {
-            return -32767;
-        }
-        let i = celt_ilog2(x) as i32;
-        let n = (vshr32(x, i - 15) - 32768 - 16384) as i16;
-        let frac = add16(
-            C[0],
-            mult16_16_q15(
-                n,
-                add16(
-                    C[1],
-                    mult16_16_q15(n, add16(C[2], mult16_16_q15(n, add16(C[3], mult16_16_q15(n, C[4]) as i16)) as i16)) as i16,
-                ),
-            ) as i16,
-        );
-        shl16((i - 13) as i16, DB_SHIFT) + shr16(frac, 14 - DB_SHIFT)
-    }
-
     /// Base-2 exponential approximation (Q10 input, Q16 output).
     /// C: celt_exp2() in mathops.h (fixed-point path).
     pub fn celt_exp2(x: i16) -> i32 {
@@ -596,36 +526,6 @@ mod fixed_ops {
     #[inline(always)]
     pub fn celt_div(a: i32, b: i32) -> i32 {
         mult32_32_q31(a, celt_rcp(b))
-    }
-
-    /// atan(x) approximation for x in [0,1], Q15 in/out.
-    fn celt_atan01(x: i16) -> i16 {
-        let (m1, m2, m3, m4): (i16, i16, i16, i16) = (32767, -21, -11943, 4936);
-        // Horner: x * (M1 + x*(M2 + x*(M3 + x*M4)))  with P15 (rounding multiply)
-        let t0 = mult16_16_p15(m4, x) as i16;
-        let t1 = add16(m3, t0);
-        let t2 = mult16_16_p15(x, t1) as i16;
-        let t3 = add16(m2, t2);
-        let t4 = mult16_16_p15(x, t3) as i16;
-        let t5 = add16(m1, t4);
-        mult16_16_p15(x, t5) as i16
-    }
-
-    /// atan2 approximation for positive inputs.
-    pub fn celt_atan2p(y: i16, x: i16) -> i16 {
-        if (y as i32) < (x as i32) {
-            let mut arg = celt_div(shl32(y as i32, 15), x as i32);
-            if arg >= 32767 {
-                arg = 32767;
-            }
-            shr16(celt_atan01(arg as i16), 1)
-        } else {
-            let mut arg = celt_div(shl32(x as i32, 15), y as i32);
-            if arg >= 32767 {
-                arg = 32767;
-            }
-            sub16(25736, shr16(celt_atan01(arg as i16), 1))
-        }
     }
 }
 
