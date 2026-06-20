@@ -379,7 +379,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             }
 
             if st.loss_count == 0 {
-                _celt_autocorr(&exc, &mut ac, mode.window, mode.overlap, LPC_ORDER, MAX_PERIOD);
+                _celt_autocorr(&exc, &mut ac, mode.window, mode.overlap, LPC_ORDER);
 
                 // Noise floor -40 dB
                 #[cfg(feature = "fixed-point")]

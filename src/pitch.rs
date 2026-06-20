@@ -314,7 +314,6 @@ pub fn pitch_downsample(
         &[], // no window
         0,   // overlap = 0
         4,   // order
-        half as i32,
     );
 
     // Noise floor: -40 dB

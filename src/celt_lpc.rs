@@ -141,13 +141,13 @@ pub fn celt_iir(x: &mut [OpusVal32], den: &[OpusVal16], ord: c_int, mem: &mut [O
 
 /// Windowed autocorrelation.
 ///
-/// Computes autocorrelation of `x[0..n-1]` for lags 0 through `lag`,
+/// Computes autocorrelation of all of `x` for lags 0 through `lag`,
 /// applying `window[0..overlap-1]` symmetrically to the edges
 /// (`window` may be empty when `overlap` is 0).
 /// In fixed-point mode, normalizes to prevent overflow.
 /// Adds a small bias (+10) to ac[0] to avoid division by zero.
-pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16], overlap: c_int, lag: c_int, n: c_int) {
-    let n = n as usize;
+pub fn _celt_autocorr(x: &[OpusVal16], ac: &mut [OpusVal32], window: &[OpusVal16], overlap: c_int, lag: c_int) {
+    let n = x.len();
     let overlap = overlap as usize;
     let lag = lag as usize;
 
@@ -246,7 +246,7 @@ mod tests {
         x[0] = 1.0;
         let mut ac = [0.0 as OpusVal32; 5];
 
-        _celt_autocorr(&x, &mut ac, &[], 0, 4, 64);
+        _celt_autocorr(&x, &mut ac, &[], 0, 4);
         // ac[0] = 1.0 + 10 (bias), ac[1..4] = 0.0
         assert!((ac[0] - 11.0).abs() < 1e-6);
         for i in 1..5 {
@@ -259,11 +259,10 @@ mod tests {
     fn test_autocorr_constant() {
         // Autocorrelation of a constant signal: all lags should be equal
         // (minus the missing overlap at higher lags)
-        let n = 16;
         let x = [1.0 as OpusVal16; 16];
         let mut ac = [0.0 as OpusVal32; 3];
 
-        _celt_autocorr(&x, &mut ac, &[], 0, 2, n);
+        _celt_autocorr(&x, &mut ac, &[], 0, 2);
         // ac[0] = 16 + 10 (bias) = 26, ac[1] = 15, ac[2] = 14
         assert!((ac[0] - 26.0).abs() < 1e-6);
         assert!((ac[1] - 15.0).abs() < 1e-6);
@@ -321,7 +320,7 @@ mod tests {
         let x = [0i16; 64];
         let mut ac = [0i32; 5];
 
-        _celt_autocorr(&x, &mut ac, &[], 0, 4, 64);
+        _celt_autocorr(&x, &mut ac, &[], 0, 4);
         assert_eq!(ac[0], 10);
         for i in 1..5 {
             assert_eq!(ac[i], 0, "ac[{}] = {} should be 0", i, ac[i]);
@@ -335,7 +334,7 @@ mod tests {
         let x = [100i16; 16];
         let mut ac = [0i32; 3];
 
-        _celt_autocorr(&x, &mut ac, &[], 0, 2, 16);
+        _celt_autocorr(&x, &mut ac, &[], 0, 2);
         assert!(ac[0] > ac[1], "ac[0]={} should exceed ac[1]={}", ac[0], ac[1]);
         assert!(ac[1] > ac[2], "ac[1]={} should exceed ac[2]={}", ac[1], ac[2]);
         assert!(ac[2] > 0, "ac[2]={} should be positive", ac[2]);
