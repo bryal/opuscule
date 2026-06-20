@@ -292,33 +292,6 @@ pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [OpusVal32]
     }
 }
 
-/// Convert linear band amplitudes to log-domain energies.
-///
-/// Computes bandLogE[i] = log2(bandE[i] * 4) - eMeans[i] for active bands,
-/// setting inactive bands to -14.0 (Q10).
-pub fn amp2log2(
-    m: &CELTMode,
-    eff_end: c_int,
-    end: c_int,
-    band_e: &[OpusVal32],
-    band_log_e: &mut [OpusVal16],
-    c_channels: c_int,
-) {
-    let nb_ebands = m.nb_ebands as usize;
-    let eff_end = eff_end as usize;
-    let end = end as usize;
-    for (le_ch, be_ch) in zip(band_log_e.chunks_mut(nb_ebands), band_e.chunks(nb_ebands)).take(c_channels as usize) {
-        for (i, (le, &be, &em)) in zip3(le_ch, be_ch, E_MEANS.iter()).enumerate() {
-            if i < eff_end {
-                *le = celt_log2(shl32(be, 2)) - shl16(em as OpusVal16, 6);
-            } else if i < end {
-                *le = -qconst16(14.0, DB_SHIFT);
-            }
-            // bands >= end are left untouched, as in the C
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

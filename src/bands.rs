@@ -211,8 +211,6 @@ pub fn interleave_hadamard(x: &mut [CeltNorm], n0: c_int, stride: c_int, hadamar
 }
 
 /// Spread mode constants (from bands.h).
-pub const SPREAD_NONE: c_int = 0;
-pub const SPREAD_LIGHT: c_int = 1;
 pub const SPREAD_NORMAL: c_int = 2;
 pub const SPREAD_AGGRESSIVE: c_int = 3;
 

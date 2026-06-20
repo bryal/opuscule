@@ -15,8 +15,6 @@ pub const EC_CODE_BITS: u32 = 32;
 pub const EC_SYM_MAX: u32 = (1 << EC_SYM_BITS) - 1;
 /// Carry bit of the high-order range symbol.
 pub const EC_CODE_TOP: u32 = 1 << (EC_CODE_BITS - 1);
-/// Low-order bit of the high-order range symbol.
-pub const EC_CODE_BOT: u32 = EC_CODE_TOP >> EC_SYM_BITS;
 /// The number of bits available for the last, partial symbol in the code field.
 pub const EC_CODE_EXTRA: u32 = (EC_CODE_BITS - 2) % EC_SYM_BITS + 1;
 
@@ -65,8 +63,6 @@ pub struct EcCtx<'a> {
 // Type aliases matching C's typedefs.
 #[allow(non_camel_case_types)]
 pub type ec_dec<'a> = EcCtx<'a>;
-#[allow(non_camel_case_types)]
-pub type ec_enc<'a> = EcCtx<'a>;
 
 impl EcCtx<'_> {
     /// All-zero context with an empty buffer — the safe replacement for

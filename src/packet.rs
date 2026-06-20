@@ -22,7 +22,6 @@ const OPUS_BANDWIDTH_SUPERWIDEBAND: c_int = 1104;
 const OPUS_BANDWIDTH_FULLBAND: c_int = 1105;
 
 // -- Error codes from opus_defines.h --
-const OPUS_BAD_ARG: c_int = -1;
 const OPUS_INVALID_PACKET: c_int = -4;
 
 /// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
@@ -69,26 +68,6 @@ pub fn packet_get_samples_per_frame(toc: u8, fs: i32) -> c_int {
 /// (Safe core of [`opus_packet_get_nb_channels`].)
 pub fn packet_get_nb_channels(toc: u8) -> c_int {
     if toc & 0x4 != 0 { 2 } else { 1 }
-}
-
-/// Number of frames in an Opus packet (RFC 6716 Section 3.2), or a negative
-/// error code (`OPUS_BAD_ARG` for empty, `OPUS_INVALID_PACKET` for a truncated
-/// code-3 packet).
-pub fn packet_get_nb_frames(packet: &[u8]) -> c_int {
-    let &[toc, ..] = packet else {
-        return OPUS_BAD_ARG;
-    };
-    let count = toc & 0x3;
-    if count == 0 {
-        1
-    } else if count != 3 {
-        2
-    } else {
-        match packet.get(1) {
-            Some(&b) => (b & 0x3F) as c_int,
-            None => OPUS_INVALID_PACKET,
-        }
-    }
 }
 
 /// Parse a frame size from a VBR packet header.
@@ -310,16 +289,6 @@ mod tests {
         assert_eq!(packet_get_nb_channels(0x04), 2);
         assert_eq!(packet_get_nb_channels(0xFB), 1);
         assert_eq!(packet_get_nb_channels(0xFF), 2);
-    }
-
-    #[test]
-    fn test_get_nb_frames() {
-        assert_eq!(packet_get_nb_frames(&[0x00]), 1); // code 0: 1 frame
-        assert_eq!(packet_get_nb_frames(&[0x01]), 2); // code 1: 2 frames
-        assert_eq!(packet_get_nb_frames(&[0x02]), 2); // code 2: 2 frames
-        assert_eq!(packet_get_nb_frames(&[0x03, 0x05]), 5); // code 3: count from 2nd byte
-        assert_eq!(packet_get_nb_frames(&[0x03]), OPUS_INVALID_PACKET); // code 3, truncated
-        assert_eq!(packet_get_nb_frames(&[]), OPUS_BAD_ARG); // empty
     }
 
     #[test]

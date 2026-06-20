@@ -100,11 +100,6 @@ pub type CELTDecoder = OpusCustomDecoder;
 
 // -- Decoder size and init functions --
 
-/// Return the size in bytes of a CELT decoder for the standard Opus mode.
-pub fn celt_decoder_get_size(_channels: c_int) -> c_int {
-    core::mem::size_of::<OpusCustomDecoder>() as c_int
-}
-
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
 pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
     if !(0..=2).contains(&channels) {
