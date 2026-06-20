@@ -9,7 +9,7 @@
 // translated from the C reference isn't worth hardening like the core.
 #![allow(clippy::indexing_slicing)]
 
-use opuscule::{Channels, Decoder, OpusVal16, SampleRate, sample_to_i16, version};
+use opuscule::{Channels, Decoder, OpusVal16, SampleRate, sample_to_i16};
 
 use std::env;
 use std::fs::File;
@@ -58,8 +58,6 @@ fn main() {
         print_usage(&argv[0]);
         process::exit(1);
     }
-
-    eprintln!("{}", version());
 
     let mut args = 1;
     let encode_only;

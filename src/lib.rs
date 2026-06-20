@@ -55,8 +55,3 @@ pub use arch::OpusVal16;
 pub use error::Error;
 pub use opus_decoder::{Channels, Decoder, SampleRate, sample_to_i16};
 pub use opus_multistream::{ChannelLayout, MsDecoder};
-
-/// The library version string.
-pub fn version() -> &'static str {
-    "libopus 1.0.0"
-}
