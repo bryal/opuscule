@@ -8,13 +8,13 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 use core::ffi::c_int;
 
-use crate::arch::{CeltEner, CeltNorm, CeltSig, EPSILON, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE, qconst16, qconst32};
+use crate::arch::{CeltEner, CeltNorm, CeltSig, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE, qconst16, qconst32};
 use crate::arch::{
-    add16, celt_rsqrt_norm, celt_sqrt, div32_16, extend32, extract16, half32, mac16_16, min16, mult16_16, mult16_16_p15,
-    mult16_16_q14, mult16_16_q15, mult16_32_q15, pshr32, shl32, shr16, shr32, sub16, vshr32,
+    add16, celt_rsqrt_norm, celt_sqrt, extend32, extract16, half32, mac16_16, min16, mult16_16, mult16_16_p15, mult16_16_q15,
+    mult16_32_q15, pshr32, shl32, shr16, shr32, sub16, vshr32,
 };
 #[cfg(feature = "fixed-point")]
-use crate::arch::{celt_exp2, celt_ilog2, celt_zlog2, shl16};
+use crate::arch::{celt_exp2, celt_ilog2, mult16_16_q14, shl16};
 #[cfg(not(feature = "fixed-point"))]
 use crate::arch::{celt_exp2, celt_rsqrt};
 use crate::entcode::{BITRES, EcCtx, ec_ilog, ec_tell_frac};
@@ -94,39 +94,6 @@ pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
             x[idx0] = tmp1 + tmp2;
             x[idx1] = tmp1 - tmp2;
         }
-    }
-}
-
-/// Intensity stereo: rotate (X, Y) onto X using the energy ratio.
-///
-/// Computes the left/right energy ratio for the band, derives mixing
-/// coefficients a1 and a2, and replaces X with the intensity-coded
-/// mono signal. Y is not updated (side is discarded at this point).
-pub fn intensity_stereo(m: &CELTMode, x: &mut [CeltNorm], y: &[CeltNorm], band_e: &[CeltEner], band_id: c_int, n: c_int) {
-    let i = band_id as usize;
-    let nb = m.nb_ebands as usize;
-    let be_left = *band_e.get(i).or_panic(i);
-    let be_right = *band_e.get(i + nb).or_panic(i + nb);
-
-    #[cfg(feature = "fixed-point")]
-    let shift = (celt_zlog2(be_left.max(be_right)) - 13) as i32;
-    #[cfg(not(feature = "fixed-point"))]
-    let shift: i32 = 0;
-
-    let left = vshr32(be_left, shift);
-    let right = vshr32(be_right, shift);
-    let norm = EPSILON
-        + celt_sqrt(
-            EPSILON + mult16_16(left as OpusVal16, left as OpusVal16) + mult16_16(right as OpusVal16, right as OpusVal16),
-        );
-    let a1 = div32_16(shl32(extend32(left as OpusVal16), 14), norm as OpusVal16);
-    let a2 = div32_16(shl32(extend32(right as OpusVal16), 14), norm as OpusVal16);
-    let nb_band = n as usize;
-    let x_band = x.get_mut(..nb_band).or_panic(nb_band);
-    let y_band = y.get(..nb_band).or_panic(nb_band);
-    for (xj, &r) in zip(x_band, y_band) {
-        let l = *xj;
-        *xj = (mult16_16_q14(a1 as OpusVal16, l) + mult16_16_q14(a2 as OpusVal16, r)) as CeltNorm;
     }
 }
 
