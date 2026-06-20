@@ -16,14 +16,11 @@
 use core::ffi::c_int;
 
 use crate::arch::*;
+use crate::error::Error;
 use crate::opus_decoder::{OpusDecoder, opus_decode_native};
 use crate::util::OrPanic;
 
 // -- Constants --
-
-const OPUS_BAD_ARG: c_int = -1;
-const OPUS_BUFFER_TOO_SMALL: c_int = -2;
-const OPUS_INVALID_PACKET: c_int = -4;
 
 /// Largest decodable frame, in samples per channel (120 ms @ 48 kHz). Sizes the
 /// per-stream decode scratch.
@@ -103,9 +100,9 @@ impl OpusMSDecoder {
     /// feeds it (255 = silence). The caller must then create `streams`
     /// sub-decoders (see [`OpusMSDecoder::stream_channels`]) to pass to
     /// [`decode`](OpusMSDecoder::decode).
-    pub fn new(channels: c_int, streams: c_int, coupled_streams: c_int, mapping: &[u8]) -> Result<OpusMSDecoder, c_int> {
+    pub fn new(channels: c_int, streams: c_int, coupled_streams: c_int, mapping: &[u8]) -> Result<OpusMSDecoder, Error> {
         if streams < 1 || coupled_streams > streams || coupled_streams < 0 || channels < 1 {
-            return Err(OPUS_BAD_ARG);
+            return Err(Error::BadArg);
         }
         let n = channels as usize;
         let mut layout = ChannelLayout {
@@ -116,7 +113,7 @@ impl OpusMSDecoder {
         };
         layout.mapping.get_mut(..n).or_panic(n).copy_from_slice(mapping.get(..n).or_panic(n));
         if !validate_layout(&layout) {
-            return Err(OPUS_BAD_ARG);
+            return Err(Error::BadArg);
         }
         Ok(OpusMSDecoder { layout })
     }
@@ -146,15 +143,15 @@ impl OpusMSDecoder {
         packet: Option<&[u8]>,
         pcm: &mut [OpusVal16],
         fec: bool,
-    ) -> Result<usize, c_int> {
+    ) -> Result<usize, Error> {
         let nb_channels = self.layout.nb_channels;
         let nb_streams = self.layout.nb_streams;
         if (decoders.len() as c_int) < nb_streams {
-            return Err(OPUS_BAD_ARG);
+            return Err(Error::BadArg);
         }
         let frame_size_cap = pcm.len() / nb_channels.max(1) as usize;
         if frame_size_cap > MAX_FRAME {
-            return Err(OPUS_BAD_ARG);
+            return Err(Error::BadArg);
         }
         let mut frame_size = frame_size_cap as c_int;
         let decode_fec = fec as c_int;
@@ -162,7 +159,7 @@ impl OpusMSDecoder {
         let total_len = packet.map_or(0, |p| p.len()) as c_int;
         let do_plc = total_len == 0;
         if !do_plc && total_len < 2 * nb_streams - 1 {
-            return Err(OPUS_INVALID_PACKET);
+            return Err(Error::InvalidPacket);
         }
 
         // Per-stream decode scratch (one stream's 1- or 2-channel output),
@@ -175,7 +172,7 @@ impl OpusMSDecoder {
         let mut s = 0;
         while s < nb_streams {
             if !do_plc && len <= 0 {
-                return Err(OPUS_INVALID_PACKET);
+                return Err(Error::InvalidPacket);
             }
             // All but the last stream are self-delimited within the packet.
             let self_delimited = if s != nb_streams - 1 { 1 } else { 0 };
@@ -194,13 +191,13 @@ impl OpusMSDecoder {
             off += packet_offset as usize;
             len -= packet_offset;
             if ret > frame_size {
-                return Err(OPUS_BUFFER_TOO_SMALL);
+                return Err(Error::BufferTooSmall);
             }
             if s > 0 && ret != frame_size {
-                return Err(OPUS_INVALID_PACKET);
+                return Err(Error::InvalidPacket);
             }
             if ret <= 0 {
-                return Err(ret);
+                return Err(Error::from_code(ret));
             }
             frame_size = ret;
 
@@ -277,10 +274,10 @@ mod tests {
     #[test]
     fn new_validates_args() {
         assert!(OpusMSDecoder::new(2, 1, 1, &[0, 1]).is_ok());
-        assert_eq!(OpusMSDecoder::new(2, 0, 0, &[0, 1]).err(), Some(OPUS_BAD_ARG)); // streams < 1
-        assert_eq!(OpusMSDecoder::new(2, 1, 2, &[0, 1]).err(), Some(OPUS_BAD_ARG)); // coupled > streams
+        assert_eq!(OpusMSDecoder::new(2, 0, 0, &[0, 1]).err(), Some(Error::BadArg)); // streams < 1
+        assert_eq!(OpusMSDecoder::new(2, 1, 2, &[0, 1]).err(), Some(Error::BadArg)); // coupled > streams
         // mapping references a channel beyond the stream count
-        assert_eq!(OpusMSDecoder::new(2, 1, 0, &[0, 9]).err(), Some(OPUS_BAD_ARG));
+        assert_eq!(OpusMSDecoder::new(2, 1, 0, &[0, 9]).err(), Some(Error::BadArg));
     }
 
     #[test]

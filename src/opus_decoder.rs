@@ -12,6 +12,7 @@ use crate::arch::*;
 use crate::celt::{CELTDecoder, CeltDecCtl, celt_decode_with_ec, celt_decoder_ctl, celt_decoder_init};
 use crate::entcode::EcCtx;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_init, ec_dec_uint, ec_tell};
+use crate::error::Error;
 use crate::packet::{
     opus_packet_parse_impl, packet_get_bandwidth, packet_get_mode, packet_get_nb_channels, packet_get_samples_per_frame,
 };
@@ -224,12 +225,12 @@ impl OpusDecoder {
     /// Decode one Opus packet into `pcm` (native sample type, interleaved by
     /// channel). `packet` is `None` for packet loss concealment. The output
     /// capacity in samples-per-channel is taken from `pcm.len()`. Returns the
-    /// number of samples decoded per channel, or a negative Opus error code.
-    pub fn decode(&mut self, packet: Option<&[u8]>, pcm: &mut [OpusVal16], fec: bool) -> Result<usize, c_int> {
+    /// number of samples decoded per channel.
+    pub fn decode(&mut self, packet: Option<&[u8]>, pcm: &mut [OpusVal16], fec: bool) -> Result<usize, Error> {
         let frame_size = (pcm.len() / self.channels as usize) as c_int;
         let len = packet.map_or(0, |p| p.len()) as c_int;
         let ret = opus_decode_native(self, packet, len, pcm, frame_size, fec as c_int, 0, None);
-        if ret < 0 { Err(ret) } else { Ok(ret as usize) }
+        if ret < 0 { Err(Error::from_code(ret)) } else { Ok(ret as usize) }
     }
 
     /// Final range-coder state of the last decoded frame (for the

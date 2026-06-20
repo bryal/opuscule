@@ -9,7 +9,7 @@
 // translated from the C reference isn't worth hardening like the core.
 #![allow(clippy::indexing_slicing)]
 
-use opuscule::{Channels, OpusDecoder, OpusVal16, SampleRate, opus_get_version_string, opus_strerror, sample_to_i16};
+use opuscule::{Channels, OpusDecoder, OpusVal16, SampleRate, opus_get_version_string, sample_to_i16};
 
 use std::env;
 use std::fs::File;
@@ -229,31 +229,27 @@ fn main() {
                 let packet = if lost { None } else { Some(&data[toggle][..len[toggle] as usize]) };
                 (packet, use_inbandfec && lost_prev)
             };
-            let output_samples = match dec.decode(packet, &mut out_buf, fec) {
-                Ok(n) => n as c_int,
-                Err(e) => e,
-            };
-
-            if output_samples > 0 {
-                if output_samples > skip {
-                    let write_samples = (output_samples - skip) as usize;
-                    let skip_offset = skip as usize * channels as usize;
-                    for i in 0..write_samples * channels as usize {
-                        let s = sample_to_i16(out_buf[i + skip_offset]);
-                        fbytes[2 * i] = (s & 0xFF) as u8;
-                        fbytes[2 * i + 1] = ((s >> 8) & 0xFF) as u8;
+            match dec.decode(packet, &mut out_buf, fec) {
+                Ok(output_samples) => {
+                    let output_samples = output_samples as c_int;
+                    if output_samples > skip {
+                        let write_samples = (output_samples - skip) as usize;
+                        let skip_offset = skip as usize * channels as usize;
+                        for i in 0..write_samples * channels as usize {
+                            let s = sample_to_i16(out_buf[i + skip_offset]);
+                            fbytes[2 * i] = (s & 0xFF) as u8;
+                            fbytes[2 * i + 1] = ((s >> 8) & 0xFF) as u8;
+                        }
+                        let write_bytes = write_samples * channels as usize * 2;
+                        fout.write_all(&fbytes[..write_bytes]).unwrap_or_else(|e| panic!("error writing output: {e}"));
                     }
-                    let write_bytes = write_samples * channels as usize * 2;
-                    fout.write_all(&fbytes[..write_bytes]).unwrap_or_else(|e| panic!("error writing output: {e}"));
+                    if output_samples < skip {
+                        skip -= output_samples;
+                    } else {
+                        skip = 0;
+                    }
                 }
-                if output_samples < skip {
-                    skip -= output_samples;
-                } else {
-                    skip = 0;
-                }
-            } else {
-                let msg = opus_strerror(output_samples);
-                eprintln!("error decoding frame: {}", msg);
+                Err(e) => eprintln!("error decoding frame: {e}"),
             }
         }
 

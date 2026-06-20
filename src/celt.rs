@@ -1360,28 +1360,7 @@ pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> c_int {
     OPUS_OK
 }
 
-// -- opus_strerror / opus_get_version_string --
-
-static ERROR_STRINGS: [&str; 8] = [
-    "success",
-    "invalid argument",
-    "buffer too small",
-    "internal error",
-    "corrupted stream",
-    "request not implemented",
-    "invalid state",
-    "memory allocation failed",
-];
-
-static UNKNOWN_ERROR: &str = "unknown error";
-
-/// Human-readable message for an Opus error code (0 or negative).
-pub fn opus_strerror(error: c_int) -> &'static str {
-    // A valid error in -7..=0 maps to index 0..=7; anything else (including
-    // positive `error`, whose negation wraps to a huge usize) misses the
-    // table and falls back to the unknown-error string.
-    *ERROR_STRINGS.get((-error) as usize).unwrap_or(&UNKNOWN_ERROR)
-}
+// -- opus_get_version_string --
 
 /// Library version string.
 pub fn opus_get_version_string() -> &'static str {
