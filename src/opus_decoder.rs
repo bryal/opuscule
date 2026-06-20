@@ -97,11 +97,10 @@ impl OpusDecoder {
                 payload_size_ms: 0,
                 prev_pitch_lag: 0,
             },
-            // SAFETY: every SilkDecoder field is an integer, a POD array, a
-            // sub-struct of those, or an `Option<&'static _>` — all of which
-            // have a valid all-zero bit pattern. `init` sets the live state
-            // before any use.
-            silk_dec: unsafe { core::mem::zeroed() },
+            // Placeholder reset state; `init` fully overwrites it (the
+            // per-channel states via `silk_init_decoder`, the super-header
+            // fields explicitly) before any decode.
+            silk_dec: SilkDecoder::default(),
             celt_dec: CELTDecoder::new(crate::modes::celt_mode(), 1),
         };
         match dec.init(sample_rate, channels) {

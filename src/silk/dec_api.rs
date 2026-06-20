@@ -71,6 +71,7 @@ pub struct SilkTocStruct {
 /// `silk_decoder` super-struct wrapping the N per-channel states plus
 /// shared stereo state and channel counts. The parent `opus_decoder`
 /// treats this as an opaque blob sized by [`silk_Get_Decoder_Size`].
+#[derive(Default)]
 pub struct SilkDecoder {
     pub channel_state: [SilkDecoderState; DECODER_NUM_CHANNELS],
     pub s_stereo: StereoDecState,
