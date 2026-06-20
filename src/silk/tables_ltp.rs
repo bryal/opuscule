@@ -19,27 +19,8 @@ pub static SILK_LTP_GAIN_ICDF_2: [u8; 32] = [
     12, 9, 5, 2, 0,
 ];
 
-/// `silk_LTP_gain_middle_avg_RD_Q14`
-pub static SILK_LTP_GAIN_MIDDLE_AVG_RD_Q14: i16 = 12304;
-
-/// `silk_LTP_gain_BITS_Q5_0`
-pub static SILK_LTP_GAIN_BITS_Q5_0: [u8; 8] = [15, 131, 138, 138, 155, 155, 173, 173];
-
-/// `silk_LTP_gain_BITS_Q5_1`
-pub static SILK_LTP_GAIN_BITS_Q5_1: [u8; 16] = [69, 93, 115, 118, 131, 138, 141, 138, 150, 150, 155, 150, 155, 160, 166, 160];
-
-/// `silk_LTP_gain_BITS_Q5_2`
-pub static SILK_LTP_GAIN_BITS_Q5_2: [u8; 32] = [
-    131, 128, 134, 141, 141, 141, 145, 145, 145, 150, 155, 155, 155, 155, 160, 160, 160, 160, 166, 166, 173, 173, 182, 192,
-    182, 192, 192, 192, 205, 192, 205, 224,
-];
-
 /// `silk_LTP_gain_iCDF_ptrs`
 pub static SILK_LTP_GAIN_ICDF_PTRS: [&[u8]; 3] = [&SILK_LTP_GAIN_ICDF_0, &SILK_LTP_GAIN_ICDF_1, &SILK_LTP_GAIN_ICDF_2];
-
-/// `silk_LTP_gain_BITS_Q5_ptrs`
-pub static SILK_LTP_GAIN_BITS_Q5_PTRS: [&[u8]; 3] =
-    [&SILK_LTP_GAIN_BITS_Q5_0, &SILK_LTP_GAIN_BITS_Q5_1, &SILK_LTP_GAIN_BITS_Q5_2];
 
 /// `silk_LTP_gain_vq_0` — 8×5 VQ codebook (codebook 0).
 pub static SILK_LTP_GAIN_VQ_0: [[i8; 5]; 8] = [
@@ -111,6 +92,3 @@ pub static SILK_LTP_GAIN_VQ_2: [[i8; 5]; 32] = [
 
 /// `silk_LTP_vq_ptrs_Q7` — pointers to the three VQ codebooks.
 pub static SILK_LTP_VQ_PTRS_Q7: [&[[i8; 5]]; 3] = [&SILK_LTP_GAIN_VQ_0, &SILK_LTP_GAIN_VQ_1, &SILK_LTP_GAIN_VQ_2];
-
-/// `silk_LTP_vq_sizes`
-pub static SILK_LTP_VQ_SIZES: [i8; 3] = [8, 16, 32];

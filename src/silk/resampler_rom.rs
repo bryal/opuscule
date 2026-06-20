@@ -13,22 +13,9 @@ pub const RESAMPLER_DOWN_ORDER_FIR1: usize = 24;
 pub const RESAMPLER_DOWN_ORDER_FIR2: usize = 36;
 pub const RESAMPLER_ORDER_FIR_12: usize = 8;
 
-/// Tables for 2x downsampler.
-///
-/// In the C the negative coefficients are written as `<unsigned> - 65536`
-/// because the source values come from a coefficient design tool that
-/// emits them as 16-bit unsigned. The C lets the implicit `int -> int16`
-/// narrowing handle it; in Rust we evaluate the difference in `i32`
-/// and cast to `i16`.
-pub static SILK_RESAMPLER_DOWN2_0: i16 = 9872;
-pub static SILK_RESAMPLER_DOWN2_1: i16 = (39809i32 - 65536) as i16;
-
 /// Tables for 2x upsampler, high quality.
 pub static SILK_RESAMPLER_UP2_HQ_0: [i16; 3] = [1746, 14986, (39083i32 - 65536) as i16];
 pub static SILK_RESAMPLER_UP2_HQ_1: [i16; 3] = [6854, 25769, (55542i32 - 65536) as i16];
-
-/// Notch filter coefficients used after 2x upsampling.
-pub static SILK_RESAMPLER_UP2_HQ_NOTCH: [i16; 4] = [9634, -7012, 7209, 30474];
 
 /// IIR + FIR coefficients for the 3:4 fractional downsampler.
 pub static SILK_RESAMPLER_3_4_COEFS: [i16; 2 + 3 * RESAMPLER_DOWN_ORDER_FIR0 / 2] = [
@@ -55,9 +42,6 @@ pub static SILK_RESAMPLER_1_4_COEFS: [i16; 2 + RESAMPLER_DOWN_ORDER_FIR2 / 2] =
 /// IIR + FIR coefficients for the 1:6 fractional downsampler.
 pub static SILK_RESAMPLER_1_6_COEFS: [i16; 2 + RESAMPLER_DOWN_ORDER_FIR2 / 2] =
     [27540, -15257, 17, 12, 8, 1, -10, -22, -30, -32, -22, 3, 44, 100, 168, 243, 317, 381, 429, 455];
-
-/// Low-quality 2:3 fractional downsampler (used in some narrow-band paths).
-pub static SILK_RESAMPLER_2_3_COEFS_LQ: [i16; 2 + 2 * 2] = [-2797, -6507, 4697, 10739, 1567, 8276];
 
 /// Interpolation fractions of 1/24, 3/24, ..., 23/24 (46 words).
 pub static SILK_RESAMPLER_FRAC_FIR_12: [[i16; RESAMPLER_ORDER_FIR_12 / 2]; 12] = [
