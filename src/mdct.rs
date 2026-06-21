@@ -27,13 +27,14 @@ pub struct MdctLookup {
 /// `(N/2 - overlap)/2` before writing. Since slices can't index before
 /// their start, the Rust version takes the whole output buffer plus
 /// `out_off`, the offset the C caller would have passed as its pointer;
-/// the back-adjustment is folded into a base index.
+/// the back-adjustment is folded into each store's index.
 ///
 /// C implementation: mdct.c clt_mdct_backward(), lines 217-237.
 ///
 /// This is a strided FFT/MDCT butterfly with bidirectional cursors
 /// (pre/post-rotate, de-shuffle, and the TDAC overlap-add that scatters
-/// into `out` counting both up and down from `base`). Every index is
+/// into `out` counting both up and down from the back-adjusted origin).
+/// Every index is
 /// governed by the transform sizes — `i < n4`, the `f`/`f2` scratch
 /// buffers are `n2 = 2*n4` long, `trig` is sized for the mode, and the
 /// `out` writes stay within the current frame — so it stays as indexed
@@ -154,9 +155,13 @@ pub fn clt_mdct_backward(
         }
     }
 
-    // TDAC alignment: the C does `out -= (n2 - overlap) >> 1` and then
-    // indexes forward; fold that into a base index instead.
-    let base = out_off - (((n2 - overlap) >> 1) as usize);
+    // TDAC alignment: the C does `out -= (n2 - overlap) >> 1` and then indexes
+    // forward. `pre` is that back-shift; it can exceed `out_off` (a long block
+    // starts at offset 0), so a standalone `out_off - pre` base would underflow
+    // `usize`. Every real store lands at `out_off + idx >= pre`, so add the
+    // index first, then subtract `pre` - same target, no negative intermediate.
+    let pre = ((n2 - overlap) >> 1) as usize;
+    let at = |idx: usize| out_off + idx - pre;
 
     // --- Mirror + overlap-add (TDAC) ---
     // First half: copy non-overlapping region, then window and overlap-add
@@ -167,7 +172,7 @@ pub fn clt_mdct_backward(
 
         // Non-overlapping region: direct copy
         for _ in 0..(n4 - overlap / 2) as usize {
-            out[base + xp1] = f2[fp1];
+            out[at(xp1)] = f2[fp1];
             xp1 = xp1.wrapping_sub(1);
             fp1 = fp1.wrapping_sub(1);
         }
@@ -178,8 +183,8 @@ pub fn clt_mdct_backward(
             fp1 = fp1.wrapping_sub(1);
             let w1 = window[wi];
             let w2 = window[(overlap as usize - 1) - wi];
-            out[base + yp1] += -mult16_32_q15(w1, x1);
-            out[base + xp1] += mult16_32_q15(w2, x1);
+            out[at(yp1)] += -mult16_32_q15(w1, x1);
+            out[at(xp1)] += mult16_32_q15(w2, x1);
             yp1 += 1;
             xp1 = xp1.wrapping_sub(1);
         }
@@ -193,7 +198,7 @@ pub fn clt_mdct_backward(
 
         // Non-overlapping region: direct copy
         for _ in 0..(n4 - overlap / 2) as usize {
-            out[base + xp2] = f2[fp2];
+            out[at(xp2)] = f2[fp2];
             xp2 += 1;
             fp2 += 1;
         }
@@ -204,8 +209,8 @@ pub fn clt_mdct_backward(
             fp2 += 1;
             let w1 = window[wi];
             let w2 = window[(overlap as usize - 1) - wi];
-            out[base + yp2] = mult16_32_q15(w1, x2);
-            out[base + xp2] = mult16_32_q15(w2, x2);
+            out[at(yp2)] = mult16_32_q15(w1, x2);
+            out[at(xp2)] = mult16_32_q15(w2, x2);
             yp2 = yp2.wrapping_sub(1);
             xp2 += 1;
         }
