@@ -18,8 +18,6 @@
 // indexed math under a module-wide allow rather than contrived rewrites.
 #![allow(clippy::indexing_slicing)]
 
-use core::ffi::c_int;
-
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_uint;
 
@@ -188,14 +186,14 @@ fn ncwrs_urow(n: usize, k: usize, u: &mut [u32]) -> u32 {
 
 /// Decode 1-element combination.
 #[inline]
-fn cwrsi1(k: i32, i: u32, y: &mut [c_int]) {
+fn cwrsi1(k: i32, i: u32, y: &mut [i32]) {
     let s = -(i as i32);
     y[0] = (k + s) ^ s;
 }
 
 /// Decode 2-element combination.
 #[inline]
-fn cwrsi2(k: i32, i: u32, y: &mut [c_int]) {
+fn cwrsi2(k: i32, i: u32, y: &mut [i32]) {
     let mut i = i;
     let p = ucwrs2(k as u32 + 1);
     let s = if i >= p { -1i32 } else { 0 };
@@ -210,7 +208,7 @@ fn cwrsi2(k: i32, i: u32, y: &mut [c_int]) {
 }
 
 /// Decode 3-element combination.
-fn cwrsi3(k: i32, i: u32, y: &mut [c_int]) {
+fn cwrsi3(k: i32, i: u32, y: &mut [i32]) {
     let mut i = i;
     let p = ucwrs3(k as u32 + 1);
     let s = if i >= p { -1i32 } else { 0 };
@@ -226,7 +224,7 @@ fn cwrsi3(k: i32, i: u32, y: &mut [c_int]) {
 }
 
 /// Decode 4-element combination.
-fn cwrsi4(k: i32, i: u32, y: &mut [c_int]) {
+fn cwrsi4(k: i32, i: u32, y: &mut [i32]) {
     let mut i = i;
     let p = ucwrs4(k + 1);
     let s = if i >= p { -1i32 } else { 0 };
@@ -259,7 +257,7 @@ fn cwrsi4(k: i32, i: u32, y: &mut [c_int]) {
 
 /// General N-element decode: given index i and row U(n, 0..=k+1),
 /// recover the pulse vector y[0..n].
-fn cwrsi(k: i32, i: u32, y: &mut [c_int], u: &mut [u32]) {
+fn cwrsi(k: i32, i: u32, y: &mut [i32], u: &mut [u32]) {
     debug_assert!(!y.is_empty());
     let mut i = i;
     let mut k = k;
@@ -289,7 +287,7 @@ fn cwrsi(k: i32, i: u32, y: &mut [c_int], u: &mut [u32]) {
 /// # Safety
 /// `y` must point to at least `n` writable i32 elements.
 /// `dec` must be a valid decoder context.
-pub fn decode_pulses(y: &mut [c_int], k: c_int, dec: &mut ec_dec) {
+pub fn decode_pulses(y: &mut [i32], k: i32, dec: &mut ec_dec) {
     debug_assert!(k > 0);
     let n = y.len();
 

@@ -1,9 +1,8 @@
 //! Decoder error type.
 //!
-//! Internally the decoder uses libopus-style negative `c_int` codes; the
+//! Internally the decoder uses libopus-style negative `i32` codes; the
 //! public API maps them to this enum at the boundary.
 
-use core::ffi::c_int;
 use core::fmt;
 
 /// An error returned while decoding.
@@ -25,7 +24,7 @@ impl Error {
     /// Map an internal negative error code to an `Error` (used at the public
     /// API boundary; only called on the error path, so any unrecognised code
     /// is reported as [`Error::InternalError`]).
-    pub(crate) fn from_code(code: c_int) -> Error {
+    pub(crate) fn from_code(code: i32) -> Error {
         match code {
             -1 => Error::BadArg,         // OPUS_BAD_ARG
             -2 => Error::BufferTooSmall, // OPUS_BUFFER_TOO_SMALL

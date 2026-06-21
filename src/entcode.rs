@@ -3,8 +3,6 @@
 // Range coder shared state and utility functions.
 // See RFC 6716 Section 4.1 for the range coding scheme.
 
-use core::ffi::c_int;
-
 // -- Constants from mfrngcod.h --
 
 /// The number of bits to output at a time.
@@ -41,9 +39,9 @@ pub struct EcCtx<'a> {
     /// Bits that will be read from/written at the end.
     pub end_window: u32,
     /// Number of valid bits in end_window.
-    pub nend_bits: c_int,
+    pub nend_bits: i32,
     /// The total number of whole bits read/written.
-    pub nbits_total: c_int,
+    pub nbits_total: i32,
     /// The offset at which the next range coder byte will be read/written.
     pub offs: u32,
     /// The number of values in the current range.
@@ -55,9 +53,9 @@ pub struct EcCtx<'a> {
     /// Encoder: number of outstanding carry propagating symbols.
     pub ext: u32,
     /// A buffered input/output symbol, awaiting carry propagation.
-    pub rem: c_int,
+    pub rem: i32,
     /// Nonzero if an error occurred.
-    pub error: c_int,
+    pub error: i32,
 }
 
 // Type aliases matching C's typedefs.

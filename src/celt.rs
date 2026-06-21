@@ -3,8 +3,6 @@
 // CELT decoder core: helper functions and the main decode entry point.
 // Functions are translated incrementally, innermost helpers first.
 
-use core::ffi::c_int;
-
 use crate::arch::*;
 use crate::bands::{SPREAD_NORMAL, anti_collapse, celt_lcg_rand, denormalise_bands, quant_all_bands};
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir, celt_iir};
@@ -20,31 +18,31 @@ use crate::vq::renormalise_vector;
 
 // -- Constants --
 
-const SIG_SHIFT: c_int = 12;
+const SIG_SHIFT: i32 = 12;
 
 #[cfg(not(feature = "fixed-point"))]
 const CELT_SIG_SCALE: f32 = 32768.0;
 
-pub const DECODE_BUFFER_SIZE: c_int = 2048;
-const MAX_PERIOD: c_int = 1024;
-const LPC_ORDER: c_int = 24;
-const DB_SHIFT: c_int = 10;
+pub const DECODE_BUFFER_SIZE: i32 = 2048;
+const MAX_PERIOD: i32 = 1024;
+const LPC_ORDER: i32 = 24;
+const DB_SHIFT: i32 = 10;
 
 // -- Opus error codes (from opus_defines.h) --
 
-const OPUS_OK: c_int = 0;
-const OPUS_BAD_ARG: c_int = -1;
-const OPUS_INTERNAL_ERROR: c_int = -3;
+const OPUS_OK: i32 = 0;
+const OPUS_BAD_ARG: i32 = -1;
+const OPUS_INTERNAL_ERROR: i32 = -3;
 
-const COMBFILTER_MINPERIOD: c_int = 15;
+const COMBFILTER_MINPERIOD: i32 = 15;
 
 // -- OpusCustomDecoder (CELTDecoder) struct --
 
 // Standard Opus mode constants for fixed-size arrays.
 // Without CUSTOM_MODES, overlap=120 and nbEBands=21 are invariant.
-const OVERLAP: c_int = 120;
-const NB_EBANDS: c_int = 21;
-const MAX_CHANNELS: c_int = 2;
+const OVERLAP: i32 = 120;
+const NB_EBANDS: i32 = 21;
+const MAX_CHANNELS: i32 = 2;
 /// Largest CELT frame: nb_short_mdcts (8) * short_mdct_size (120) at LM=3.
 const MAX_FRAME_SIZE: usize = 960;
 
@@ -61,27 +59,27 @@ const BAND_E_SIZE: usize = (2 * NB_EBANDS) as usize;
 /// Mono decoders simply use the first portion of each array.
 pub struct OpusCustomDecoder {
     pub mode: &'static CELTMode,
-    pub overlap: c_int,
-    pub channels: c_int,
-    pub stream_channels: c_int,
+    pub overlap: i32,
+    pub channels: i32,
+    pub stream_channels: i32,
 
-    pub downsample: c_int,
-    pub start: c_int,
-    pub end: c_int,
-    pub signalling: c_int,
+    pub downsample: i32,
+    pub start: i32,
+    pub end: i32,
+    pub signalling: i32,
 
     // Everything beyond this point gets cleared on a reset
     // (DECODER_RESET_START = rng)
     pub rng: u32,
-    pub error: c_int,
-    pub last_pitch_index: c_int,
-    pub loss_count: c_int,
-    pub postfilter_period: c_int,
-    pub postfilter_period_old: c_int,
+    pub error: i32,
+    pub last_pitch_index: i32,
+    pub loss_count: i32,
+    pub postfilter_period: i32,
+    pub postfilter_period_old: i32,
     pub postfilter_gain: Val,
     pub postfilter_gain_old: Val,
-    pub postfilter_tapset: c_int,
-    pub postfilter_tapset_old: c_int,
+    pub postfilter_tapset: i32,
+    pub postfilter_tapset_old: i32,
 
     pub preemph_mem_d: [CeltSig; 2],
 
@@ -101,7 +99,7 @@ pub type CELTDecoder = OpusCustomDecoder;
 // -- Decoder size and init functions --
 
 /// Initialise a CELT decoder for the standard Opus mode at the given sample rate.
-pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_int) -> c_int {
+pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: i32) -> i32 {
     if !(0..=2).contains(&channels) {
         return OPUS_BAD_ARG;
     }
@@ -112,7 +110,7 @@ pub fn celt_decoder_init(st: &mut CELTDecoder, sampling_rate: i32, channels: c_i
 
 impl OpusCustomDecoder {
     /// Build a fresh CELT decoder for `mode` and channel count (no heap).
-    pub fn new(mode: &'static CELTMode, channels: c_int) -> Self {
+    pub fn new(mode: &'static CELTMode, channels: i32) -> Self {
         let init_log_e = -qconst16(28.0, DB_SHIFT);
         OpusCustomDecoder {
             mode,
@@ -220,13 +218,13 @@ pub fn celt_decoder_reset(st: &mut CELTDecoder) {
 // buffers (exc/mem/e and chans[cu][OM + ..], freq[c*n + i]). Indices are
 // bounded by MAX_PERIOD / n / overlap and the band structure; kept indexed.
 #[allow(clippy::indexing_slicing)]
-pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_int) {
+pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) {
     let mode = st.mode;
     let overlap = mode.overlap;
     let mut fade: Val = Q15ONE;
     let cc = st.channels;
-    let mut offset: c_int;
-    let pitch_index: c_int;
+    let mut offset: i32;
+    let pitch_index: i32;
 
     // Per-channel views of decode_mem; out_mem[c] starts at OM and
     // out_syn[c] at DECODE_BUFFER_SIZE - n within each channel.
@@ -275,19 +273,19 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_i
         }
         seed = st.rng;
         for c in 0..cc {
-            for i in 0..(mode.ebands[st.start as usize] as c_int) << lm {
+            for i in 0..(mode.ebands[st.start as usize] as i32) << lm {
                 x[(c * n + i) as usize] = 0 as CeltNorm;
             }
             for i in st.start..mode.eff_ebands {
-                let boffs = (n * c + ((mode.ebands[i as usize] as c_int) << lm)) as usize;
-                let blen = ((mode.ebands[i as usize + 1] - mode.ebands[i as usize]) as c_int) << lm;
+                let boffs = (n * c + ((mode.ebands[i as usize] as i32) << lm)) as usize;
+                let blen = ((mode.ebands[i as usize + 1] - mode.ebands[i as usize]) as i32) << lm;
                 for j in 0..blen as usize {
                     seed = celt_lcg_rand(seed);
                     x[boffs + j] = (seed as i32 >> 20) as CeltNorm;
                 }
                 renormalise_vector(&mut x[boffs..boffs + blen as usize], Q15ONE);
             }
-            for i in ((mode.ebands[st.end as usize] as c_int) << lm)..n {
+            for i in ((mode.ebands[st.end as usize] as i32) << lm)..n {
                 x[(c * n + i) as usize] = 0 as CeltNorm;
             }
         }
@@ -297,7 +295,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_i
 
         let mut c = 0;
         loop {
-            for i in 0..((mode.ebands[st.start as usize] as c_int) << lm) {
+            for i in 0..((mode.ebands[st.start as usize] as i32) << lm) {
                 freq[(c * n + i) as usize] = 0 as CeltSig;
             }
             c += 1;
@@ -307,7 +305,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_i
         }
         c = 0;
         loop {
-            let mut bound = (mode.ebands[eff_end as usize] as c_int) << lm;
+            let mut bound = (mode.ebands[eff_end as usize] as i32) << lm;
             if st.downsample != 1 {
                 bound = bound.min(n / st.downsample);
             }
@@ -332,7 +330,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_i
         // Pitch-based PLC
         if st.loss_count == 0 {
             let mut pitch_buf = [0 as Val; (DECODE_BUFFER_SIZE >> 1) as usize];
-            let poffset: c_int = 720;
+            let poffset: i32 = 720;
             {
                 let ch0 = &chans[0][..DECODE_BUFFER_SIZE as usize];
                 if cc == 2 {
@@ -342,7 +340,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_i
                     pitch_downsample(&[ch0], &mut pitch_buf, DECODE_BUFFER_SIZE, cc);
                 }
             }
-            let mut pi: c_int = 0;
+            let mut pi: i32 = 0;
             pitch_search(
                 &pitch_buf[(poffset >> 1) as usize..],
                 &pitch_buf,
@@ -411,7 +409,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_i
             {
                 let mut e1: Wal = 1 as Wal;
                 let mut e2: Wal = 1 as Wal;
-                let period: c_int;
+                let period: i32;
                 if pitch_index <= MAX_PERIOD / 2 {
                     period = pitch_index;
                 } else {
@@ -562,11 +560,11 @@ static TAPSET_ICDF: [u8; 3] = [2, 1, 0];
 pub fn celt_decode_with_ec<'a>(
     st: &mut CELTDecoder,
     data: Option<&'a [u8]>,
-    len: c_int,
+    len: i32,
     pcm: &mut [Val],
-    frame_size: c_int,
+    frame_size: i32,
     dec: Option<&mut EcCtx<'a>>,
-) -> c_int {
+) -> i32 {
     let mode = st.mode;
     let cc = st.channels;
     let ch_size = (DECODE_BUFFER_SIZE + st.overlap) as usize;
@@ -575,7 +573,7 @@ pub fn celt_decode_with_ec<'a>(
     frame_size *= st.downsample;
 
     // Without CUSTOM_MODES, find LM from frame_size
-    let mut lm: c_int = 0;
+    let mut lm: i32 = 0;
     while lm <= mode.max_lm {
         if mode.short_mdct_size << lm == frame_size {
             break;
@@ -585,13 +583,13 @@ pub fn celt_decode_with_ec<'a>(
     if lm > mode.max_lm {
         return OPUS_BAD_ARG;
     }
-    let m: c_int = 1 << lm;
+    let m: i32 = 1 << lm;
 
     if !(0..=1275).contains(&len) {
         return OPUS_BAD_ARG;
     }
 
-    let n: c_int = m * mode.short_mdct_size;
+    let n: i32 = m * mode.short_mdct_size;
 
     let mut eff_end = st.end;
     if eff_end > mode.eff_ebands {
@@ -645,7 +643,7 @@ pub fn celt_decode_with_ec<'a>(
     let mut total_bits: i32 = len * 8;
     let mut tell: i32 = ec_tell(dec) as i32;
 
-    let silence: c_int;
+    let silence: i32;
     if tell >= total_bits {
         silence = 1;
     } else if tell == 1 {
@@ -659,13 +657,13 @@ pub fn celt_decode_with_ec<'a>(
     }
 
     let mut postfilter_gain: Val = 0 as Val;
-    let mut postfilter_pitch: c_int = 0;
-    let mut postfilter_tapset: c_int = 0;
+    let mut postfilter_pitch: i32 = 0;
+    let mut postfilter_tapset: i32 = 0;
     if st.start == 0 && tell + 16 <= total_bits {
         if ec_dec_bit_logp(dec, 1) != 0 {
-            let octave = ec_dec_uint(dec, 6) as c_int;
-            postfilter_pitch = (16 << octave) + ec_dec_bits(dec, (4 + octave) as u32) as c_int - 1;
-            let qg = ec_dec_bits(dec, 3) as c_int;
+            let octave = ec_dec_uint(dec, 6) as i32;
+            postfilter_pitch = (16 << octave) + ec_dec_bits(dec, (4 + octave) as u32) as i32 - 1;
+            let qg = ec_dec_bits(dec, 3) as i32;
             if ec_tell(dec) as i32 + 2 <= total_bits {
                 postfilter_tapset = ec_dec_icdf(dec, &TAPSET_ICDF, 2);
             }
@@ -674,7 +672,7 @@ pub fn celt_decode_with_ec<'a>(
         tell = ec_tell(dec) as i32;
     }
 
-    let is_transient: c_int;
+    let is_transient: i32;
     if lm > 0 && tell + 3 <= total_bits {
         is_transient = ec_dec_bit_logp(dec, 3);
         tell = ec_tell(dec) as i32;
@@ -682,10 +680,10 @@ pub fn celt_decode_with_ec<'a>(
         is_transient = 0;
     }
 
-    let short_blocks: c_int = if is_transient != 0 { m } else { 0 };
+    let short_blocks: i32 = if is_transient != 0 { m } else { 0 };
 
     // Decode the global flags (first symbols in the stream)
-    let intra_ener: c_int = if tell + 3 <= total_bits { ec_dec_bit_logp(dec, 3) } else { 0 };
+    let intra_ener: i32 = if tell + 3 <= total_bits { ec_dec_bit_logp(dec, 3) } else { 0 };
     // Get band energies
     unquant_coarse_energy(mode, st.start, st.end, &mut st.old_band_e, intra_ener, dec, c_channels, lm);
 
@@ -693,7 +691,7 @@ pub fn celt_decode_with_ec<'a>(
     tf_decode(st.start, st.end, is_transient, &mut tf_res, lm, dec);
 
     tell = ec_tell(dec) as i32;
-    let mut spread_decision: c_int = SPREAD_NORMAL;
+    let mut spread_decision: i32 = SPREAD_NORMAL;
     if tell + 4 <= total_bits {
         spread_decision = ec_dec_icdf(dec, &SPREAD_ICDF, 5);
     }
@@ -705,17 +703,17 @@ pub fn celt_decode_with_ec<'a>(
 
     init_caps(mode, &mut cap, lm, c_channels);
 
-    let mut dynalloc_logp: c_int = 6;
+    let mut dynalloc_logp: i32 = 6;
     total_bits <<= BITRES;
     tell = ec_tell_frac(dec) as i32;
     // Decoder-interleaved per-band dynalloc: ec reads gated by cap[ii] with
     // mode.ebands[..] widths, writing offsets[ii]. Kept indexed.
     #[allow(clippy::indexing_slicing)]
     for ii in st.start..st.end {
-        let width = (c_channels * (mode.ebands[ii as usize + 1] - mode.ebands[ii as usize]) as c_int) << lm;
+        let width = (c_channels * (mode.ebands[ii as usize + 1] - mode.ebands[ii as usize]) as i32) << lm;
         let quanta = (width << BITRES).min((6i32 << BITRES).max(width));
         let mut dynalloc_loop_logp = dynalloc_logp;
-        let mut boost: c_int = 0;
+        let mut boost: i32 = 0;
         while tell + (dynalloc_loop_logp << BITRES) < total_bits && boost < cap[ii as usize] {
             let flag = ec_dec_bit_logp(dec, dynalloc_loop_logp as u32);
             tell = ec_tell_frac(dec) as i32;
@@ -733,13 +731,13 @@ pub fn celt_decode_with_ec<'a>(
     }
 
     let mut fine_quant = [0i32; NB_EBANDS as usize];
-    let alloc_trim: c_int = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
+    let alloc_trim: i32 = if tell + (6 << BITRES) <= total_bits { ec_dec_icdf(dec, &TRIM_ICDF, 7) } else { 5 };
 
     let mut bits: i32 = ((len * 8) << BITRES) - ec_tell_frac(dec) as i32 - 1;
-    let anti_collapse_rsv: c_int = if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) { 1 << BITRES } else { 0 };
+    let anti_collapse_rsv: i32 = if is_transient != 0 && lm >= 2 && bits >= ((lm + 2) << BITRES) { 1 << BITRES } else { 0 };
     bits -= anti_collapse_rsv;
-    let mut intensity: c_int = 0;
-    let mut dual_stereo: c_int = 0;
+    let mut intensity: i32 = 0;
+    let mut dual_stereo: i32 = 0;
     let mut balance: i32 = 0;
     let coded_bands = compute_allocation(
         mode,
@@ -793,9 +791,9 @@ pub fn celt_decode_with_ec<'a>(
         );
     }
 
-    let mut anti_collapse_on: c_int = 0;
+    let mut anti_collapse_on: i32 = 0;
     if anti_collapse_rsv > 0 {
-        anti_collapse_on = ec_dec_bits(dec, 1) as c_int;
+        anti_collapse_on = ec_dec_bits(dec, 1) as i32;
     }
 
     unquant_energy_finalise(
@@ -805,7 +803,7 @@ pub fn celt_decode_with_ec<'a>(
         &mut st.old_band_e,
         &fine_quant,
         &fine_priority,
-        len * 8 - ec_tell(dec) as c_int,
+        len * 8 - ec_tell(dec) as i32,
         dec,
         c_channels,
     );
@@ -1007,7 +1005,7 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
     st.loss_count = 0;
-    if ec_tell(dec) as c_int > 8 * len {
+    if ec_tell(dec) as i32 > 8 * len {
         return OPUS_INTERNAL_ERROR;
     }
     if dec.error != 0 {
@@ -1025,7 +1023,7 @@ static TF_SELECT_TABLE: [[i8; 8]; 4] =
 
 /// Map sample rate to resampling factor.
 /// Only the five standard Opus rates are supported.
-pub fn resampling_factor(rate: i32) -> c_int {
+pub fn resampling_factor(rate: i32) -> i32 {
     match rate {
         48000 => 1,
         24000 => 2,
@@ -1079,11 +1077,11 @@ pub fn scaleout(a: Val) -> Val {
 /// Reads a sequence of binary flags from the entropy coder indicating
 /// whether each band uses a finer time or frequency resolution, then
 /// applies a selection table to map these to actual tf_change values.
-pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_int], lm: c_int, dec: &mut EcCtx) {
+pub fn tf_decode(start: i32, end: i32, is_transient: i32, tf_res: &mut [i32], lm: i32, dec: &mut EcCtx) {
     let budget = dec.storage * 8;
     let mut tell = ec_tell(dec) as u32;
     let mut logp: u32 = if is_transient != 0 { 2 } else { 4 };
-    let tf_select_rsv = (lm > 0 && tell + logp < budget) as c_int;
+    let tf_select_rsv = (lm > 0 && tell + logp < budget) as i32;
     let budget = budget - tf_select_rsv as u32;
     let mut tf_changed = 0;
     let mut curr = 0;
@@ -1097,7 +1095,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
         logp = if is_transient != 0 { 4 } else { 5 };
     }
     let tf_row = TF_SELECT_TABLE.get(lm as usize).or_panic(lm);
-    let tf_at = |k: c_int| *tf_row.get(k as usize).or_panic(k);
+    let tf_at = |k: i32| *tf_row.get(k as usize).or_panic(k);
     let mut tf_select = 0;
     if tf_select_rsv != 0 && tf_at(4 * is_transient + tf_changed) != tf_at(4 * is_transient + 2 + tf_changed) {
         tf_select = ec_dec_bit_logp(dec, 1);
@@ -1110,7 +1108,7 @@ pub fn tf_decode(start: c_int, end: c_int, is_transient: c_int, tf_res: &mut [c_
 // -- init_caps --
 
 /// Initialise the per-band bit allocation caps from the mode's cache.
-pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
+pub fn init_caps(m: &CELTMode, cap: &mut [i32], lm: i32, c: i32) {
     // Walk cap alongside adjacent eBands pairs (band width) and the matching
     // row of the caps cache.
     let row = m.nb_ebands as usize * (2 * lm as usize + c as usize - 1);
@@ -1138,11 +1136,11 @@ pub fn init_caps(m: &CELTMode, cap: &mut [c_int], lm: c_int, c: c_int) {
 #[allow(clippy::indexing_slicing)]
 pub fn compute_inv_mdcts(
     mode: &CELTMode,
-    short_blocks: c_int,
+    short_blocks: i32,
     x: &[CeltSig],
     out_syn: &mut [&mut [CeltSig]],
-    c_channels: c_int,
-    lm: c_int,
+    c_channels: i32,
+    lm: i32,
 ) {
     let n = mode.short_mdct_size << lm;
     let overlap = mode.overlap;
@@ -1196,9 +1194,9 @@ pub fn compute_inv_mdcts(
 pub fn deemphasis(
     in_: &[&[CeltSig]],
     pcm: &mut [Val],
-    n: c_int,
-    c_channels: c_int,
-    downsample: c_int,
+    n: i32,
+    c_channels: i32,
+    downsample: i32,
     coef: &[Val],
     mem: &mut [CeltSig],
 ) {
@@ -1206,7 +1204,7 @@ pub fn deemphasis(
     let c1 = *coef.get(1).or_panic("deemphasis coef[1] out of range");
     let c3 = *coef.get(3).or_panic("deemphasis coef[3] out of range");
     // `count` deliberately carries across channels, matching the C.
-    let mut count: c_int = 0;
+    let mut count: i32 = 0;
     for (c, (&x, m_slot)) in zip(in_, mem.iter_mut()).enumerate().take(c_channels as usize) {
         // Channel c's interleaved output positions: c, c+channels, c+2*channels, ...
         let mut out = pcm.iter_mut().skip(c).step_by(c_channels as usize);
@@ -1251,15 +1249,15 @@ pub fn comb_filter(
     y: Option<&mut [Wal]>,
     x: &mut [Wal],
     x_off: usize,
-    t0: c_int,
-    t1: c_int,
-    n: c_int,
+    t0: i32,
+    t1: i32,
+    n: i32,
     g0: Val,
     g1: Val,
-    tapset0: c_int,
-    tapset1: c_int,
+    tapset0: i32,
+    tapset1: i32,
     window: &[Val],
-    overlap: c_int,
+    overlap: i32,
 ) {
     #[cfg(not(feature = "fixed-point"))]
     let gains: [[Val; 3]; 3] =
@@ -1321,15 +1319,15 @@ pub fn comb_filter(
 
 /// CELT decoder control requests (the subset the Opus decoder actually uses).
 pub enum CeltDecCtl {
-    SetStartBand(c_int),
-    SetEndBand(c_int),
-    SetChannels(c_int),
-    SetSignalling(c_int),
+    SetStartBand(i32),
+    SetEndBand(i32),
+    SetChannels(i32),
+    SetSignalling(i32),
     ResetState,
 }
 
 /// Apply a CELT decoder control request. Returns `OPUS_OK` or an error code.
-pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> c_int {
+pub fn celt_decoder_ctl(st: &mut CELTDecoder, request: CeltDecCtl) -> i32 {
     match request {
         CeltDecCtl::SetStartBand(value) => {
             if value < 0 || value >= st.mode.nb_ebands {

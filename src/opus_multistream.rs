@@ -13,8 +13,6 @@
 //
 // Decoder-only: the encoder half of opus_multistream.c is not translated.
 
-use core::ffi::c_int;
-
 use crate::arch::*;
 use crate::error::Error;
 use crate::opus_decoder::{Decoder, opus_decode_native};
@@ -29,9 +27,9 @@ const MAX_FRAME: usize = 5760;
 // -- ChannelLayout --
 
 pub struct ChannelLayout {
-    pub nb_channels: c_int,
-    pub nb_streams: c_int,
-    pub nb_coupled_streams: c_int,
+    pub nb_channels: i32,
+    pub nb_streams: i32,
+    pub nb_coupled_streams: i32,
     pub mapping: [u8; 256],
 }
 
@@ -52,7 +50,7 @@ fn validate_layout(layout: &ChannelLayout) -> bool {
     }
     let mut i = 0;
     while i < layout.nb_channels {
-        let m = *layout.mapping.get(i as usize).or_panic(i) as c_int;
+        let m = *layout.mapping.get(i as usize).or_panic(i) as i32;
         if m >= max_channel && m != 255 {
             return false;
         }
@@ -61,10 +59,10 @@ fn validate_layout(layout: &ChannelLayout) -> bool {
     true
 }
 
-fn get_left_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
+fn get_left_channel(layout: &ChannelLayout, stream_id: i32, prev: i32) -> i32 {
     let mut i = if prev < 0 { 0 } else { prev + 1 };
     while i < layout.nb_channels {
-        if *layout.mapping.get(i as usize).or_panic(i) as c_int == stream_id * 2 {
+        if *layout.mapping.get(i as usize).or_panic(i) as i32 == stream_id * 2 {
             return i;
         }
         i += 1;
@@ -72,10 +70,10 @@ fn get_left_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_
     -1
 }
 
-fn get_right_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
+fn get_right_channel(layout: &ChannelLayout, stream_id: i32, prev: i32) -> i32 {
     let mut i = if prev < 0 { 0 } else { prev + 1 };
     while i < layout.nb_channels {
-        if *layout.mapping.get(i as usize).or_panic(i) as c_int == stream_id * 2 + 1 {
+        if *layout.mapping.get(i as usize).or_panic(i) as i32 == stream_id * 2 + 1 {
             return i;
         }
         i += 1;
@@ -83,10 +81,10 @@ fn get_right_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c
     -1
 }
 
-fn get_mono_channel(layout: &ChannelLayout, stream_id: c_int, prev: c_int) -> c_int {
+fn get_mono_channel(layout: &ChannelLayout, stream_id: i32, prev: i32) -> i32 {
     let mut i = if prev < 0 { 0 } else { prev + 1 };
     while i < layout.nb_channels {
-        if *layout.mapping.get(i as usize).or_panic(i) as c_int == stream_id + layout.nb_coupled_streams {
+        if *layout.mapping.get(i as usize).or_panic(i) as i32 == stream_id + layout.nb_coupled_streams {
             return i;
         }
         i += 1;
@@ -100,7 +98,7 @@ impl MsDecoder {
     /// feeds it (255 = silence). The caller must then create `streams`
     /// sub-decoders (see [`MsDecoder::stream_channels`]) to pass to
     /// [`decode`](MsDecoder::decode).
-    pub fn new(channels: c_int, streams: c_int, coupled_streams: c_int, mapping: &[u8]) -> Result<MsDecoder, Error> {
+    pub fn new(channels: i32, streams: i32, coupled_streams: i32, mapping: &[u8]) -> Result<MsDecoder, Error> {
         if streams < 1 || coupled_streams > streams || coupled_streams < 0 || channels < 1 {
             return Err(Error::BadArg);
         }
@@ -126,8 +124,8 @@ impl MsDecoder {
     /// Channel count for sub-decoder stream `s`: 2 for a coupled stream, else 1.
     /// Use this to construct each sub-decoder, e.g.
     /// `Decoder::new(fs, ms.stream_channels(s))`.
-    pub fn stream_channels(&self, s: usize) -> c_int {
-        if (s as c_int) < self.layout.nb_coupled_streams { 2 } else { 1 }
+    pub fn stream_channels(&self, s: usize) -> i32 {
+        if (s as i32) < self.layout.nb_coupled_streams { 2 } else { 1 }
     }
 
     /// Decode one multistream packet (`None` = packet loss) into `pcm`
@@ -146,17 +144,17 @@ impl MsDecoder {
     ) -> Result<usize, Error> {
         let nb_channels = self.layout.nb_channels;
         let nb_streams = self.layout.nb_streams;
-        if (decoders.len() as c_int) < nb_streams {
+        if (decoders.len() as i32) < nb_streams {
             return Err(Error::BadArg);
         }
         let frame_size_cap = pcm.len() / nb_channels.max(1) as usize;
         if frame_size_cap > MAX_FRAME {
             return Err(Error::BadArg);
         }
-        let mut frame_size = frame_size_cap as c_int;
-        let decode_fec = fec as c_int;
+        let mut frame_size = frame_size_cap as i32;
+        let decode_fec = fec as i32;
 
-        let total_len = packet.map_or(0, |p| p.len()) as c_int;
+        let total_len = packet.map_or(0, |p| p.len()) as i32;
         let do_plc = total_len == 0;
         if !do_plc && total_len < 2 * nb_streams - 1 {
             return Err(Error::InvalidPacket);
@@ -177,7 +175,7 @@ impl MsDecoder {
             // All but the last stream are self-delimited within the packet.
             let self_delimited = if s != nb_streams - 1 { 1 } else { 0 };
             let data_view: Option<&[u8]> = packet.map(|p| p.get(off..).or_panic(off));
-            let mut packet_offset: c_int = 0;
+            let mut packet_offset: i32 = 0;
             let ret = opus_decode_native(
                 decoders.get_mut(s as usize).or_panic(s),
                 data_view,

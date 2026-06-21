@@ -7,8 +7,6 @@
 // from the front of the buffer (range-coded part) and raw bits from the
 // end of the buffer, meeting in the middle.
 
-use core::ffi::c_int;
-
 use crate::entcode::{
     EC_CODE_BITS, EC_CODE_EXTRA, EC_CODE_TOP, EC_SYM_BITS, EC_SYM_MAX, EC_UINT_BITS, EC_WINDOW_SIZE, EcCtx, ec_dec, ec_ilog,
 };
@@ -46,7 +44,7 @@ fn ec_read_byte_from_end(this: &mut EcCtx) -> i32 {
 fn ec_dec_normalize(this: &mut EcCtx) {
     // If the range is too small, rescale it and input some bits.
     while this.rng <= (EC_CODE_TOP >> EC_SYM_BITS) {
-        this.nbits_total += EC_SYM_BITS as c_int;
+        this.nbits_total += EC_SYM_BITS as i32;
         this.rng <<= EC_SYM_BITS;
         // Use up the remaining bits from our last symbol.
         let sym = this.rem;
@@ -73,7 +71,7 @@ pub fn ec_dec_init<'a>(this: &mut ec_dec<'a>, buf: &'a [u8], storage: u32) {
     this.nend_bits = 0;
     // This is the offset from which ec_tell() will subtract partial bits.
     // The final value after ec_dec_normalize() will match the encoder.
-    this.nbits_total = (EC_CODE_BITS + 1 - ((EC_CODE_BITS - EC_CODE_EXTRA) / EC_SYM_BITS) * EC_SYM_BITS) as c_int;
+    this.nbits_total = (EC_CODE_BITS + 1 - ((EC_CODE_BITS - EC_CODE_EXTRA) / EC_SYM_BITS) * EC_SYM_BITS) as i32;
     this.offs = 0;
     this.rng = 1u32 << EC_CODE_EXTRA;
     this.rem = ec_read_byte(this);
@@ -121,11 +119,11 @@ pub fn ec_dec_update(this: &mut ec_dec, fl: u32, fh: u32, ft: u32) {
 /// Decode a bit that has a 1/(1 << logp) probability of being a one.
 ///
 /// RFC 6716 Section 4.1.3.
-pub fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> c_int {
+pub fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> i32 {
     let r = this.rng;
     let d = this.val;
     let s = r >> logp;
-    let ret = (d < s) as c_int;
+    let ret = (d < s) as i32;
     if ret == 0 {
         this.val = d - s;
     }
@@ -143,11 +141,11 @@ pub fn ec_dec_bit_logp(this: &mut ec_dec, logp: u32) -> c_int {
 /// No call to ec_dec_update() is necessary after this call.
 ///
 /// RFC 6716 Section 4.1.3.1.
-pub fn ec_dec_icdf(this: &mut ec_dec, icdf: &[u8], ftb: u32) -> c_int {
+pub fn ec_dec_icdf(this: &mut ec_dec, icdf: &[u8], ftb: u32) -> i32 {
     let mut s = this.rng;
     let d = this.val;
     let r = s >> ftb;
-    let mut ret: c_int = -1;
+    let mut ret: i32 = -1;
     let mut t;
     loop {
         t = s;
@@ -206,18 +204,18 @@ pub fn ec_dec_bits(this: &mut ec_dec, bits: u32) -> u32 {
     if (available as u32) < bits {
         loop {
             window |= (ec_read_byte_from_end(this) as u32) << available as u32;
-            available += EC_SYM_BITS as c_int;
-            if available > (EC_WINDOW_SIZE - EC_SYM_BITS) as c_int {
+            available += EC_SYM_BITS as i32;
+            if available > (EC_WINDOW_SIZE - EC_SYM_BITS) as i32 {
                 break;
             }
         }
     }
     let ret = window & ((1u32 << bits) - 1);
     window >>= bits;
-    available -= bits as c_int;
+    available -= bits as i32;
     this.end_window = window;
     this.nend_bits = available;
-    this.nbits_total += bits as c_int;
+    this.nbits_total += bits as i32;
     ret
 }
 

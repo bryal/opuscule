@@ -9,11 +9,10 @@
 
 use crate::arch::*;
 use crate::kiss_fft::{KissFftCpx, KissFftState, opus_ifft, s_mul};
-use core::ffi::c_int;
 
 /// mdct_lookup: the MDCT state struct. Matches C's mdct_lookup in mdct.h.
 pub struct MdctLookup {
-    pub n: c_int,
+    pub n: i32,
     pub kfft: [&'static KissFftState; 4],
     pub trig: &'static [Val],
 }
@@ -46,9 +45,9 @@ pub fn clt_mdct_backward(
     out: &mut [Wal], // time-domain output buffer (overlap-add target)
     out_off: usize,  // logical start within `out` (pre-adjustment)
     window: &[Val],  // synthesis window (overlap samples)
-    overlap: c_int,
-    shift: c_int,
-    stride: c_int,
+    overlap: i32,
+    shift: i32,
+    stride: i32,
 ) {
     let mut n = l.n;
     n >>= shift;

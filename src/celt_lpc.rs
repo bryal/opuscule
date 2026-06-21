@@ -8,8 +8,6 @@
 // - celt_iir: IIR filter (used for PLC synthesis)
 // - _celt_autocorr: Windowed autocorrelation
 
-use core::ffi::c_int;
-
 use crate::arch::*;
 use crate::util::{OrPanic, zip};
 
@@ -30,7 +28,7 @@ pub const LPC_ORDER: usize = 24;
 /// the indices are bounded by `j < i < p` and `ac` holding `p+1` values, so
 /// it stays as indexed array math rather than a contrived iterator form.
 #[allow(clippy::indexing_slicing)]
-pub fn _celt_lpc(_lpc: &mut [Val], ac: &[Wal], p: c_int) {
+pub fn _celt_lpc(_lpc: &mut [Val], ac: &[Wal], p: i32) {
     let p = p as usize;
 
     // Work in an Wal buffer through the recursion (matches C, which
@@ -97,7 +95,7 @@ pub fn _celt_lpc(_lpc: &mut [Val], ac: &[Wal], p: c_int) {
 /// its length; each iteration reads its sample before writing it and the
 /// history comes from `mem`, so in-place over the slice is exactly
 /// equivalent and the Rust version makes the aliasing explicit.
-pub fn celt_fir(x: &mut [Val], num: &[Val], ord: c_int, mem: &mut [Val]) {
+pub fn celt_fir(x: &mut [Val], num: &[Val], ord: i32, mem: &mut [Val]) {
     let ord = ord as usize;
     for xi in x {
         let input = *xi;
@@ -123,7 +121,7 @@ pub fn celt_fir(x: &mut [Val], num: &[Val], ord: c_int, mem: &mut [Val]) {
 /// buffer slice it at the call.
 ///
 /// In-place for the same reason as [`celt_fir`].
-pub fn celt_iir(x: &mut [Wal], den: &[Val], ord: c_int, mem: &mut [Val]) {
+pub fn celt_iir(x: &mut [Wal], den: &[Val], ord: i32, mem: &mut [Val]) {
     let ord = ord as usize;
     for xi in x {
         let mut sum: Wal = *xi;
@@ -146,7 +144,7 @@ pub fn celt_iir(x: &mut [Wal], den: &[Val], ord: c_int, mem: &mut [Val]) {
 /// (`window` may be empty when `overlap` is 0).
 /// In fixed-point mode, normalizes to prevent overflow.
 /// Adds a small bias (+10) to ac[0] to avoid division by zero.
-pub fn _celt_autocorr(x: &[Val], ac: &mut [Wal], window: &[Val], overlap: c_int, lag: c_int) {
+pub fn _celt_autocorr(x: &[Val], ac: &mut [Wal], window: &[Val], overlap: i32, lag: i32) {
     let n = x.len();
     let overlap = overlap as usize;
     let lag = lag as usize;

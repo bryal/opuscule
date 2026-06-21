@@ -14,7 +14,6 @@ use opuscule::{Channels, Decoder, SampleRate, Val, sample_to_i16};
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::raw::c_int;
 use std::process;
 
 const MAX_PACKET: usize = 1500;
@@ -229,7 +228,7 @@ fn main() {
             };
             match dec.decode(packet, &mut out_buf, fec) {
                 Ok(output_samples) => {
-                    let output_samples = output_samples as c_int;
+                    let output_samples = output_samples as i32;
                     if output_samples > skip {
                         let write_samples = (output_samples - skip) as usize;
                         let skip_offset = skip as usize * channels as usize;

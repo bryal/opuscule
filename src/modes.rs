@@ -7,7 +7,6 @@
 use crate::arch::Val;
 use crate::kiss_fft::KissFftState;
 use crate::mdct::MdctLookup;
-use core::ffi::c_int;
 
 #[cfg(feature = "fixed-point")]
 use crate::static_modes_fixed::*;
@@ -29,14 +28,14 @@ pub struct PulseCache {
 /// The mode definition struct.
 /// C name: `struct OpusCustomMode`; `CELTMode` is a typedef alias.
 pub struct OpusCustomMode {
-    pub overlap: c_int,
-    pub nb_ebands: c_int,
-    pub eff_ebands: c_int,
+    pub overlap: i32,
+    pub nb_ebands: i32,
+    pub eff_ebands: i32,
     pub preemph: [Val; 4],
     pub ebands: &'static [i16],
-    pub max_lm: c_int,
-    pub short_mdct_size: c_int,
-    pub nb_alloc_vectors: c_int,
+    pub max_lm: i32,
+    pub short_mdct_size: i32,
+    pub nb_alloc_vectors: i32,
     pub alloc_vectors: &'static [u8],
     pub log_n: &'static [i16],
     pub window: &'static [Val],

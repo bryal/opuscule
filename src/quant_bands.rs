@@ -11,8 +11,6 @@
 // - log2Amp: convert log-domain energies to linear amplitudes
 // - amp2Log2: convert linear amplitudes to log-domain energies
 
-use core::ffi::c_int;
-
 use crate::arch::*;
 use crate::entcode::EcCtx;
 use crate::entdec::ec_tell;
@@ -125,13 +123,13 @@ use crate::laplace::ec_laplace_decode;
 #[allow(clippy::indexing_slicing)]
 pub fn unquant_coarse_energy(
     m: &CELTMode,
-    start: c_int,
-    end: c_int,
+    start: i32,
+    end: i32,
     old_ebands: &mut [Val],
-    intra: c_int,
+    intra: i32,
     dec: &mut EcCtx,
-    c_channels: c_int,
-    lm: c_int,
+    c_channels: i32,
+    lm: i32,
 ) {
     let prob_model = &E_PROB_MODEL[lm as usize][intra as usize];
     let nb_ebands = m.nb_ebands as usize;
@@ -154,10 +152,10 @@ pub fn unquant_coarse_energy(
         loop {
             debug_assert!(c < 2);
             let tell = ec_tell(dec);
-            let qi: c_int;
+            let qi: i32;
             if budget - tell >= 15 {
                 let pi = 2 * (i as i32).min(20) as usize;
-                qi = ec_laplace_decode(dec, (prob_model[pi] as u32) << 7, ((prob_model[pi + 1] as u32) << 6) as c_int);
+                qi = ec_laplace_decode(dec, (prob_model[pi] as u32) << 7, ((prob_model[pi + 1] as u32) << 6) as i32);
             } else if budget - tell >= 2 {
                 let raw = ec_dec_icdf(dec, &SMALL_ENERGY_ICDF, 2);
                 qi = (raw >> 1) ^ -(raw & 1);
@@ -178,7 +176,7 @@ pub fn unquant_coarse_energy(
             prev[c] = prev[c] + shl32(q, 7) - mult16_16(beta, pshr32(q, 8) as Val);
 
             c += 1;
-            if c as c_int >= c_channels {
+            if c as i32 >= c_channels {
                 break;
             }
         }
@@ -191,12 +189,12 @@ pub fn unquant_coarse_energy(
 /// Reads `fine_quant[i]` bits per band to refine the coarse energy estimate.
 pub fn unquant_fine_energy(
     m: &CELTMode,
-    start: c_int,
-    end: c_int,
+    start: i32,
+    end: i32,
     old_ebands: &mut [Val],
-    fine_quant: &[c_int],
+    fine_quant: &[i32],
     dec: &mut EcCtx,
-    c_channels: c_int,
+    c_channels: i32,
 ) {
     let nb_ebands = m.nb_ebands as usize;
 
@@ -234,14 +232,14 @@ pub fn unquant_fine_energy(
 ///
 pub fn unquant_energy_finalise(
     m: &CELTMode,
-    start: c_int,
-    end: c_int,
+    start: i32,
+    end: i32,
     old_ebands: &mut [Val],
-    fine_quant: &[c_int],
-    fine_priority: &[c_int],
-    mut bits_left: c_int,
+    fine_quant: &[i32],
+    fine_priority: &[i32],
+    mut bits_left: i32,
     dec: &mut EcCtx,
-    c_channels: c_int,
+    c_channels: i32,
 ) {
     let nb_ebands = m.nb_ebands as usize;
 
@@ -253,7 +251,7 @@ pub fn unquant_energy_finalise(
             if bits_left < c_channels {
                 break;
             }
-            if fq >= MAX_FINE_BITS as c_int || fp != prio {
+            if fq >= MAX_FINE_BITS as i32 || fp != prio {
                 continue;
             }
             for eb in old_ebands.iter_mut().skip(i).step_by(nb_ebands).take(c_channels as usize) {
@@ -278,7 +276,7 @@ pub fn unquant_energy_finalise(
 ///
 /// Computes eBands[i] = 2^(oldEBands[i] + eMeans[i]) / 16 for active bands,
 /// zeroing bands outside [start, end).
-pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [Wal], old_ebands: &[Val], c_channels: c_int) {
+pub fn log2amp(m: &CELTMode, start: i32, end: i32, e_bands: &mut [Wal], old_ebands: &[Val], c_channels: i32) {
     let nb_ebands = m.nb_ebands as usize;
     let band_range = start as usize..end as usize;
     for (e_ch, old_ch) in zip(e_bands.chunks_mut(nb_ebands), old_ebands.chunks(nb_ebands)).take(c_channels as usize) {

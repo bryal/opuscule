@@ -6,8 +6,6 @@
 
 #![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
 
-use core::ffi::c_int;
-
 use crate::entcode::ec_dec;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_icdf};
 
@@ -54,8 +52,8 @@ pub struct SilkDecControlStruct {
     pub n_channels_internal: i32,
     pub api_sample_rate: i32,
     pub internal_sample_rate: i32,
-    pub payload_size_ms: c_int,
-    pub prev_pitch_lag: c_int,
+    pub payload_size_ms: i32,
+    pub prev_pitch_lag: i32,
 }
 
 /// `silk_decoder` super-struct wrapping the N per-channel states plus
@@ -64,13 +62,13 @@ pub struct SilkDecControlStruct {
 pub struct SilkDecoder {
     pub channel_state: [SilkDecoderState; DECODER_NUM_CHANNELS],
     pub s_stereo: StereoDecState,
-    pub n_channels_api: c_int,
-    pub n_channels_internal: c_int,
-    pub prev_decode_only_middle: c_int,
+    pub n_channels_api: i32,
+    pub n_channels_internal: i32,
+    pub prev_decode_only_middle: i32,
 }
 
 /// `silk_InitDecoder` — reset the per-channel states.
-pub fn silk_init_decoder(ps_dec: &mut SilkDecoder) -> c_int {
+pub fn silk_init_decoder(ps_dec: &mut SilkDecoder) -> i32 {
     let mut ret = SILK_NO_ERROR;
     for channel in ps_dec.channel_state.iter_mut().take(DECODER_NUM_CHANNELS) {
         ret = super::init_decoder::silk_init_decoder(channel);

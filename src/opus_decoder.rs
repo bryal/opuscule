@@ -6,8 +6,6 @@
 //
 // SILK and CELT are both fully in Rust.
 
-use core::ffi::c_int;
-
 use crate::arch::*;
 use crate::celt::{CELTDecoder, CeltDecCtl, celt_decode_with_ec, celt_decoder_ctl, celt_decoder_init};
 use crate::entcode::EcCtx;
@@ -21,21 +19,21 @@ use crate::util::{OrPanic, zip};
 
 // -- Constants --
 
-const OPUS_OK: c_int = 0;
-const OPUS_BAD_ARG: c_int = -1;
-const OPUS_BUFFER_TOO_SMALL: c_int = -2;
-const OPUS_INTERNAL_ERROR: c_int = -3;
-const OPUS_INVALID_PACKET: c_int = -4;
+const OPUS_OK: i32 = 0;
+const OPUS_BAD_ARG: i32 = -1;
+const OPUS_BUFFER_TOO_SMALL: i32 = -2;
+const OPUS_INTERNAL_ERROR: i32 = -3;
+const OPUS_INVALID_PACKET: i32 = -4;
 
-const MODE_SILK_ONLY: c_int = 1000;
-const MODE_HYBRID: c_int = 1001;
-const MODE_CELT_ONLY: c_int = 1002;
+const MODE_SILK_ONLY: i32 = 1000;
+const MODE_HYBRID: i32 = 1001;
+const MODE_CELT_ONLY: i32 = 1002;
 
-const OPUS_BANDWIDTH_NARROWBAND: c_int = 1101;
-const OPUS_BANDWIDTH_MEDIUMBAND: c_int = 1102;
-const OPUS_BANDWIDTH_WIDEBAND: c_int = 1103;
-const OPUS_BANDWIDTH_SUPERWIDEBAND: c_int = 1104;
-const OPUS_BANDWIDTH_FULLBAND: c_int = 1105;
+const OPUS_BANDWIDTH_NARROWBAND: i32 = 1101;
+const OPUS_BANDWIDTH_MEDIUMBAND: i32 = 1102;
+const OPUS_BANDWIDTH_WIDEBAND: i32 = 1103;
+const OPUS_BANDWIDTH_SUPERWIDEBAND: i32 = 1104;
+const OPUS_BANDWIDTH_FULLBAND: i32 = 1105;
 
 // Stack-scratch bounds for the no-alloc decode-frame buffers (largest values
 // occur at 48 kHz, 2 channels).
@@ -119,16 +117,16 @@ impl Channels {
 /// Here they are plain struct fields and the whole decoder is constructed by
 /// value via [`Decoder::new`] — no allocation, no offset arithmetic.
 pub struct Decoder {
-    channels: c_int,
+    channels: i32,
     fs: i32,
     dec_control: SilkDecControlStruct,
 
-    stream_channels: c_int,
-    bandwidth: c_int,
-    mode: c_int,
-    prev_mode: c_int,
-    frame_size: c_int,
-    prev_redundancy: c_int,
+    stream_channels: i32,
+    bandwidth: i32,
+    mode: i32,
+    prev_mode: i32,
+    frame_size: i32,
+    prev_redundancy: i32,
 
     range_final: u32,
 
@@ -171,7 +169,7 @@ impl Decoder {
         };
         // The typed arguments are always valid, so init cannot fail.
         assert_eq!(
-            dec.init(sample_rate.hz(), channels.count() as c_int),
+            dec.init(sample_rate.hz(), channels.count() as i32),
             OPUS_OK,
             "decoder init failed for a valid configuration"
         );
@@ -179,7 +177,7 @@ impl Decoder {
     }
 
     /// (Re)initialise the decoder in place (logic of the C `opus_decoder_init`).
-    fn init(&mut self, fs: i32, channels: c_int) -> c_int {
+    fn init(&mut self, fs: i32, channels: i32) -> i32 {
         if (fs != 48000 && fs != 24000 && fs != 16000 && fs != 12000 && fs != 8000) || (channels != 1 && channels != 2) {
             return OPUS_BAD_ARG;
         }
@@ -227,9 +225,9 @@ impl Decoder {
     /// capacity in samples-per-channel is taken from `pcm.len()`. Returns the
     /// number of samples decoded per channel.
     pub fn decode(&mut self, packet: Option<&[u8]>, pcm: &mut [Val], fec: bool) -> Result<usize, Error> {
-        let frame_size = (pcm.len() / self.channels as usize) as c_int;
-        let len = packet.map_or(0, |p| p.len()) as c_int;
-        let ret = opus_decode_native(self, packet, len, pcm, frame_size, fec as c_int, 0, None);
+        let frame_size = (pcm.len() / self.channels as usize) as i32;
+        let len = packet.map_or(0, |p| p.len()) as i32;
+        let ret = opus_decode_native(self, packet, len, pcm, frame_size, fec as i32, 0, None);
         if ret < 0 { Err(Error::from_code(ret)) } else { Ok(ret as usize) }
     }
 
@@ -263,8 +261,8 @@ fn smooth_fade(
     in1: Option<&[Val]>,
     in2: Option<&[Val]>,
     out: &mut [Val],
-    overlap: c_int,
-    channels: c_int,
+    overlap: i32,
+    channels: i32,
     window: &[Val],
     fs: i32,
 ) {
@@ -313,23 +311,23 @@ fn sat16(x: i32) -> i16 {
 fn opus_decode_frame(
     st: &mut Decoder,
     data: Option<&[u8]>,
-    len: c_int,
+    len: i32,
     pcm: &mut [Val],
-    frame_size: c_int,
-    decode_fec: c_int,
-) -> c_int {
+    frame_size: i32,
+    decode_fec: i32,
+) -> i32 {
     let channels = st.channels;
-    let mut silk_ret: c_int;
-    let mut celt_ret: c_int = 0;
+    let mut silk_ret: i32;
+    let mut celt_ret: i32 = 0;
     let mut dec = EcCtx::empty();
     let mut silk_frame_size: i32 = 0;
 
-    let audiosize: c_int;
-    let mode: c_int;
-    let mut transition: c_int = 0;
-    let mut redundancy: c_int = 0;
-    let mut redundancy_bytes: c_int = 0;
-    let mut celt_to_silk: c_int = 0;
+    let audiosize: i32;
+    let mode: i32;
+    let mut transition: i32 = 0;
+    let mut redundancy: i32 = 0;
+    let mut redundancy_bytes: i32 = 0;
+    let mut celt_to_silk: i32 = 0;
 
     let f20 = st.fs / 50;
     let f10 = f20 >> 1;
@@ -370,7 +368,7 @@ fn opus_decode_frame(
 
     // For CELT/hybrid PLC of more than 20 ms, do multiple calls
     if data.is_none() && frame_size > f20 && mode != MODE_SILK_ONLY {
-        let mut nb_samples: c_int = 0;
+        let mut nb_samples: i32 = 0;
         loop {
             let ret = opus_decode_frame(
                 st,
@@ -423,8 +421,8 @@ fn opus_decode_frame(
 
     // SILK processing
     if mode != MODE_CELT_ONLY {
-        let lost_flag: c_int;
-        let mut decoded_samples: c_int;
+        let lost_flag: i32;
+        let mut decoded_samples: i32;
 
         if st.prev_mode == MODE_CELT_ONLY {
             silk_init_decoder(&mut st.silk_dec);
@@ -504,7 +502,7 @@ fn opus_decode_frame(
             // redundancy_bytes will be at least two, in the non-hybrid
             // case due to the ec_tell() check above
             redundancy_bytes =
-                if mode == MODE_HYBRID { ec_dec_uint(&mut dec, 256) as c_int + 2 } else { len - ((ec_tell(&dec) + 7) >> 3) };
+                if mode == MODE_HYBRID { ec_dec_uint(&mut dec, 256) as i32 + 2 } else { len - ((ec_tell(&dec) + 7) >> 3) };
             len -= redundancy_bytes;
             // Sanity check
             if len * 8 < ec_tell(&dec) {
@@ -521,7 +519,7 @@ fn opus_decode_frame(
     }
 
     {
-        let endband: c_int = match st.bandwidth {
+        let endband: i32 = match st.bandwidth {
             OPUS_BANDWIDTH_NARROWBAND => 13,
             OPUS_BANDWIDTH_MEDIUMBAND | OPUS_BANDWIDTH_WIDEBAND => 17,
             OPUS_BANDWIDTH_SUPERWIDEBAND => 19,
@@ -672,14 +670,14 @@ fn opus_decode_frame(
 pub fn opus_decode_native(
     st: &mut Decoder,
     data: Option<&[u8]>,
-    len: c_int,
+    len: i32,
     pcm: &mut [Val],
-    frame_size: c_int,
-    decode_fec: c_int,
-    self_delimited: c_int,
-    packet_offset: Option<&mut c_int>,
-) -> c_int {
-    let mut offset: c_int = 0;
+    frame_size: i32,
+    decode_fec: i32,
+    self_delimited: i32,
+    packet_offset: Option<&mut i32>,
+) -> i32 {
+    let mut offset: i32 = 0;
     let mut toc: u8 = 0;
     let mut size: [i16; 48] = [0i16; 48];
 
@@ -726,7 +724,7 @@ pub fn opus_decode_native(
     let mut pcm_off = 0usize;
     let mut i = 0;
     while i < count {
-        let sz = *size.get(i as usize).or_panic(i) as c_int;
+        let sz = *size.get(i as usize).or_panic(i) as i32;
         let ret = opus_decode_frame(
             st,
             Some(data.get(data_off..data_off + sz as usize).or_panic_dbg((data_off, sz))),

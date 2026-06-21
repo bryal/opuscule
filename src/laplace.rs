@@ -8,8 +8,6 @@
 // Only the decode function is translated; encoding is not needed for
 // a decode-only implementation.
 
-use core::ffi::c_int;
-
 use crate::entcode::ec_dec;
 use crate::entdec::{ec_dec_update, ec_decode_bin};
 
@@ -22,7 +20,7 @@ const LAPLACE_NMIN: u32 = 16;
 /// Compute the probability of the value +/- 1 from the base probability
 /// and decay factor.
 #[inline]
-fn ec_laplace_get_freq1(fs0: u32, decay: c_int) -> u32 {
+fn ec_laplace_get_freq1(fs0: u32, decay: i32) -> u32 {
     let ft = 32768 - LAPLACE_MINP * (2 * LAPLACE_NMIN) - fs0;
     (ft * (16384 - decay as u32)) >> 15
 }
@@ -34,8 +32,8 @@ fn ec_laplace_get_freq1(fs0: u32, decay: c_int) -> u32 {
 ///
 /// `fs` is the probability of zero (times 32768).
 /// `decay` controls how fast the tail probability decays.
-pub fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: c_int) -> c_int {
-    let mut val: c_int = 0;
+pub fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: i32) -> i32 {
+    let mut val: i32 = 0;
     let mut fl: u32;
     let mut fs = fs;
 
@@ -59,7 +57,7 @@ pub fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: c_int) -> c_int {
         // Everything beyond that has probability LAPLACE_MINP.
         if fs <= LAPLACE_MINP {
             let di = (fm - fl) >> (LAPLACE_LOG_MINP + 1);
-            val += di as c_int;
+            val += di as i32;
             fl += 2 * di * LAPLACE_MINP;
         }
 

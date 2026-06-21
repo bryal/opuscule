@@ -11,8 +11,6 @@
 //
 // See RFC 6716 Section 4.3.4.
 
-use core::ffi::c_int;
-
 use crate::arch::*;
 use crate::cwrs::decode_pulses;
 use crate::entcode::ec_dec;
@@ -114,7 +112,7 @@ fn exp_rotation(x: &mut [CeltNorm], dir: i32, stride: usize, k: i32, spread: i32
 /// In float mode, k is unused (the compiler will optimise it away).
 /// In fixed mode, k = celt_ilog2(Ryy) >> 1 controls the shift.
 #[allow(unused_variables)]
-fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], ryy: Wal, gain: Val) {
+fn normalise_residual(iy: &[i32], x: &mut [CeltNorm], ryy: Wal, gain: Val) {
     // C: k = celt_ilog2(Ryy)>>1;   (fixed only)
     //    t = VSHR32(Ryy, 2*(k-7));
     //    g = MULT16_16_P15(celt_rsqrt_norm(t), gain);
@@ -140,7 +138,7 @@ fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], ryy: Wal, gain: Val) {
 
 /// Compute per-block collapse mask from the decoded pulse vector.
 /// Each bit i indicates whether block i received any non-zero pulses.
-fn extract_collapse_mask(iy: &[c_int], b: usize) -> u32 {
+fn extract_collapse_mask(iy: &[i32], b: usize) -> u32 {
     if b <= 1 {
         return 1;
     }
@@ -160,7 +158,7 @@ fn extract_collapse_mask(iy: &[c_int], b: usize) -> u32 {
 
 /// Decode pulse vector and combine with normalisation to produce the
 /// final normalised signal coefficients for one band.
-pub fn alg_unquant(x: &mut [CeltNorm], k: c_int, spread: c_int, b: c_int, dec: &mut ec_dec, gain: Val) -> u32 {
+pub fn alg_unquant(x: &mut [CeltNorm], k: i32, spread: i32, b: i32, dec: &mut ec_dec, gain: Val) -> u32 {
     debug_assert!(k > 0, "alg_unquant() needs at least one pulse");
     let n = x.len();
     debug_assert!(n > 1, "alg_unquant() needs at least two dimensions");

@@ -68,7 +68,7 @@ pub struct SilkCngStruct {
     pub cng_synth_state: [i32; MAX_LPC_ORDER],
     pub cng_smth_gain_q16: i32,
     pub rand_seed: i32,
-    pub fs_khz: core::ffi::c_int,
+    pub fs_khz: i32,
 }
 
 /// `silk_PLC_struct` — packet-loss-concealment state (`c/silk/structs.h:232`).
@@ -76,16 +76,16 @@ pub struct SilkPlcStruct {
     pub pitch_l_q8: i32,
     pub ltp_coef_q14: [i16; LTP_ORDER],
     pub prev_lpc_q12: [i16; MAX_LPC_ORDER],
-    pub last_frame_lost: core::ffi::c_int,
+    pub last_frame_lost: i32,
     pub rand_seed: i32,
     pub rand_scale_q14: i16,
     pub conc_energy: i32,
-    pub conc_energy_shift: core::ffi::c_int,
+    pub conc_energy_shift: i32,
     pub prev_ltp_scale_q14: i16,
     pub prev_gain_q16: [i32; 2],
-    pub fs_khz: core::ffi::c_int,
-    pub nb_subfr: core::ffi::c_int,
-    pub subfr_length: core::ffi::c_int,
+    pub fs_khz: i32,
+    pub nb_subfr: i32,
+    pub subfr_length: i32,
 }
 
 /// `silk_resampler_state_struct` — per-channel resampler state.
@@ -96,14 +96,14 @@ pub struct SilkResamplerStateStruct {
     pub s_iir: [i32; SILK_RESAMPLER_MAX_IIR_ORDER],
     pub s_fir: [i32; SILK_RESAMPLER_MAX_FIR_ORDER],
     pub delay_buf: [i16; 48],
-    pub resampler_function: core::ffi::c_int,
-    pub batch_size: core::ffi::c_int,
+    pub resampler_function: i32,
+    pub batch_size: i32,
     pub inv_ratio_q16: i32,
-    pub fir_order: core::ffi::c_int,
-    pub fir_fracs: core::ffi::c_int,
-    pub fs_in_khz: core::ffi::c_int,
-    pub fs_out_khz: core::ffi::c_int,
-    pub input_delay: core::ffi::c_int,
+    pub fir_order: i32,
+    pub fir_fracs: i32,
+    pub fs_in_khz: i32,
+    pub fs_out_khz: i32,
+    pub input_delay: i32,
     pub coefs: Option<&'static [i16]>,
 }
 
@@ -115,29 +115,29 @@ pub struct SilkDecoderState {
     pub exc_q14: [i32; MAX_FRAME_LENGTH],
     pub s_lpc_q14_buf: [i32; MAX_LPC_ORDER],
     pub out_buf: [i16; MAX_FRAME_LENGTH + 2 * MAX_SUB_FRAME_LENGTH],
-    pub lag_prev: core::ffi::c_int,
+    pub lag_prev: i32,
     pub last_gain_index: i8,
-    pub fs_khz: core::ffi::c_int,
+    pub fs_khz: i32,
     pub fs_api_hz: i32,
-    pub nb_subfr: core::ffi::c_int,
-    pub frame_length: core::ffi::c_int,
-    pub subfr_length: core::ffi::c_int,
-    pub ltp_mem_length: core::ffi::c_int,
-    pub lpc_order: core::ffi::c_int,
+    pub nb_subfr: i32,
+    pub frame_length: i32,
+    pub subfr_length: i32,
+    pub ltp_mem_length: i32,
+    pub lpc_order: i32,
     pub prev_nlsf_q15: [i16; MAX_LPC_ORDER],
-    pub first_frame_after_reset: core::ffi::c_int,
+    pub first_frame_after_reset: i32,
     pub pitch_lag_low_bits_icdf: Option<&'static [u8]>,
     pub pitch_contour_icdf: Option<&'static [u8]>,
 
-    pub n_frames_decoded: core::ffi::c_int,
-    pub n_frames_per_packet: core::ffi::c_int,
+    pub n_frames_decoded: i32,
+    pub n_frames_per_packet: i32,
 
-    pub ec_prev_signal_type: core::ffi::c_int,
+    pub ec_prev_signal_type: i32,
     pub ec_prev_lag_index: i16,
 
-    pub vad_flags: [core::ffi::c_int; MAX_FRAMES_PER_PACKET],
-    pub lbrr_flag: core::ffi::c_int,
-    pub lbrr_flags: [core::ffi::c_int; MAX_FRAMES_PER_PACKET],
+    pub vad_flags: [i32; MAX_FRAMES_PER_PACKET],
+    pub lbrr_flag: i32,
+    pub lbrr_flags: [i32; MAX_FRAMES_PER_PACKET],
 
     pub resampler_state: SilkResamplerStateStruct,
 
@@ -147,8 +147,8 @@ pub struct SilkDecoderState {
 
     pub s_cng: SilkCngStruct,
 
-    pub loss_cnt: core::ffi::c_int,
-    pub prev_signal_type: core::ffi::c_int,
+    pub loss_cnt: i32,
+    pub prev_signal_type: i32,
 
     pub s_plc: SilkPlcStruct,
 }
@@ -247,12 +247,12 @@ impl Default for SilkDecoderState {
 /// gains, LPC prediction coefficients (with first/second-half interp),
 /// pitch lags, LTP coefficients, and the LTP scale.
 pub struct SilkDecoderControl {
-    pub pitch_l: [core::ffi::c_int; MAX_NB_SUBFR],
+    pub pitch_l: [i32; MAX_NB_SUBFR],
     pub gains_q16: [i32; MAX_NB_SUBFR],
     /// Holds interpolated and final coefficients; the C side tags this
     /// 4-byte aligned via `silk_DWORD_ALIGN`, but the natural alignment
     /// of `i16` arrays already satisfies that on every supported target.
     pub pred_coef_q12: [[i16; MAX_LPC_ORDER]; 2],
     pub ltp_coef_q14: [i16; LTP_ORDER * MAX_NB_SUBFR],
-    pub ltp_scale_q14: core::ffi::c_int,
+    pub ltp_scale_q14: i32,
 }

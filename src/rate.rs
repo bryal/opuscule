@@ -21,8 +21,6 @@
 // per-band arrays are nb_ebands long, and LOG2_FRAC_TABLE indices < 24.
 #![allow(clippy::indexing_slicing)]
 
-use core::ffi::c_int;
-
 use crate::entcode::{BITRES, EcCtx};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_uint};
 use crate::modes::CELTMode;
@@ -337,24 +335,24 @@ fn interp_bits2pulses(
 #[allow(clippy::too_many_arguments)]
 pub fn compute_allocation(
     m: &CELTMode,
-    start: c_int,
-    end: c_int,
-    offsets: &[c_int],
-    cap: &[c_int],
-    alloc_trim: c_int,
-    intensity: &mut c_int,
-    dual_stereo: &mut c_int,
+    start: i32,
+    end: i32,
+    offsets: &[i32],
+    cap: &[i32],
+    alloc_trim: i32,
+    intensity: &mut i32,
+    dual_stereo: &mut i32,
     total: i32,
     balance: &mut i32,
-    pulses: &mut [c_int],
-    ebits: &mut [c_int],
-    fine_priority: &mut [c_int],
-    c: c_int,
-    lm: c_int,
+    pulses: &mut [i32],
+    ebits: &mut [i32],
+    fine_priority: &mut [i32],
+    c: i32,
+    lm: i32,
     ec: &mut EcCtx,
-    encode: c_int,
-    prev: c_int,
-) -> c_int {
+    encode: i32,
+    prev: i32,
+) -> i32 {
     let bitres = BITRES as i32;
     let mut total = total.max(0);
     let len = m.nb_ebands;
