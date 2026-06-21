@@ -119,23 +119,23 @@ impl Channels {
 /// Here they are plain struct fields and the whole decoder is constructed by
 /// value via [`Decoder::new`] — no allocation, no offset arithmetic.
 pub struct Decoder {
-    pub channels: c_int,
-    pub fs: i32,
-    pub dec_control: SilkDecControlStruct,
+    channels: c_int,
+    fs: i32,
+    dec_control: SilkDecControlStruct,
 
-    pub stream_channels: c_int,
-    pub bandwidth: c_int,
-    pub mode: c_int,
-    pub prev_mode: c_int,
-    pub frame_size: c_int,
-    pub prev_redundancy: c_int,
+    stream_channels: c_int,
+    bandwidth: c_int,
+    mode: c_int,
+    prev_mode: c_int,
+    frame_size: c_int,
+    prev_redundancy: c_int,
 
-    pub range_final: u32,
+    range_final: u32,
 
     /// Embedded SILK decoder state (C: blob region at silk_dec_offset).
-    pub silk_dec: SilkDecoder,
+    silk_dec: SilkDecoder,
     /// Embedded CELT decoder state (C: blob region at celt_dec_offset).
-    pub celt_dec: CELTDecoder,
+    celt_dec: CELTDecoder,
 }
 
 // -- Public API --

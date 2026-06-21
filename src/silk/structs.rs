@@ -12,13 +12,11 @@ pub struct SilkNlsfCbStruct {
     pub n_vectors: i16,
     pub order: i16,
     pub quant_step_size_q16: i16,
-    pub inv_quant_step_size_q6: i16,
     pub cb1_nlsf_q8: &'static [u8],
     pub cb1_icdf: &'static [u8],
     pub pred_q8: &'static [u8],
     pub ec_sel: &'static [u8],
     pub ec_icdf: &'static [u8],
-    pub ec_rates_q5: &'static [u8],
     pub delta_min_q15: &'static [i16],
 }
 

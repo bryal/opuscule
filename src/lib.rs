@@ -54,4 +54,4 @@ mod static_modes_float;
 pub use arch::Val;
 pub use error::Error;
 pub use opus_decoder::{Channels, Decoder, SampleRate, sample_to_i16};
-pub use opus_multistream::{ChannelLayout, MsDecoder};
+pub use opus_multistream::MsDecoder;

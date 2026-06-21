@@ -40,7 +40,7 @@ pub struct ChannelLayout {
 /// Multistream Opus decoder: the channel layout plus routing logic. The
 /// per-stream sub-decoders are supplied by the caller (see [`MsDecoder::decode`]).
 pub struct MsDecoder {
-    pub layout: ChannelLayout,
+    layout: ChannelLayout,
 }
 
 // -- Layout helpers --

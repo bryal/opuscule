@@ -14,7 +14,6 @@ use core::ffi::c_int;
 /// mdct_lookup: the MDCT state struct. Matches C's mdct_lookup in mdct.h.
 pub struct MdctLookup {
     pub n: c_int,
-    pub maxshift: c_int,
     pub kfft: [&'static KissFftState; 4],
     pub trig: &'static [Val],
 }

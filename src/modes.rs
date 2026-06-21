@@ -21,7 +21,6 @@ use crate::static_modes_float::*;
 /// Pulse cache (precomputed bit allocation data).
 /// Matches C's PulseCache in modes.h.
 pub struct PulseCache {
-    pub size: c_int,
     pub index: &'static [i16],
     pub bits: &'static [u8],
     pub caps: &'static [u8],
@@ -30,14 +29,12 @@ pub struct PulseCache {
 /// The mode definition struct.
 /// C name: `struct OpusCustomMode`; `CELTMode` is a typedef alias.
 pub struct OpusCustomMode {
-    pub fs: i32,
     pub overlap: c_int,
     pub nb_ebands: c_int,
     pub eff_ebands: c_int,
     pub preemph: [Val; 4],
     pub ebands: &'static [i16],
     pub max_lm: c_int,
-    pub nb_short_mdcts: c_int,
     pub short_mdct_size: c_int,
     pub nb_alloc_vectors: c_int,
     pub alloc_vectors: &'static [u8],
@@ -77,8 +74,6 @@ pub static BAND_ALLOCATION: [u8; 231] = [
 
 #[cfg(not(feature = "fixed-point"))]
 static FFT_STATE_0: KissFftState = KissFftState {
-    nfft: 480,
-    scale: 0.002083333,
     shift: -1,
     factors: [4, 120, 4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV480,
@@ -87,8 +82,6 @@ static FFT_STATE_0: KissFftState = KissFftState {
 
 #[cfg(not(feature = "fixed-point"))]
 static FFT_STATE_1: KissFftState = KissFftState {
-    nfft: 240,
-    scale: 0.004166667,
     shift: 1,
     factors: [4, 60, 4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV240,
@@ -97,8 +90,6 @@ static FFT_STATE_1: KissFftState = KissFftState {
 
 #[cfg(not(feature = "fixed-point"))]
 static FFT_STATE_2: KissFftState = KissFftState {
-    nfft: 120,
-    scale: 0.008333333,
     shift: 2,
     factors: [4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV120,
@@ -107,8 +98,6 @@ static FFT_STATE_2: KissFftState = KissFftState {
 
 #[cfg(not(feature = "fixed-point"))]
 static FFT_STATE_3: KissFftState = KissFftState {
-    nfft: 60,
-    scale: 0.016666667,
     shift: 3,
     factors: [4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV60,
@@ -117,7 +106,6 @@ static FFT_STATE_3: KissFftState = KissFftState {
 
 #[cfg(feature = "fixed-point")]
 static FFT_STATE_0: KissFftState = KissFftState {
-    nfft: 480,
     shift: -1,
     factors: [4, 120, 4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV480,
@@ -126,7 +114,6 @@ static FFT_STATE_0: KissFftState = KissFftState {
 
 #[cfg(feature = "fixed-point")]
 static FFT_STATE_1: KissFftState = KissFftState {
-    nfft: 240,
     shift: 1,
     factors: [4, 60, 4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV240,
@@ -135,7 +122,6 @@ static FFT_STATE_1: KissFftState = KissFftState {
 
 #[cfg(feature = "fixed-point")]
 static FFT_STATE_2: KissFftState = KissFftState {
-    nfft: 120,
     shift: 2,
     factors: [4, 30, 2, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV120,
@@ -144,7 +130,6 @@ static FFT_STATE_2: KissFftState = KissFftState {
 
 #[cfg(feature = "fixed-point")]
 static FFT_STATE_3: KissFftState = KissFftState {
-    nfft: 60,
     shift: 3,
     factors: [4, 15, 3, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     bitrev: &FFT_BITREV60,
@@ -164,26 +149,19 @@ const PREEMPH: [Val; 4] = [0.85000610, 0.0000000, 1.0000000, 1.0000000];
 const PREEMPH: [Val; 4] = [27853, 0, 4096, 8192];
 
 static MODE_48000_960_120: CELTMode = CELTMode {
-    fs: 48000,
     overlap: 120,
     nb_ebands: 21,
     eff_ebands: 21,
     preemph: PREEMPH,
     ebands: &EBAND_5MS,
     max_lm: 3,
-    nb_short_mdcts: 8,
     short_mdct_size: 120,
     nb_alloc_vectors: 11,
     alloc_vectors: &BAND_ALLOCATION,
     log_n: &LOG_N400,
     window: &WINDOW120,
-    mdct: MdctLookup {
-        n: 1920,
-        maxshift: 3,
-        kfft: [&FFT_STATE_0, &FFT_STATE_1, &FFT_STATE_2, &FFT_STATE_3],
-        trig: &MDCT_TWIDDLES960,
-    },
-    cache: PulseCache { size: 392, index: &CACHE_INDEX50, bits: &CACHE_BITS50, caps: &CACHE_CAPS50 },
+    mdct: MdctLookup { n: 1920, kfft: [&FFT_STATE_0, &FFT_STATE_1, &FFT_STATE_2, &FFT_STATE_3], trig: &MDCT_TWIDDLES960 },
+    cache: PulseCache { index: &CACHE_INDEX50, bits: &CACHE_BITS50, caps: &CACHE_CAPS50 },
 };
 
 /// The single standard Opus mode (48 kHz, 960-sample frame). The decoder only

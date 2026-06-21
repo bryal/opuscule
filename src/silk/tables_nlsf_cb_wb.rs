@@ -52,12 +52,6 @@ static SILK_NLSF_CB2_ICDF_WB: [u8; 72] = [
     5, 1, 0, 255, 248, 227, 177, 100, 19, 2, 1, 0,
 ];
 
-static SILK_NLSF_CB2_BITS_WB_Q5: [u8; 72] = [
-    255, 255, 255, 156, 4, 154, 255, 255, 255, 255, 255, 227, 102, 15, 92, 255, 255, 255, 255, 255, 213, 83, 24, 72, 236, 255,
-    255, 255, 255, 150, 76, 33, 63, 214, 255, 255, 255, 190, 121, 77, 43, 55, 185, 255, 255, 255, 245, 137, 71, 43, 59, 139,
-    255, 255, 255, 255, 131, 66, 50, 66, 107, 194, 255, 255, 166, 116, 76, 55, 53, 125, 255, 255,
-];
-
 static SILK_NLSF_PRED_WB_Q8: [u8; 30] = [
     175, 148, 160, 176, 178, 173, 174, 164, 177, 174, 196, 182, 198, 192, 182, 68, 62, 66, 60, 72, 117, 85, 90, 118, 136, 151,
     142, 160, 142, 155,
@@ -70,12 +64,10 @@ pub static SILK_NLSF_CB_WB: SilkNlsfCbStruct = SilkNlsfCbStruct {
     n_vectors: 32,
     order: 16,
     quant_step_size_q16: (0.15 * (1u32 << 16) as f64 + 0.5) as i16,
-    inv_quant_step_size_q6: (1.0 / 0.15 * (1u32 << 6) as f64 + 0.5) as i16,
     cb1_nlsf_q8: &SILK_NLSF_CB1_WB_Q8,
     cb1_icdf: &SILK_NLSF_CB1_ICDF_WB,
     pred_q8: &SILK_NLSF_PRED_WB_Q8,
     ec_sel: &SILK_NLSF_CB2_SELECT_WB,
     ec_icdf: &SILK_NLSF_CB2_ICDF_WB,
-    ec_rates_q5: &SILK_NLSF_CB2_BITS_WB_Q5,
     delta_min_q15: &SILK_NLSF_DELTA_MIN_WB_Q15,
 };

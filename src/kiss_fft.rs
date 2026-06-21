@@ -49,9 +49,6 @@ pub const MAXFACTORS: usize = 8;
 /// In fixed-point mode there is no `scale` field — the C struct uses
 /// #ifndef FIXED_POINT around it. We handle this with cfg.
 pub struct KissFftState {
-    pub nfft: i32,
-    #[cfg(not(feature = "fixed-point"))]
-    pub scale: Wal,
     pub shift: i32,
     pub factors: [i16; 2 * MAXFACTORS],
     pub bitrev: &'static [i16],
