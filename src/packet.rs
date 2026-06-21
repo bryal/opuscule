@@ -339,7 +339,7 @@ mod tests {
         // Code 0 = one frame, CELT 2.5ms NB (TOC = 0x80)
         let pkt = [0x80u8, 0xAA, 0xBB, 0xCC];
         let mut toc: u8 = 0;
-        let mut offsets = [0 as i32; 48];
+        let mut offsets = [0_i32; 48];
         let mut sizes = [0i16; 48];
         let mut offset: i32 = 0;
 
@@ -355,7 +355,7 @@ mod tests {
         // Code 1 = two CBR frames, CELT 2.5ms NB; 6 bytes payload -> 3 each
         let pkt = [0x81u8, 1, 2, 3, 4, 5, 6];
         let mut toc: u8 = 0;
-        let mut offsets = [0 as i32; 48];
+        let mut offsets = [0_i32; 48];
         let mut sizes = [0i16; 48];
         let mut offset: i32 = 0;
 
@@ -381,7 +381,7 @@ mod tests {
         // Code 2 = two VBR frames; size[0] = 2 (single-byte), remaining = last
         let pkt = [0x82u8, 2, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE];
         let mut toc: u8 = 0;
-        let mut offsets = [0 as i32; 48];
+        let mut offsets = [0_i32; 48];
         let mut sizes = [0i16; 48];
         let mut offset: i32 = 0;
 

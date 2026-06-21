@@ -248,14 +248,14 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
         }
 
         let mut freq = [0 as CeltSig; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
-        let mut freq = &mut freq[..(cc * n) as usize];
+        let freq = &mut freq[..(cc * n) as usize];
         let mut x = [0 as CeltNorm; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
         let x = &mut x[..(cc * n) as usize];
         let mut band_e = [0 as CeltEner; (NB_EBANDS * MAX_CHANNELS) as usize];
-        let mut band_e = &mut band_e[..(mode.nb_ebands * cc) as usize];
+        let band_e = &mut band_e[..(mode.nb_ebands * cc) as usize];
 
         if st.loss_count >= 5 {
-            log2amp(mode, st.start, st.end, &mut band_e, &st.background_log_e, cc);
+            log2amp(mode, st.start, st.end, band_e, &st.background_log_e, cc);
         } else {
             // Energy decay
             let decay: Val = if st.loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
@@ -269,7 +269,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
                     break;
                 }
             }
-            log2amp(mode, st.start, st.end, &mut band_e, &st.old_band_e, cc);
+            log2amp(mode, st.start, st.end, band_e, &st.old_band_e, cc);
         }
         seed = st.rng;
         for c in 0..cc {
@@ -291,7 +291,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
         }
         st.rng = seed;
 
-        denormalise_bands(mode, &x, &mut freq, &band_e, mode.eff_ebands, cc, 1 << lm);
+        denormalise_bands(mode, x, freq, band_e, mode.eff_ebands, cc, 1 << lm);
 
         let mut c = 0;
         loop {
@@ -321,9 +321,9 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
             let ch_len = (n + st.overlap) as usize;
             if cc == 2 {
                 let (c0, c1) = chans.split_at_mut_checked(1).or_panic("chans has fewer than 2 channel slices");
-                compute_inv_mdcts(mode, 0, &freq, &mut [&mut c0[0][os..os + ch_len], &mut c1[0][os..os + ch_len]], cc, lm);
+                compute_inv_mdcts(mode, 0, freq, &mut [&mut c0[0][os..os + ch_len], &mut c1[0][os..os + ch_len]], cc, lm);
             } else {
-                compute_inv_mdcts(mode, 0, &freq, &mut [&mut chans[0][os..os + ch_len]], cc, lm);
+                compute_inv_mdcts(mode, 0, freq, &mut [&mut chans[0][os..os + ch_len]], cc, lm);
             }
         }
     } else {
@@ -409,12 +409,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
             {
                 let mut e1: Wal = 1 as Wal;
                 let mut e2: Wal = 1 as Wal;
-                let period: i32;
-                if pitch_index <= MAX_PERIOD / 2 {
-                    period = pitch_index;
-                } else {
-                    period = MAX_PERIOD / 2;
-                }
+                let period = if pitch_index <= MAX_PERIOD / 2 { pitch_index } else { MAX_PERIOD / 2 };
                 for i in 0..period {
                     e1 += shr32(mult16_16(exc[(MAX_PERIOD - period + i) as usize], exc[(MAX_PERIOD - period + i) as usize]), 8);
                     e2 += shr32(
@@ -458,8 +453,11 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
                 }
                 // This checks for an "explosion" in the synthesis
                 #[cfg(feature = "fixed-point")]
-                let explosion = !(s1 > shr32(s2, 2));
+                let explosion = s1 <= shr32(s2, 2);
+                // Negated `>` (not `<=`) is deliberate, mirroring the C: an
+                // unordered/NaN comparison must count as an explosion.
                 #[cfg(not(feature = "fixed-point"))]
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
                 let explosion = !(s1 > 0.2 * s2);
 
                 if explosion {
@@ -599,13 +597,13 @@ pub fn celt_decode_with_ec<'a>(
     let c_channels = st.stream_channels;
     let mut freq = [0 as CeltSig; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
     let freq_len = (cc.max(c_channels) * n) as usize;
-    let mut freq = freq.get_mut(..freq_len).or_panic(freq_len);
+    let freq = freq.get_mut(..freq_len).or_panic(freq_len);
     let mut x = [0 as CeltNorm; MAX_CHANNELS as usize * MAX_FRAME_SIZE];
     let x_len = (c_channels * n) as usize;
-    let mut x = x.get_mut(..x_len).or_panic(x_len);
+    let x = x.get_mut(..x_len).or_panic(x_len);
     let mut band_e = [0 as CeltEner; (NB_EBANDS * MAX_CHANNELS) as usize];
     let band_e_len = (mode.nb_ebands * c_channels) as usize;
-    let mut band_e = band_e.get_mut(..band_e_len).or_panic(band_e_len);
+    let band_e = band_e.get_mut(..band_e_len).or_panic(band_e_len);
 
     // First/last active bin (in MDCT samples) for the start and eff_end bands.
     let band_start = (m * i32::from(*mode.ebands.get(st.start as usize).or_panic(st.start))) as usize;
@@ -765,7 +763,7 @@ pub fn celt_decode_with_ec<'a>(
     // Decode fixed codebook
     let mut collapse_masks = [0u8; (MAX_CHANNELS * NB_EBANDS) as usize];
     let cm_len = (c_channels * mode.nb_ebands) as usize;
-    let mut collapse_masks = collapse_masks.get_mut(..cm_len).or_panic(cm_len);
+    let collapse_masks = collapse_masks.get_mut(..cm_len).or_panic(cm_len);
     {
         let (x_ch, y_ch) = x.split_at_mut_checked(n as usize).or_panic("x shorter than n");
         quant_all_bands(
@@ -775,7 +773,7 @@ pub fn celt_decode_with_ec<'a>(
             st.end,
             x_ch,
             if c_channels == 2 { Some(y_ch) } else { None },
-            &mut collapse_masks,
+            collapse_masks,
             &pulses,
             short_blocks,
             spread_decision,
@@ -810,23 +808,12 @@ pub fn celt_decode_with_ec<'a>(
 
     if anti_collapse_on != 0 {
         anti_collapse(
-            mode,
-            &mut x,
-            &collapse_masks,
-            lm,
-            c_channels,
-            n,
-            st.start,
-            st.end,
-            &st.old_band_e,
-            &st.old_log_e,
-            &st.old_log_e2,
-            &pulses,
-            st.rng,
+            mode, x, collapse_masks, lm, c_channels, n, st.start, st.end, &st.old_band_e, &st.old_log_e, &st.old_log_e2,
+            &pulses, st.rng,
         );
     }
 
-    log2amp(mode, st.start, st.end, &mut band_e, &st.old_band_e, c_channels);
+    log2amp(mode, st.start, st.end, band_e, &st.old_band_e, c_channels);
 
     if silence != 0 {
         let n_bands = (c_channels * mode.nb_ebands) as usize;
@@ -834,7 +821,7 @@ pub fn celt_decode_with_ec<'a>(
         st.old_band_e.get_mut(..n_bands).or_panic(n_bands).fill(-qconst16(28.0, DB_SHIFT));
     }
     // Synthesis
-    denormalise_bands(mode, &x, &mut freq, &band_e, eff_end, c_channels, m);
+    denormalise_bands(mode, x, freq, band_e, eff_end, c_channels, m);
 
     // OPUS_MOVE: memmove decode_mem forward by N
     for ci in 0..cc as usize {
@@ -878,7 +865,7 @@ pub fn celt_decode_with_ec<'a>(
             compute_inv_mdcts(
                 mode,
                 short_blocks,
-                &freq,
+                freq,
                 &mut [
                     c0.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len)),
                     c1.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len)),
@@ -887,7 +874,7 @@ pub fn celt_decode_with_ec<'a>(
                 lm,
             );
         } else {
-            compute_inv_mdcts(mode, short_blocks, &freq, &mut [c0.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len))], cc, lm);
+            compute_inv_mdcts(mode, short_blocks, freq, &mut [c0.get_mut(os..os + ch_len).or_panic_dbg((os, ch_len))], cc, lm);
         }
     }
 
@@ -1114,7 +1101,7 @@ pub fn init_caps(m: &CELTMode, cap: &mut [i32], lm: i32, c: i32) {
     let row = m.nb_ebands as usize * (2 * lm as usize + c as usize - 1);
     for (capi, &lo, &hi, &capval) in zip4(cap, m.ebands, m.ebands.iter().skip(1), m.cache.caps.iter().skip(row)) {
         let n = i32::from(hi - lo) << lm;
-        *capi = (i32::from(capval) + 64) * c * n >> 2;
+        *capi = ((i32::from(capval) + 64) * c * n) >> 2;
     }
 }
 
@@ -1147,7 +1134,7 @@ pub fn compute_inv_mdcts(
     let nu = n as usize;
     let ov = overlap as usize;
     let mut buf = [0 as Wal; MAX_FRAME_SIZE + OVERLAP as usize];
-    let mut buf = &mut buf[..(n + overlap) as usize];
+    let buf = &mut buf[..(n + overlap) as usize];
 
     let (n2, b_count) = if short_blocks != 0 { (mode.short_mdct_size, short_blocks) } else { (n, 1) };
 
@@ -1160,7 +1147,7 @@ pub fn compute_inv_mdcts(
             clt_mdct_backward(
                 &mode.mdct,
                 x_ch,
-                &mut buf,
+                buf,
                 (n2 * b) as usize,
                 mode.window,
                 overlap,
@@ -1213,10 +1200,10 @@ pub fn deemphasis(
             let tmp = xj + m;
             m = mult16_32_q15(c0, tmp) - mult16_32_q15(c1, xj);
             let tmp = shl32(mult16_32_q15(c3, tmp), 2);
-            if count == 0 {
-                if let Some(o) = out.next() {
-                    *o = scaleout(sig2word16(tmp));
-                }
+            if count == 0
+                && let Some(o) = out.next()
+            {
+                *o = scaleout(sig2word16(tmp));
             }
             count += 1;
             if count == downsample {
@@ -1260,13 +1247,14 @@ pub fn comb_filter(
     overlap: i32,
 ) {
     #[cfg(not(feature = "fixed-point"))]
+    #[allow(clippy::excessive_precision)] // canonical tapset gains, kept verbatim
     let gains: [[Val; 3]; 3] =
         [[0.3066406250, 0.2170410156, 0.1296386719], [0.4638671875, 0.2680664062, 0.0], [0.7998046875, 0.1000976562, 0.0]];
     #[cfg(feature = "fixed-point")]
     let gains: [[Val; 3]; 3] = [
-        [qconst16(0.3066406250, 15), qconst16(0.2170410156, 15), qconst16(0.1296386719, 15)],
-        [qconst16(0.4638671875, 15), qconst16(0.2680664062, 15), qconst16(0.0, 15)],
-        [qconst16(0.7998046875, 15), qconst16(0.1000976562, 15), qconst16(0.0, 15)],
+        [qconst16(0.306_640_63, 15), qconst16(0.217_041_02, 15), qconst16(0.129_638_67, 15)],
+        [qconst16(0.463_867_2, 15), qconst16(0.268_066_4, 15), qconst16(0.0, 15)],
+        [qconst16(0.799_804_7, 15), qconst16(0.100_097_656, 15), qconst16(0.0, 15)],
     ];
 
     let g00 = mult16_16_q15(g0, gains[tapset0 as usize][0]) as Val;

@@ -49,7 +49,7 @@ pub fn ec_laplace_decode(dec: &mut ec_dec, fs: u32, decay: i32) -> i32 {
         while fs > LAPLACE_MINP && fm >= fl + 2 * fs {
             fs *= 2;
             fl += fs;
-            fs = ((fs - 2 * LAPLACE_MINP) as i64 * decay as i64 >> 15) as u32;
+            fs = (((fs - 2 * LAPLACE_MINP) as i64 * decay as i64) >> 15) as u32;
             fs += LAPLACE_MINP;
             val += 1;
         }

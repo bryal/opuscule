@@ -282,9 +282,8 @@ fn smooth_fade(
 
 // -- FLOAT2INT16 (float mode only) --
 
-#[cfg(all(not(feature = "std"), not(feature = "fixed-point")))]
-use crate::arch::FloatMath;
-
+// (`FloatMath`, needed for `.floor()` in the no_std float build, is already in
+// scope via the `use crate::arch::*` glob at the top of the module.)
 #[cfg(not(feature = "fixed-point"))]
 pub(crate) fn float2int16(x: f32) -> i16 {
     let x = x * CELT_SIG_SCALE;
@@ -391,7 +390,7 @@ fn opus_decode_frame(
 
     let mut pcm_transition_buf = [0 as Val; MAX_F5 * MAX_CHANNELS];
     let nt = (f5 * channels) as usize;
-    let mut pcm_transition_buf = pcm_transition_buf.get_mut(..nt).or_panic(nt);
+    let pcm_transition_buf = pcm_transition_buf.get_mut(..nt).or_panic(nt);
 
     if data.is_some()
         && st.prev_mode > 0
@@ -400,7 +399,7 @@ fn opus_decode_frame(
     {
         transition = 1;
         if mode == MODE_CELT_ONLY {
-            opus_decode_frame(st, None, 0, &mut pcm_transition_buf, f5.min(audiosize), 0);
+            opus_decode_frame(st, None, 0, pcm_transition_buf, f5.min(audiosize), 0);
         }
     }
 
@@ -415,13 +414,12 @@ fn opus_decode_frame(
     let pcm_silk_buf = pcm_silk_buf.get_mut(..ns).or_panic(ns);
     let mut redundant_audio_buf = [0 as Val; MAX_F5 * MAX_CHANNELS];
     let nr = (f5 * channels) as usize;
-    let mut redundant_audio_buf = redundant_audio_buf.get_mut(..nr).or_panic(nr);
+    let redundant_audio_buf = redundant_audio_buf.get_mut(..nr).or_panic(nr);
 
     let mut redundant_rng: u32 = 0;
 
     // SILK processing
     if mode != MODE_CELT_ONLY {
-        let lost_flag: i32;
         let mut decoded_samples: i32;
 
         if st.prev_mode == MODE_CELT_ONLY {
@@ -438,9 +436,8 @@ fn opus_decode_frame(
                     st.dec_control.internal_sample_rate = 8000;
                 } else if st.bandwidth == OPUS_BANDWIDTH_MEDIUMBAND {
                     st.dec_control.internal_sample_rate = 12000;
-                } else if st.bandwidth == OPUS_BANDWIDTH_WIDEBAND {
-                    st.dec_control.internal_sample_rate = 16000;
                 } else {
+                    // Wideband (the only remaining bandwidth in SILK-only mode).
                     st.dec_control.internal_sample_rate = 16000;
                 }
             } else {
@@ -449,7 +446,7 @@ fn opus_decode_frame(
             }
         }
 
-        lost_flag = if data.is_none() { 1 } else { 2 * decode_fec };
+        let lost_flag: i32 = if data.is_none() { 1 } else { 2 * decode_fec };
         decoded_samples = 0;
         loop {
             // Call SILK decoder
@@ -536,7 +533,7 @@ fn opus_decode_frame(
     }
 
     if transition != 0 && mode != MODE_CELT_ONLY {
-        opus_decode_frame(st, None, 0, &mut pcm_transition_buf, f5.min(audiosize), 0);
+        opus_decode_frame(st, None, 0, pcm_transition_buf, f5.min(audiosize), 0);
     }
 
     // 5 ms redundant frame for CELT->SILK
@@ -547,7 +544,7 @@ fn opus_decode_frame(
             &mut st.celt_dec,
             Some(d.get(len as usize..(len + redundancy_bytes) as usize).or_panic_dbg((len, redundancy_bytes))),
             redundancy_bytes,
-            &mut redundant_audio_buf,
+            redundant_audio_buf,
             f5,
             None,
         );
@@ -605,7 +602,7 @@ fn opus_decode_frame(
             &mut st.celt_dec,
             Some(d.get(len as usize..(len + redundancy_bytes) as usize).or_panic_dbg((len, redundancy_bytes))),
             redundancy_bytes,
-            &mut redundant_audio_buf,
+            redundant_audio_buf,
             f5,
             None,
         );
@@ -651,7 +648,7 @@ fn opus_decode_frame(
                 st.fs,
             );
         } else {
-            smooth_fade(Some(&pcm_transition_buf), None, pcm, f2_5, channels, window, st.fs);
+            smooth_fade(Some(pcm_transition_buf), None, pcm, f2_5, channels, window, st.fs);
         }
     }
 

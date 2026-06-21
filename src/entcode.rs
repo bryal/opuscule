@@ -121,7 +121,7 @@ pub fn ec_tell_frac(this: &EcCtx) -> u32 {
     let mut l = ec_ilog(this.rng);
     let mut r = this.rng >> (l as u32 - 16);
     for _ in (0..BITRES).rev() {
-        r = r * r >> 15;
+        r = (r * r) >> 15;
         let b = (r >> 16) as i32;
         l = l << 1 | b;
         r >>= b as u32;

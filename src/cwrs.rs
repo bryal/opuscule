@@ -17,6 +17,9 @@
 // iterator form, so — like the MDCT/pitch DSP kernels — it keeps explicit
 // indexed math under a module-wide allow rather than contrived rewrites.
 #![allow(clippy::indexing_slicing)]
+// Same rationale: the combinatorial index recurrences read clearer as indexed
+// loops than as contrived iterators.
+#![allow(clippy::needless_range_loop)]
 
 use crate::entcode::ec_dec;
 use crate::entdec::ec_dec_uint;
@@ -104,7 +107,7 @@ fn ucwrs4(k: i32) -> u32 {
 fn ncwrs4(k: i32) -> u32 {
     debug_assert!(k > 0);
     let k = k as u32;
-    (k.wrapping_mul(k).wrapping_add(2)).wrapping_mul(k) / 3 << 3
+    ((k.wrapping_mul(k).wrapping_add(2)).wrapping_mul(k) / 3) << 3
 }
 
 // -- Row computation --
@@ -344,7 +347,7 @@ mod tests {
     #[test]
     fn test_ncwrs_urow_n2() {
         // V(2, 3) = 12 (from the table in cwrs.c)
-        let mut u = vec![0u32; 5]; // k+2 = 5
+        let mut u = [0u32; 5]; // k+2 = 5
         let v = ncwrs_urow(2, 3, &mut u);
         assert_eq!(v, 12);
         // U(2,0)=0, U(2,1)=1, U(2,2)=3, U(2,3)=5, U(2,4)=7
@@ -358,7 +361,7 @@ mod tests {
     #[test]
     fn test_ncwrs_urow_n3() {
         // V(3, 2) = 18 (from the table)
-        let mut u = vec![0u32; 4];
+        let mut u = [0u32; 4];
         let v = ncwrs_urow(3, 2, &mut u);
         assert_eq!(v, 18);
     }

@@ -222,7 +222,7 @@ pub fn ec_dec_bits(this: &mut ec_dec, bits: u32) -> u32 {
 /// Branchless minimum, matching EC_MINI from c/celt/ecintrin.h.
 #[inline]
 fn ec_mini(a: u32, b: u32) -> u32 {
-    a.wrapping_add(b.wrapping_sub(a) & (b < a) as u32 * u32::MAX)
+    a.wrapping_add(b.wrapping_sub(a) & ((b < a) as u32 * u32::MAX))
 }
 
 // Also export ec_tell as an inline, matching the C macro:

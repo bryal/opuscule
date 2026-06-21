@@ -60,8 +60,8 @@ pub fn silk_decode_parameters(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut S
         let mut i = 0i32;
         while i < ps_dec.lpc_order {
             p_nlsf0_q15[i as usize] = ps_dec.prev_nlsf_q15[i as usize]
-                + (ps_dec.indices.nlsf_interp_coef_q2 as i32
-                    * (p_nlsf_q15[i as usize] - ps_dec.prev_nlsf_q15[i as usize]) as i32
+                + ((ps_dec.indices.nlsf_interp_coef_q2 as i32
+                    * (p_nlsf_q15[i as usize] - ps_dec.prev_nlsf_q15[i as usize]) as i32)
                     >> 2) as i16;
             i += 1;
         }

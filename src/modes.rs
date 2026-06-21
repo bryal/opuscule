@@ -141,6 +141,7 @@ static FFT_STATE_3: KissFftState = KissFftState {
 
 /// Float-mode preemphasis coefficients: {0.85000610, 0.0, 1.0, 1.0}
 #[cfg(not(feature = "fixed-point"))]
+#[allow(clippy::excessive_precision)]
 const PREEMPH: [Val; 4] = [0.85000610, 0.0000000, 1.0000000, 1.0000000];
 
 /// Fixed-point preemphasis coefficients: {27853, 0, 4096, 8192}

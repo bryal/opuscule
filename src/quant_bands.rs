@@ -28,6 +28,7 @@ static E_MEANS: [i8; 25] =
     [103, 100, 92, 85, 81, 77, 72, 70, 78, 75, 73, 71, 78, 74, 69, 72, 70, 74, 76, 71, 60, 60, 60, 60, 60];
 
 #[cfg(not(feature = "fixed-point"))]
+#[allow(clippy::excessive_precision)] // canonical energy-means table, kept verbatim
 static E_MEANS: [f32; 25] = [
     6.437500, 6.250000, 5.750000, 5.312500, 5.062500, 4.812500, 4.500000, 4.375000, 4.875000, 4.687500, 4.562500, 4.437500,
     4.875000, 4.625000, 4.312500, 4.500000, 4.375000, 4.625000, 4.750000, 4.437500, 3.750000, 3.750000, 3.750000, 3.750000,
@@ -251,7 +252,7 @@ pub fn unquant_energy_finalise(
             if bits_left < c_channels {
                 break;
             }
-            if fq >= MAX_FINE_BITS as i32 || fp != prio {
+            if fq >= MAX_FINE_BITS || fp != prio {
                 continue;
             }
             for eb in old_ebands.iter_mut().skip(i).step_by(nb_ebands).take(c_channels as usize) {

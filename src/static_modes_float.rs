@@ -3,6 +3,9 @@
 // are kept verbatim (not replaced with `FRAC_1_SQRT_2`) so the table stays an
 // exact copy of the reference.
 #![allow(clippy::approx_constant)]
+// Canonical constants are kept at full source precision (they round to the
+// correct f32); trimming digits would lose provenance against the reference.
+#![allow(clippy::excessive_precision)]
 
 use crate::arch::Val;
 use crate::kiss_fft::KissTwiddleCpx;

@@ -178,7 +178,7 @@ pub fn deinterleave_hadamard(x: &mut [CeltNorm], n0: i32, stride: i32, hadamard:
             }
         }
     }
-    x[..n].copy_from_slice(&tmp);
+    x[..n].copy_from_slice(tmp);
 }
 
 /// Interleave sub-vectors with optional Hadamard reordering.
@@ -206,7 +206,7 @@ pub fn interleave_hadamard(x: &mut [CeltNorm], n0: i32, stride: i32, hadamard: i
             }
         }
     }
-    x[..n].copy_from_slice(&tmp);
+    x[..n].copy_from_slice(tmp);
 }
 
 /// Spread mode constants (from bands.h).
@@ -251,8 +251,8 @@ fn bitexact_log2tan(isin: i32, icos: i32) -> i32 {
     let lc = ec_ilog(icos as u32);
     let isin = isin << (15 - ls);
     let icos = icos << (15 - lc);
-    (ls - lc) * (1 << 11) + frac_mul16(isin as i16, frac_mul16(isin as i16, -2597) as i16 + 7932) as i32
-        - frac_mul16(icos as i16, frac_mul16(icos as i16, -2597) as i16 + 7932) as i32
+    (ls - lc) * (1 << 11) + frac_mul16(isin as i16, frac_mul16(isin as i16, -2597) as i16 + 7932)
+        - frac_mul16(icos as i16, frac_mul16(icos as i16, -2597) as i16 + 7932)
 }
 
 /// Prevent energy collapse for transients with multiple short MDCTs.
@@ -343,7 +343,7 @@ pub fn anti_collapse(
                         rv = mult16_16_q14(23170, (rv as i32).min(23169) as i16) as i16;
                     }
                     rv = shr16(min16(thresh, rv), 1);
-                    r = shr32(mult16_16_q15(sqrt_1, rv) as i32, shift) as i16;
+                    r = shr32(mult16_16_q15(sqrt_1, rv), shift) as i16;
                 }
                 #[cfg(not(feature = "fixed-point"))]
                 {
@@ -447,7 +447,7 @@ pub fn quant_band(
     let long_blocks = b_blocks == 1;
     let n0 = n;
     let mut n_b = n / b_blocks;
-    let n_b0;
+
     let mut b0 = b_blocks;
     let mut time_divide = 0;
     let mut recombine = 0;
@@ -533,20 +533,20 @@ pub fn quant_band(
         b0 = b_blocks;
 
         // Reorganize the samples in time order instead of frequency order
-        if b0 > 1 {
-            if let Some(lb) = lowband.as_mut() {
-                let n0d = n_b >> recombine;
-                let stride = b0 << recombine;
-                deinterleave_hadamard(
-                    lb.get_mut(..(n0d * stride) as usize).or_panic((n0d * stride) as usize),
-                    n0d,
-                    stride,
-                    long_blocks as i32,
-                );
-            }
+        if b0 > 1
+            && let Some(lb) = lowband.as_mut()
+        {
+            let n0d = n_b >> recombine;
+            let stride = b0 << recombine;
+            deinterleave_hadamard(
+                lb.get_mut(..(n0d * stride) as usize).or_panic((n0d * stride) as usize),
+                n0d,
+                stride,
+                long_blocks as i32,
+            );
         }
     }
-    n_b0 = n_b;
+    let n_b0 = n_b;
 
     // If we need 1.5 more bit than we can produce, split the band in two.
     let cache_idx = *m.cache.index.get(((lm + 1) * m.nb_ebands + i) as usize).or_panic((lm + 1) * m.nb_ebands + i) as usize;
@@ -565,17 +565,14 @@ pub fn quant_band(
 
     if split != 0 {
         let mut itheta: i32 = 0;
-        let qalloc;
+
         let mut mbits;
         let mut sbits;
         let mut delta;
-        let pulse_cap;
-        let offset;
-        let orig_fill;
 
         // Decide on the resolution to give to the split parameter theta
-        pulse_cap = *m.log_n.get(i as usize).or_panic(i) as i32 + lm * (1 << BITRES as i32);
-        offset = (pulse_cap >> 1) - if stereo != 0 && n == 2 { QTHETA_OFFSET_TWOPHASE } else { QTHETA_OFFSET };
+        let pulse_cap = *m.log_n.get(i as usize).or_panic(i) as i32 + lm * (1 << BITRES as i32);
+        let offset = (pulse_cap >> 1) - if stereo != 0 && n == 2 { QTHETA_OFFSET_TWOPHASE } else { QTHETA_OFFSET };
         let qn = compute_qn(n, b, offset, pulse_cap, stereo);
         let qn_val = if stereo != 0 && i >= intensity { 1 } else { qn };
 
@@ -587,12 +584,7 @@ pub fn quant_band(
                 let x0 = qn_val / 2;
                 let ft = (p0 * (x0 + 1) + x0) as u32;
                 let fs = ec_decode(ec, ft) as i32;
-                let x_val;
-                if fs < (x0 + 1) * p0 {
-                    x_val = fs / p0;
-                } else {
-                    x_val = x0 + 1 + (fs - (x0 + 1) * p0);
-                }
+                let x_val = if fs < (x0 + 1) * p0 { fs / p0 } else { x0 + 1 + (fs - (x0 + 1) * p0) };
                 let fl = if x_val <= x0 { p0 * x_val } else { (x_val - 1 - x0) + (x0 + 1) * p0 };
                 let fh = if x_val <= x0 { p0 * (x_val + 1) } else { (x_val - x0) + (x0 + 1) * p0 };
                 ec_dec_update(ec, fl as u32, fh as u32, ft);
@@ -605,15 +597,15 @@ pub fn quant_band(
                 let ft = (((qn_val >> 1) + 1) * ((qn_val >> 1) + 1)) as u32;
                 let fm = ec_decode(ec, ft);
 
-                if (fm as i32) < ((qn_val >> 1) * ((qn_val >> 1) + 1) >> 1) {
+                if (fm as i32) < (((qn_val >> 1) * ((qn_val >> 1) + 1)) >> 1) {
                     itheta = (((8 * fm + 1).isqrt() as i32 - 1) >> 1) as i32;
                     let fs = itheta + 1;
-                    let fl = itheta * (itheta + 1) >> 1;
+                    let fl = (itheta * (itheta + 1)) >> 1;
                     ec_dec_update(ec, fl as u32, (fl + fs) as u32, ft);
                 } else {
                     itheta = ((2 * (qn_val + 1) - (8 * (ft - fm - 1) + 1).isqrt() as i32) >> 1) as i32;
                     let fs = qn_val + 1 - itheta;
-                    let fl = ft as i32 - ((qn_val + 1 - itheta) * (qn_val + 2 - itheta) >> 1);
+                    let fl = ft as i32 - (((qn_val + 1 - itheta) * (qn_val + 2 - itheta)) >> 1);
                     ec_dec_update(ec, fl as u32, (fl + fs) as u32, ft);
                 }
             }
@@ -627,10 +619,10 @@ pub fn quant_band(
             }
             itheta = 0;
         }
-        qalloc = ec_tell_frac(ec) as i32 - tell as i32;
+        let qalloc = ec_tell_frac(ec) as i32 - tell as i32;
         b -= qalloc;
 
-        orig_fill = fill;
+        let orig_fill = fill;
         if itheta == 0 {
             imid = 32767;
             iside = 0;
@@ -644,7 +636,7 @@ pub fn quant_band(
         } else {
             imid = bitexact_cos(itheta as i16) as i32;
             iside = bitexact_cos((16384 - itheta) as i16) as i32;
-            delta = frac_mul16(((n - 1) << 7) as i16, bitexact_log2tan(iside, imid) as i16) as i32;
+            delta = frac_mul16(((n - 1) << 7) as i16, bitexact_log2tan(iside, imid) as i16);
         }
 
         let side;
@@ -934,7 +926,7 @@ pub fn quant_band(
                 stereo_merge(x_s.get_mut(..n as usize).or_panic(n), y_sl.get_mut(..n as usize).or_panic(n), mid);
             }
             if inv != 0 {
-                let y_sl = y_s.as_deref_mut().or_panic("y_s is None on a stereo path");
+                let y_sl = y_s.or_panic("y_s is None on a stereo path");
                 for yj in y_sl.get_mut(..n as usize).or_panic(n) {
                     *yj = -*yj;
                 }
@@ -1065,13 +1057,12 @@ pub fn quant_all_bands(
             balance -= tell;
         }
         remaining_bits = total_bits - tell - 1;
-        let b_val;
-        if i < coded_bands {
+        let b_val = if i < coded_bands {
             let curr_balance = balance / 3.min(coded_bands - i);
-            b_val = 0.max(16383.min(remaining_bits + 1).min(*pulses.get(i_u).or_panic(i_u) + curr_balance));
+            0.max(16383.min(remaining_bits + 1).min(*pulses.get(i_u).or_panic(i_u) + curr_balance))
         } else {
-            b_val = 0;
-        }
+            0
+        };
 
         if resynth && eb(i) - n >= eb(start) && (update_lowband != 0 || lowband_offset == 0) {
             lowband_offset = i;

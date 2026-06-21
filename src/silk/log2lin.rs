@@ -19,7 +19,7 @@ pub fn silk_log2lin(in_log_q7: i32) -> i32 {
     let frac_q7 = in_log_q7 & 0x7F;
     if in_log_q7 < 2048 {
         /* Piece-wise parabolic approximation */
-        out += out * silk_smlawb(frac_q7, silk_smulbb(frac_q7, 128 - frac_q7), -174) >> 7;
+        out += (out * silk_smlawb(frac_q7, silk_smulbb(frac_q7, 128 - frac_q7), -174)) >> 7;
     } else {
         /* Piece-wise parabolic approximation */
         out += (out >> 7) * silk_smlawb(frac_q7, silk_smulbb(frac_q7, 128 - frac_q7), -174);

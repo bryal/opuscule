@@ -79,9 +79,7 @@ pub fn _celt_lpc(_lpc: &mut [Val], ac: &[Wal], p: i32) {
         _lpc[i] = round16(lpc[i], 16);
     }
     #[cfg(not(feature = "fixed-point"))]
-    for i in 0..p {
-        _lpc[i] = lpc[i];
-    }
+    _lpc[..p].copy_from_slice(&lpc[..p]);
 }
 
 /// FIR filter with memory, in place.
@@ -202,6 +200,7 @@ pub fn _celt_autocorr(x: &[Val], ac: &mut [Wal], window: &[Val], overlap: i32, l
 const SIG_SHIFT: i32 = 12;
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)] // index-based asserts read fine in tests
 mod tests {
     use super::*;
 

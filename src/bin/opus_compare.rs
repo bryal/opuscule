@@ -9,6 +9,7 @@
 // and masking loops translated from the C reference aren't worth hardening
 // like the core.
 #![allow(clippy::indexing_slicing)]
+#![allow(clippy::needless_range_loop)]
 
 use std::env;
 use std::fs::File;
@@ -70,13 +71,13 @@ fn band_energy(
     let mut c = vec![0.0f32; window_sz];
     let mut s = vec![0.0f32; window_sz];
     for xj in 0..window_sz {
-        window[xj] = 0.5 - 0.5 * ((2.0 * OPUS_PI / (window_sz as f32 - 1.0)) * xj as f32).cos() as f32;
+        window[xj] = 0.5 - 0.5 * ((2.0 * OPUS_PI / (window_sz as f32 - 1.0)) * xj as f32).cos();
     }
     for xj in 0..window_sz {
-        c[xj] = ((2.0 * OPUS_PI / window_sz as f32) * xj as f32).cos() as f32;
+        c[xj] = ((2.0 * OPUS_PI / window_sz as f32) * xj as f32).cos();
     }
     for xj in 0..window_sz {
-        s[xj] = ((2.0 * OPUS_PI / window_sz as f32) * xj as f32).sin() as f32;
+        s[xj] = ((2.0 * OPUS_PI / window_sz as f32) * xj as f32).sin();
     }
 
     // Scratch for windowed samples: nchannels * window_sz
@@ -127,7 +128,7 @@ fn band_energy(
 fn main() {
     let argv: Vec<String> = env::args().collect();
     let argc = argv.len();
-    if argc < 3 || argc > 6 {
+    if !(3..=6).contains(&argc) {
         eprintln!("Usage: {} [-s] [-r rate2] <file1.sw> <file2.sw>", argv[0]);
         process::exit(1);
     }
@@ -298,7 +299,7 @@ fn main() {
                     let re = big_y[(xi * yfreqs + xj) * nchannels + ci] / big_x[(xi * NFREQS + xj) * nchannels + ci];
                     let mut im = re as f64 - (re as f64).ln() - 1.0;
                     // Less sensitive around SILK/CELT cross-over
-                    if xj >= 79 && xj <= 81 {
+                    if (79..=81).contains(&xj) {
                         im *= 0.1;
                     }
                     if xj == 80 {

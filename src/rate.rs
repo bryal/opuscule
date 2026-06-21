@@ -143,7 +143,7 @@ fn interp_bits2pulses(
     let mut done = false;
     for j in (start..end).rev() {
         let ju = j as usize;
-        let mut tmp = bits1[ju] + (lo * bits2[ju] >> ALLOC_STEPS);
+        let mut tmp = bits1[ju] + ((lo * bits2[ju]) >> ALLOC_STEPS);
         if tmp < thresh[ju] && !done {
             tmp = if tmp >= alloc_floor { alloc_floor } else { 0 };
         } else {
@@ -177,7 +177,7 @@ fn interp_bits2pulses(
                 // path is unreachable in practice, but must compile for
                 // the shared function signature.
                 let threshold = if j < prev { 7 } else { 9 };
-                if band_bits > (threshold * band_width << lm << bitres) >> 4 {
+                if band_bits > ((threshold * band_width) << lm << bitres) >> 4 {
                     // ec_enc_bit_logp(ec, 1, 1)
                     break;
                 }
@@ -270,9 +270,9 @@ fn interp_bits2pulses(
             }
 
             let bj = bits[j as usize];
-            if bj + offset < den * 2 << bitres {
+            if bj + offset < (den * 2) << bitres {
                 offset += nc_log_n >> 2;
-            } else if bj + offset < den * 3 << bitres {
+            } else if bj + offset < (den * 3) << bitres {
                 offset += nc_log_n >> 3;
             }
 
@@ -283,7 +283,7 @@ fn interp_bits2pulses(
             eb_j = eb_j.min(MAX_FINE_BITS);
 
             fine_priority[j as usize] = (eb_j * (den << bitres) >= bj + offset) as i32;
-            bits[j as usize] -= c * eb_j << bitres;
+            bits[j as usize] -= (c * eb_j) << bitres;
             ebits[j as usize] = eb_j;
         } else {
             // For N=1, all bits go to fine energy except for a single sign bit
@@ -299,7 +299,7 @@ fn interp_bits2pulses(
         if excess > 0 {
             let extra_fine = (excess >> (stereo + bitres)).min(MAX_FINE_BITS - ebits[j as usize]);
             ebits[j as usize] += extra_fine;
-            let extra_bits = extra_fine * c << bitres;
+            let extra_bits = (extra_fine * c) << bitres;
             fine_priority[j as usize] = (extra_bits >= excess - balance) as i32;
             excess -= extra_bits;
         }
@@ -316,7 +316,7 @@ fn interp_bits2pulses(
     // Skipped bands use all their bits for fine energy
     while j < end {
         ebits[j as usize] = bits[j as usize] >> stereo >> bitres;
-        debug_assert!(c * ebits[j as usize] << bitres == bits[j as usize]);
+        debug_assert!((c * ebits[j as usize]) << bitres == bits[j as usize]);
         bits[j as usize] = 0;
         fine_priority[j as usize] = (ebits[j as usize] < 1) as i32;
         j += 1;
@@ -393,9 +393,9 @@ pub fn compute_allocation(
         let ju = j as usize;
         let bw = eb(m.ebands, j + 1) - eb(m.ebands, j);
         // Below this threshold, we're sure not to allocate any PVQ bits
-        thresh[ju] = (c << bitres).max((3 * bw << lm << bitres) >> 4);
+        thresh[ju] = (c << bitres).max(((3 * bw) << lm << bitres) >> 4);
         // Tilt of the allocation curve
-        trim_offset[ju] = c * bw * (alloc_trim - 5 - lm) * (end - j - 1) * (1 << (lm + bitres)) >> 6;
+        trim_offset[ju] = (c * bw * (alloc_trim - 5 - lm) * (end - j - 1) * (1 << (lm + bitres))) >> 6;
         // Giving less resolution to single-coefficient bands
         if bw << lm == 1 {
             trim_offset[ju] -= c << bitres;
@@ -412,7 +412,7 @@ pub fn compute_allocation(
         for j in (start..end).rev() {
             let ju = j as usize;
             let n = eb(m.ebands, j + 1) - eb(m.ebands, j);
-            let mut bitsj = c * n * (m.alloc_vectors[(mid * len + j) as usize] as i32) << lm >> 2;
+            let mut bitsj = (c * n * (m.alloc_vectors[(mid * len + j) as usize] as i32)) << lm >> 2;
             if bitsj > 0 {
                 bitsj = (bitsj + trim_offset[ju]).max(0);
             }
@@ -437,11 +437,11 @@ pub fn compute_allocation(
     for j in start..end {
         let ju = j as usize;
         let n = eb(m.ebands, j + 1) - eb(m.ebands, j);
-        let mut bits1j = c * n * (m.alloc_vectors[(lo * len + j) as usize] as i32) << lm >> 2;
+        let mut bits1j = (c * n * (m.alloc_vectors[(lo * len + j) as usize] as i32)) << lm >> 2;
         let mut bits2j = if hi >= m.nb_alloc_vectors {
             cap[ju]
         } else {
-            c * n * (m.alloc_vectors[(hi * len + j) as usize] as i32) << lm >> 2
+            (c * n * (m.alloc_vectors[(hi * len + j) as usize] as i32)) << lm >> 2
         };
         if bits1j > 0 {
             bits1j = (bits1j + trim_offset[ju]).max(0);

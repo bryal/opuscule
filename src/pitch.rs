@@ -161,8 +161,8 @@ pub fn pitch_search(
     // Fixed-point: normalize to prevent overflow in MAC
     #[cfg(feature = "fixed-point")]
     let shift = {
-        let max_x = celt_maxabs16(&x_lp4);
-        let max_y = celt_maxabs16(&y_lp4);
+        let max_x = celt_maxabs16(x_lp4);
+        let max_y = celt_maxabs16(y_lp4);
         let max_val = max16(1, max16(max_x, max_y));
         let s = celt_ilog2(max_val as i32) as i32 - 11;
         if s > 0 {
@@ -202,9 +202,9 @@ pub fn pitch_search(
 
     let xcorr1 = xcorr.get(..xcorr_len).or_panic(xcorr_len);
     #[cfg(not(feature = "fixed-point"))]
-    find_best_pitch(xcorr1, &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch);
+    find_best_pitch(xcorr1, y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch);
     #[cfg(feature = "fixed-point")]
-    find_best_pitch(xcorr1, &y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch, 0, maxcorr);
+    find_best_pitch(xcorr1, y_lp4, len >> 2, max_pitch >> 2, &mut best_pitch, 0, maxcorr);
 
     // --- Pass 2: finer search with 2x decimation ---
 
