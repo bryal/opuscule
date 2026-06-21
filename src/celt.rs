@@ -639,7 +639,7 @@ pub fn celt_decode_with_ec<'a>(
     }
 
     let mut total_bits: i32 = len * 8;
-    let mut tell: i32 = ec_tell(dec) as i32;
+    let mut tell: i32 = ec_tell(dec);
 
     let silence: i32;
     if tell >= total_bits {
@@ -651,7 +651,7 @@ pub fn celt_decode_with_ec<'a>(
     }
     if silence != 0 {
         tell = len * 8;
-        dec.nbits_total += tell - ec_tell(dec) as i32;
+        dec.nbits_total += tell - ec_tell(dec);
     }
 
     let mut postfilter_gain: Val = 0 as Val;
@@ -662,18 +662,18 @@ pub fn celt_decode_with_ec<'a>(
             let octave = ec_dec_uint(dec, 6) as i32;
             postfilter_pitch = (16 << octave) + ec_dec_bits(dec, (4 + octave) as u32) as i32 - 1;
             let qg = ec_dec_bits(dec, 3) as i32;
-            if ec_tell(dec) as i32 + 2 <= total_bits {
+            if ec_tell(dec) + 2 <= total_bits {
                 postfilter_tapset = ec_dec_icdf(dec, &TAPSET_ICDF, 2);
             }
             postfilter_gain = qconst16(0.09375, 15) * (qg + 1) as Val;
         }
-        tell = ec_tell(dec) as i32;
+        tell = ec_tell(dec);
     }
 
     let is_transient: i32;
     if lm > 0 && tell + 3 <= total_bits {
         is_transient = ec_dec_bit_logp(dec, 3);
-        tell = ec_tell(dec) as i32;
+        tell = ec_tell(dec);
     } else {
         is_transient = 0;
     }
@@ -688,7 +688,7 @@ pub fn celt_decode_with_ec<'a>(
     let mut tf_res = [0i32; NB_EBANDS as usize];
     tf_decode(st.start, st.end, is_transient, &mut tf_res, lm, dec);
 
-    tell = ec_tell(dec) as i32;
+    tell = ec_tell(dec);
     let mut spread_decision: i32 = SPREAD_NORMAL;
     if tell + 4 <= total_bits {
         spread_decision = ec_dec_icdf(dec, &SPREAD_ICDF, 5);
@@ -801,7 +801,7 @@ pub fn celt_decode_with_ec<'a>(
         &mut st.old_band_e,
         &fine_quant,
         &fine_priority,
-        len * 8 - ec_tell(dec) as i32,
+        len * 8 - ec_tell(dec),
         dec,
         c_channels,
     );
@@ -992,7 +992,7 @@ pub fn celt_decode_with_ec<'a>(
         }
     }
     st.loss_count = 0;
-    if ec_tell(dec) as i32 > 8 * len {
+    if ec_tell(dec) > 8 * len {
         return OPUS_INTERNAL_ERROR;
     }
     if dec.error != 0 {

@@ -598,12 +598,12 @@ pub fn quant_band(
                 let fm = ec_decode(ec, ft);
 
                 if (fm as i32) < (((qn_val >> 1) * ((qn_val >> 1) + 1)) >> 1) {
-                    itheta = (((8 * fm + 1).isqrt() as i32 - 1) >> 1) as i32;
+                    itheta = ((8 * fm + 1).isqrt() as i32 - 1) >> 1;
                     let fs = itheta + 1;
                     let fl = (itheta * (itheta + 1)) >> 1;
                     ec_dec_update(ec, fl as u32, (fl + fs) as u32, ft);
                 } else {
-                    itheta = ((2 * (qn_val + 1) - (8 * (ft - fm - 1) + 1).isqrt() as i32) >> 1) as i32;
+                    itheta = (2 * (qn_val + 1) - (8 * (ft - fm - 1) + 1).isqrt() as i32) >> 1;
                     let fs = qn_val + 1 - itheta;
                     let fl = ft as i32 - (((qn_val + 1 - itheta) * (qn_val + 2 - itheta)) >> 1);
                     ec_dec_update(ec, fl as u32, (fl + fs) as u32, ft);

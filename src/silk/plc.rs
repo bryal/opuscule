@@ -233,8 +233,9 @@ fn silk_plc_conceal(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut SilkDecoder
     let mut k = 0i32;
     while k < ps_dec.nb_subfr {
         /* Set up pointer */
-        let mut pred_lag_off = (s_ltp_buf_idx - lag + LTP_ORDER as i32 / 2) as usize;
-        for _ in 0..ps_dec.subfr_length {
+        let pred_lag_base = (s_ltp_buf_idx - lag + LTP_ORDER as i32 / 2) as usize;
+        for i in 0..ps_dec.subfr_length {
+            let pred_lag_off = pred_lag_base + i as usize;
             /* Unrolled loop */
             /* Avoids introducing a bias because silk_SMLAWB() always rounds to -inf */
             let mut ltp_pred_q12 = 2i32;
@@ -243,7 +244,6 @@ fn silk_plc_conceal(ps_dec: &mut SilkDecoderState, ps_dec_ctrl: &mut SilkDecoder
             ltp_pred_q12 = silk_smlawb(ltp_pred_q12, s_ltp_q14[pred_lag_off - 2], ps_dec.s_plc.ltp_coef_q14[2] as i32);
             ltp_pred_q12 = silk_smlawb(ltp_pred_q12, s_ltp_q14[pred_lag_off - 3], ps_dec.s_plc.ltp_coef_q14[3] as i32);
             ltp_pred_q12 = silk_smlawb(ltp_pred_q12, s_ltp_q14[pred_lag_off - 4], ps_dec.s_plc.ltp_coef_q14[4] as i32);
-            pred_lag_off += 1;
 
             /* Generate LPC excitation */
             rand_seed = 907633515i32.wrapping_add(rand_seed.wrapping_mul(196314165));

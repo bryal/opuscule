@@ -173,7 +173,7 @@ pub fn ec_dec_uint(this: &mut ec_dec, ft: u32) -> u32 {
     let ft = ft - 1;
     let ftb = ec_ilog(ft);
     if ftb > EC_UINT_BITS as i32 {
-        let ftb = (ftb as u32 - EC_UINT_BITS) as u32;
+        let ftb = ftb as u32 - EC_UINT_BITS;
         let ft_top = (ft >> ftb) + 1;
         let s = ec_decode(this, ft_top);
         ec_dec_update(this, s, s + 1, ft_top);
