@@ -1,5 +1,7 @@
 #!/bin/sh
-# Pre-commit checks: rustfmt + cargo check for both feature sets.
+# Pre-commit checks: rustfmt + clippy for both feature sets.
+# clippy subsumes `cargo check`, and `-D warnings` fails the commit on any
+# clippy OR rustc warning, so they can't pile up unnoticed again.
 # Enable via: git config core.hooksPath .githooks
 
 set -e
@@ -7,8 +9,8 @@ set -e
 echo "  fmt --check"
 cargo fmt --all -- --check
 
-echo "  cargo check (float)"
-cargo check --all-targets --quiet
+echo "  clippy (float)"
+cargo clippy --all-targets --quiet -- -D warnings
 
-echo "  cargo check (fixed-point)"
-cargo check --all-targets --features fixed-point --quiet
+echo "  clippy (fixed-point)"
+cargo clippy --all-targets --features fixed-point --quiet -- -D warnings
