@@ -40,3 +40,10 @@ unwrap_used = "deny"
 libm = { version = "0.2", optional = true }
 
 [dev-dependencies]
+# Test targets link `std` regardless (the test harness needs it), so build the
+# crate with `std` for them. This keeps `--all-targets` honest under a no_std
+# feature set (e.g. `--no-default-features --features libm`): without it the lib
+# is compiled with std present but the `std` feature off, spuriously flagging
+# `arch::FloatMath` as unused. Real *library* no_std builds don't pull
+# dev-dependencies, so they stay genuinely no_std.
+opuscule = { path = ".", features = ["std"] }
