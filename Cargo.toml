@@ -47,3 +47,10 @@ libm = { version = "0.2", optional = true }
 # `arch::FloatMath` as unused. Real *library* no_std builds don't pull
 # dev-dependencies, so they stay genuinely no_std.
 opuscule = { path = ".", features = ["std"] }
+# For the `play` example only (OGG demux + audio output). Dev-dependencies
+# never reach library consumers. rodio defaults pull in format decoders we
+# don't need (we feed it raw PCM), so take just the playback path.
+ogg = "0.9"
+# default features include format decoders (flac/vorbis/mp3/symphonia/...) we
+# don't use - we feed raw PCM - so take just the playback path.
+rodio = { version = "0.22", default-features = false, features = ["playback"] }
