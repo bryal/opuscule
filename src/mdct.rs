@@ -16,7 +16,7 @@ pub struct MdctLookup {
     pub n: c_int,
     pub maxshift: c_int,
     pub kfft: [&'static KissFftState; 4],
-    pub trig: &'static [OpusVal16],
+    pub trig: &'static [Val],
 }
 
 /// Inverse MDCT (decoder path).
@@ -43,10 +43,10 @@ pub struct MdctLookup {
 #[allow(clippy::indexing_slicing)]
 pub fn clt_mdct_backward(
     l: &MdctLookup,
-    inp: &[OpusVal32],     // frequency-domain input (N/2 strided values)
-    out: &mut [OpusVal32], // time-domain output buffer (overlap-add target)
-    out_off: usize,        // logical start within `out` (pre-adjustment)
-    window: &[OpusVal16],  // synthesis window (overlap samples)
+    inp: &[Wal],     // frequency-domain input (N/2 strided values)
+    out: &mut [Wal], // time-domain output buffer (overlap-add target)
+    out_off: usize,  // logical start within `out` (pre-adjustment)
+    window: &[Val],  // synthesis window (overlap samples)
     overlap: c_int,
     shift: c_int,
     stride: c_int,
@@ -60,16 +60,16 @@ pub fn clt_mdct_backward(
     // half-size. MAX_N2 = l.n (1920 for the standard mode) >> 1; `shift` only
     // shrinks it.
     const MAX_N2: usize = 960;
-    let mut f = [0 as OpusVal32; MAX_N2];
+    let mut f = [0 as Wal; MAX_N2];
     let f = &mut f[..n2 as usize];
-    let mut f2 = [0 as OpusVal32; MAX_N2];
+    let mut f2 = [0 as Wal; MAX_N2];
     let f2 = &mut f2[..n2 as usize];
 
     // sin(pi/4N) approximation: sin(x) ≈ x for small x
     #[cfg(not(feature = "fixed-point"))]
-    let sine: OpusVal16 = 2.0 * core::f32::consts::PI * 0.125 / n as f32;
+    let sine: Val = 2.0 * core::f32::consts::PI * 0.125 / n as f32;
     #[cfg(feature = "fixed-point")]
-    let sine: OpusVal16 = {
+    let sine: Val = {
         // TRIG_UPSCALE * (QCONST16(0.7853981, 15) + N2) / N
         // TRIG_UPSCALE = 1 in the default fixed-point build
         // The 0.7853981 literal mirrors the C QCONST16 argument verbatim.
@@ -111,8 +111,8 @@ pub fn clt_mdct_backward(
     // adjacent scalar pair maps to one complex value. MAX_N4 = MAX_N2 / 2.
     const MAX_N4: usize = MAX_N2 / 2;
     let nfft = (n2 / 2) as usize;
-    let mut fft_in = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; MAX_N4];
-    let mut fft_out = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; MAX_N4];
+    let mut fft_in = [KissFftCpx { r: 0 as Wal, i: 0 as Wal }; MAX_N4];
+    let mut fft_out = [KissFftCpx { r: 0 as Wal, i: 0 as Wal }; MAX_N4];
     let fft_in = &mut fft_in[..nfft];
     let fft_out = &mut fft_out[..nfft];
     for (c, pair) in fft_in.iter_mut().zip(f2.chunks_exact(2)) {

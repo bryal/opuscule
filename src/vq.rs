@@ -27,7 +27,7 @@ use crate::util::OrPanic;
 /// recurrence (consecutive `i` overlap), so it has no iterator form. The
 /// loop ranges keep `i+stride < len` in both passes.
 #[allow(clippy::indexing_slicing)]
-fn exp_rotation1(x: &mut [CeltNorm], stride: usize, c: OpusVal16, s: OpusVal16) {
+fn exp_rotation1(x: &mut [CeltNorm], stride: usize, c: Val, s: Val) {
     let len = x.len();
     // Forward pass
     for i in 0..len - stride {
@@ -114,7 +114,7 @@ fn exp_rotation(x: &mut [CeltNorm], dir: i32, stride: usize, k: i32, spread: i32
 /// In float mode, k is unused (the compiler will optimise it away).
 /// In fixed mode, k = celt_ilog2(Ryy) >> 1 controls the shift.
 #[allow(unused_variables)]
-fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], ryy: OpusVal32, gain: OpusVal16) {
+fn normalise_residual(iy: &[c_int], x: &mut [CeltNorm], ryy: Wal, gain: Val) {
     // C: k = celt_ilog2(Ryy)>>1;   (fixed only)
     //    t = VSHR32(Ryy, 2*(k-7));
     //    g = MULT16_16_P15(celt_rsqrt_norm(t), gain);
@@ -160,7 +160,7 @@ fn extract_collapse_mask(iy: &[c_int], b: usize) -> u32 {
 
 /// Decode pulse vector and combine with normalisation to produce the
 /// final normalised signal coefficients for one band.
-pub fn alg_unquant(x: &mut [CeltNorm], k: c_int, spread: c_int, b: c_int, dec: &mut ec_dec, gain: OpusVal16) -> u32 {
+pub fn alg_unquant(x: &mut [CeltNorm], k: c_int, spread: c_int, b: c_int, dec: &mut ec_dec, gain: Val) -> u32 {
     debug_assert!(k > 0, "alg_unquant() needs at least one pulse");
     let n = x.len();
     debug_assert!(n > 1, "alg_unquant() needs at least two dimensions");
@@ -174,9 +174,9 @@ pub fn alg_unquant(x: &mut [CeltNorm], k: c_int, spread: c_int, b: c_int, dec: &
     decode_pulses(iy, k, dec);
 
     // Compute sum of squares: Ryy = sum(iy[i]^2)
-    let mut ryy: OpusVal32 = 0 as OpusVal32;
+    let mut ryy: Wal = 0 as Wal;
     for &v in &*iy {
-        ryy = mac16_16(ryy, v as OpusVal16, v as OpusVal16);
+        ryy = mac16_16(ryy, v as Val, v as Val);
     }
 
     normalise_residual(iy, x, ryy, gain);
@@ -186,8 +186,8 @@ pub fn alg_unquant(x: &mut [CeltNorm], k: c_int, spread: c_int, b: c_int, dec: &
 
 /// Renormalise a coefficient vector to have the given gain (norm).
 ///
-pub fn renormalise_vector(x: &mut [CeltNorm], gain: OpusVal16) {
-    let mut e: OpusVal32 = EPSILON as OpusVal32;
+pub fn renormalise_vector(x: &mut [CeltNorm], gain: Val) {
+    let mut e: Wal = EPSILON as Wal;
     for &xi in x.iter() {
         e = mac16_16(e, xi, xi);
     }

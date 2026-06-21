@@ -51,7 +51,7 @@ mod static_modes_float;
 //
 // The decoder's native sample type (`f32` for the float build, `i16` for
 // fixed-point); decode writes interleaved samples of this type.
-pub use arch::OpusVal16;
+pub use arch::Val;
 pub use error::Error;
 pub use opus_decoder::{Channels, Decoder, SampleRate, sample_to_i16};
 pub use opus_multistream::{ChannelLayout, MsDecoder};

@@ -31,10 +31,10 @@ const SIG_SHIFT: i32 = 12;
 /// needs `y` of length len + max_pitch.
 #[cfg(not(feature = "fixed-point"))]
 #[allow(clippy::indexing_slicing)]
-fn find_best_pitch(xcorr: &[OpusVal32], y: &[OpusVal16], len: i32, max_pitch: i32, best_pitch: &mut [i32; 2]) {
-    let mut syy: OpusVal32 = 1.0;
-    let mut best_num: [OpusVal16; 2] = [-1.0; 2];
-    let mut best_den: [OpusVal32; 2] = [0.0; 2];
+fn find_best_pitch(xcorr: &[Wal], y: &[Val], len: i32, max_pitch: i32, best_pitch: &mut [i32; 2]) {
+    let mut syy: Wal = 1.0;
+    let mut best_num: [Val; 2] = [-1.0; 2];
+    let mut best_den: [Wal; 2] = [0.0; 2];
     best_pitch[0] = 0;
     best_pitch[1] = 1;
 
@@ -72,18 +72,10 @@ fn find_best_pitch(xcorr: &[OpusVal32], y: &[OpusVal16], len: i32, max_pitch: i3
 
 #[cfg(feature = "fixed-point")]
 #[allow(clippy::indexing_slicing)]
-fn find_best_pitch(
-    xcorr: &[OpusVal32],
-    y: &[OpusVal16],
-    len: i32,
-    max_pitch: i32,
-    best_pitch: &mut [i32; 2],
-    yshift: i32,
-    maxcorr: OpusVal32,
-) {
-    let mut syy: OpusVal32 = 1;
-    let mut best_num: [OpusVal16; 2] = [-1; 2];
-    let mut best_den: [OpusVal32; 2] = [0; 2];
+fn find_best_pitch(xcorr: &[Wal], y: &[Val], len: i32, max_pitch: i32, best_pitch: &mut [i32; 2], yshift: i32, maxcorr: Wal) {
+    let mut syy: Wal = 1;
+    let mut best_num: [Val; 2] = [-1; 2];
+    let mut best_den: [Wal; 2] = [0; 2];
     best_pitch[0] = 0;
     best_pitch[1] = 1;
 
@@ -97,7 +89,7 @@ fn find_best_pitch(
     for i in 0..max_pitch as usize {
         if xcorr[i] > 0 {
             let xcorr16 = extract16(vshr32(xcorr[i], xshift));
-            let num = mult16_16_q15(xcorr16, xcorr16) as OpusVal16;
+            let num = mult16_16_q15(xcorr16, xcorr16) as Val;
             if mult16_32_q15(num, best_den[1]) > mult16_32_q15(best_num[1], syy) {
                 if mult16_32_q15(num, best_den[0]) > mult16_32_q15(best_num[0], syy) {
                     best_num[1] = best_num[0];
@@ -124,7 +116,7 @@ fn find_best_pitch(
 /// Maximum absolute value of a val16 array (fixed-point only).
 /// Matches the static inline celt_maxabs16() in mathops.h.
 #[cfg(feature = "fixed-point")]
-fn celt_maxabs16(x: &[OpusVal16]) -> OpusVal16 {
+fn celt_maxabs16(x: &[Val]) -> Val {
     x.iter().fold(0, |maxval, &v| max16(maxval, v.abs()))
 }
 
@@ -137,8 +129,8 @@ fn celt_maxabs16(x: &[OpusVal16]) -> OpusVal16 {
 ///
 /// C implementation: pitch.c lines 159-265.
 pub fn pitch_search(
-    x_lp: &[OpusVal16], // LP-filtered signal (len/2 samples from pitch_downsample)
-    y: &[OpusVal16],    // decode memory buffer (lag = len + max_pitch samples)
+    x_lp: &[Val], // LP-filtered signal (len/2 samples from pitch_downsample)
+    y: &[Val],    // decode memory buffer (lag = len + max_pitch samples)
     len: i32,
     max_pitch: i32,
     pitch: &mut i32,
@@ -151,11 +143,11 @@ pub fn pitch_search(
     // CELT PLC is the only caller; its search spans the DECODE_BUFFER_SIZE
     // (2048) decode history, so len, lag and max_pitch all stay within it.
     const DECODE_BUFFER_SIZE: i32 = 2048;
-    let mut x_lp4 = [0 as OpusVal16; (DECODE_BUFFER_SIZE >> 2) as usize];
+    let mut x_lp4 = [0 as Val; (DECODE_BUFFER_SIZE >> 2) as usize];
     let x_lp4 = x_lp4.get_mut(..(len >> 2) as usize).or_panic((len >> 2) as usize);
-    let mut y_lp4 = [0 as OpusVal16; (DECODE_BUFFER_SIZE >> 2) as usize];
+    let mut y_lp4 = [0 as Val; (DECODE_BUFFER_SIZE >> 2) as usize];
     let y_lp4 = y_lp4.get_mut(..(lag >> 2) as usize).or_panic((lag >> 2) as usize);
-    let mut xcorr = [0 as OpusVal32; (DECODE_BUFFER_SIZE >> 2) as usize];
+    let mut xcorr = [0 as Wal; (DECODE_BUFFER_SIZE >> 2) as usize];
     let xcorr = xcorr.get_mut(..(max_pitch >> 1) as usize).or_panic((max_pitch >> 1) as usize);
 
     // Downsample by 2 again (from half-rate to quarter-rate)
@@ -193,15 +185,15 @@ pub fn pitch_search(
     let mut best_pitch = [0i32; 2];
 
     #[cfg(feature = "fixed-point")]
-    let mut maxcorr: OpusVal32 = 1;
+    let mut maxcorr: Wal = 1;
 
     // Cross-correlate at quarter-rate: xcorr[i] = sum_j x_lp4[j] * y_lp4[i+j],
     // accumulated in increasing j (same order as the C, so float is bit-exact).
     let xcorr_len = (max_pitch >> 2) as usize;
     let len4 = (len >> 2) as usize;
     for (i, xc) in xcorr.iter_mut().take(xcorr_len).enumerate() {
-        let sum = zip(&*x_lp4, y_lp4.iter().skip(i)).take(len4).fold(0 as OpusVal32, |s, (&a, &b)| mac16_16(s, a, b));
-        *xc = max32(-1 as OpusVal32, sum);
+        let sum = zip(&*x_lp4, y_lp4.iter().skip(i)).take(len4).fold(0 as Wal, |s, (&a, &b)| mac16_16(s, a, b));
+        *xc = max32(-1 as Wal, sum);
         #[cfg(feature = "fixed-point")]
         {
             maxcorr = max32(maxcorr, sum);
@@ -226,12 +218,12 @@ pub fn pitch_search(
     let half_max_pitch = (max_pitch >> 1) as usize;
     let len2 = (len >> 1) as usize;
     for (i, xc) in xcorr.iter_mut().take(half_max_pitch).enumerate() {
-        *xc = 0 as OpusVal32;
+        *xc = 0 as Wal;
         if (i as i32 - 2 * bp0).abs() > 2 && (i as i32 - 2 * bp1).abs() > 2 {
             continue;
         }
-        let sum = zip(x_lp, y.iter().skip(i)).take(len2).fold(0 as OpusVal32, |s, (&a, &b)| s + shr32(mult16_16(a, b), shift));
-        *xc = max32(-1 as OpusVal32, sum);
+        let sum = zip(x_lp, y.iter().skip(i)).take(len2).fold(0 as Wal, |s, (&a, &b)| s + shr32(mult16_16(a, b), shift));
+        *xc = max32(-1 as Wal, sum);
         #[cfg(feature = "fixed-point")]
         {
             maxcorr = max32(maxcorr, sum);
@@ -278,8 +270,8 @@ pub fn pitch_search(
 /// Kept as explicit indexed DSP.
 #[allow(clippy::indexing_slicing)]
 pub fn pitch_downsample(
-    x: &[&[OpusVal32]],     // channel slices, each `len` samples
-    x_lp: &mut [OpusVal16], // output: len/2 samples
+    x: &[&[Wal]],     // channel slices, each `len` samples
+    x_lp: &mut [Val], // output: len/2 samples
     len: i32,
     c_channels: i32,
 ) {
@@ -291,23 +283,23 @@ pub fn pitch_downsample(
     let x0 = x[0];
     for i in 1..half {
         let val = half32(half32(x0[2 * i - 1] + x0[2 * i + 1]) + x0[2 * i]);
-        x_lp[i] = shr32(val, SIG_SHIFT + 3) as OpusVal16;
+        x_lp[i] = shr32(val, SIG_SHIFT + 3) as Val;
     }
     // Edge case: i=0 — no x[0][-1], so use (x[0][1]/2 + x[0][0]) / 2
-    x_lp[0] = shr32(half32(half32(x0[1]) + x0[0]), SIG_SHIFT + 3) as OpusVal16;
+    x_lp[0] = shr32(half32(half32(x0[1]) + x0[0]), SIG_SHIFT + 3) as Val;
 
     // If stereo, add channel 1's contribution
     if c_channels == 2 {
         let x1 = x[1];
         for i in 1..half {
             let val = half32(half32(x1[2 * i - 1] + x1[2 * i + 1]) + x1[2 * i]);
-            x_lp[i] += shr32(val, SIG_SHIFT + 3) as OpusVal16;
+            x_lp[i] += shr32(val, SIG_SHIFT + 3) as Val;
         }
-        x_lp[0] += shr32(half32(half32(x1[1]) + x1[0]), SIG_SHIFT + 3) as OpusVal16;
+        x_lp[0] += shr32(half32(half32(x1[1]) + x1[0]), SIG_SHIFT + 3) as Val;
     }
 
     // Compute 4th-order autocorrelation of the downsampled signal
-    let mut ac = [0 as OpusVal32; 5];
+    let mut ac = [0 as Wal; 5];
     _celt_autocorr(
         &x_lp[..half],
         &mut ac,
@@ -341,22 +333,22 @@ pub fn pitch_downsample(
     }
 
     // Fit a 4th-order LPC model
-    let mut lpc = [0 as OpusVal16; 4];
+    let mut lpc = [0 as Val; 4];
     _celt_lpc(&mut lpc, &ac, 4);
 
     // Exponential decay of LPC coefficients: lpc[i] *= 0.9^(i+1)
-    let mut tmp: OpusVal16 = Q15ONE;
+    let mut tmp: Val = Q15ONE;
     for coef in &mut lpc {
-        tmp = mult16_16_q15(qconst16(0.9, 15), tmp) as OpusVal16;
-        *coef = mult16_16_q15(*coef, tmp) as OpusVal16;
+        tmp = mult16_16_q15(qconst16(0.9, 15), tmp) as Val;
+        *coef = mult16_16_q15(*coef, tmp) as Val;
     }
 
     // Apply the LP filter (all-pole → FIR with these coefficients), in place
-    let mut mem = [0 as OpusVal16; 4];
+    let mut mem = [0 as Val; 4];
     celt_fir(&mut x_lp[..half], &lpc, 4, &mut mem);
 
     // Second pass: 1st-order high-pass-ish filter at 0.8 (Q12)
-    mem[0] = 0 as OpusVal16;
-    let lpc_hp: [OpusVal16; 1] = [qconst16(0.8, 12)];
+    mem[0] = 0 as Val;
+    let lpc_hp: [Val; 1] = [qconst16(0.8, 12)];
     celt_fir(&mut x_lp[..half], &lpc_hp, 1, &mut mem);
 }

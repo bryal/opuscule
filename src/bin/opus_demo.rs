@@ -9,7 +9,7 @@
 // translated from the C reference isn't worth hardening like the core.
 #![allow(clippy::indexing_slicing)]
 
-use opuscule::{Channels, Decoder, OpusVal16, SampleRate, sample_to_i16};
+use opuscule::{Channels, Decoder, SampleRate, Val, sample_to_i16};
 
 use std::env;
 use std::fs::File;
@@ -167,7 +167,7 @@ fn main() {
 
     eprintln!("Decoding with {} Hz output ({} channels)", sampling_rate, channels);
 
-    let mut out_buf = vec![0 as OpusVal16; max_frame_size * channels as usize];
+    let mut out_buf = vec![0 as Val; max_frame_size * channels as usize];
     let mut fbytes = vec![0u8; max_frame_size * channels as usize * 2];
     let mut data: [Vec<u8>; 2] =
         [vec![0u8; max_payload_bytes], if use_inbandfec { vec![0u8; max_payload_bytes] } else { Vec::new() }];

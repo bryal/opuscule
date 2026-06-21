@@ -8,7 +8,7 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 use core::ffi::c_int;
 
-use crate::arch::{CeltEner, CeltNorm, CeltSig, NORM_SCALING, OpusVal16, OpusVal32, Q15ONE, qconst16, qconst32};
+use crate::arch::{CeltEner, CeltNorm, CeltSig, NORM_SCALING, Q15ONE, Val, Wal, qconst16, qconst32};
 use crate::arch::{
     add16, celt_rsqrt_norm, celt_sqrt, extend32, extract16, half32, mac16_16, min16, mult16_16, mult16_16_p15, mult16_16_q15,
     mult16_32_q15, pshr32, shl32, shr16, shr32, sub16, vshr32,
@@ -102,18 +102,18 @@ pub fn haar1(x: &mut [CeltNorm], n0: c_int, stride: c_int) {
 /// Uses the energy invariance property to compute proper L/R gains
 /// from the decoded mid and side signals. Falls back to copying mid
 /// to both channels if the energy is near zero.
-pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
-    let mut xp: OpusVal32 = 0 as OpusVal32;
-    let mut side: OpusVal32 = 0 as OpusVal32;
+pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: Val) {
+    let mut xp: Wal = 0 as Wal;
+    let mut side: Wal = 0 as Wal;
 
     for (&xj, &yj) in zip(&*x, &*y) {
         xp = mac16_16(xp, xj, yj);
         side = mac16_16(side, yj, yj);
     }
     xp = mult16_32_q15(mid, xp);
-    let mid2 = shr32(mid as OpusVal32, 1) as OpusVal16;
-    let el = mult16_16(mid2, mid2) + side - (2 as OpusVal32) * xp;
-    let er = mult16_16(mid2, mid2) + side + (2 as OpusVal32) * xp;
+    let mid2 = shr32(mid as Wal, 1) as Val;
+    let el = mult16_16(mid2, mid2) + side - (2 as Wal) * xp;
+    let er = mult16_16(mid2, mid2) + side + (2 as Wal) * xp;
     if er < qconst32(6e-4, 28) || el < qconst32(6e-4, 28) {
         // x and y are one band's two channels, equal length by construction
         // (the loop above already indexes both), so this cannot length-mismatch.
@@ -143,8 +143,8 @@ pub fn stereo_merge(x: &mut [CeltNorm], y: &mut [CeltNorm], mid: OpusVal16) {
     for (xj, yj) in zip(&mut *x, &mut *y) {
         let l = mult16_16_q15(mid, *xj);
         let r = *yj;
-        *xj = extract16(pshr32(mult16_16(lgain as OpusVal16, sub16(l as OpusVal16, r)), kl + 1));
-        *yj = extract16(pshr32(mult16_16(rgain as OpusVal16, add16(l as OpusVal16, r)), kr + 1));
+        *xj = extract16(pshr32(mult16_16(lgain as Val, sub16(l as Val, r)), kl + 1));
+        *yj = extract16(pshr32(mult16_16(rgain as Val, add16(l as Val, r)), kr + 1));
     }
 }
 
@@ -277,9 +277,9 @@ pub fn anti_collapse(
     size: c_int,
     start: c_int,
     end: c_int,
-    log_e: &[OpusVal16],
-    prev1log_e: &[OpusVal16],
-    prev2log_e: &[OpusVal16],
+    log_e: &[Val],
+    prev1log_e: &[Val],
+    prev2log_e: &[Val],
     pulses: &[c_int],
     seed: u32,
 ) {
@@ -293,17 +293,17 @@ pub fn anti_collapse(
             let depth = (1 + pulses[i]) / (((m.ebands[i + 1] - m.ebands[i]) as c_int) << lm);
 
             #[cfg(feature = "fixed-point")]
-            let (thresh, sqrt_1, shift): (OpusVal16, OpusVal16, i32);
+            let (thresh, sqrt_1, shift): (Val, Val, i32);
             #[cfg(not(feature = "fixed-point"))]
-            let (thresh, sqrt_1): (OpusVal16, OpusVal16);
+            let (thresh, sqrt_1): (Val, Val);
 
             #[cfg(feature = "fixed-point")]
             {
                 thresh = mult16_32_q15(
                     qconst16(0.5, 15),
                     (shr32(celt_exp2(-shl16(depth as i16, 10 - BITRES as i32)), 1)).min(32767),
-                ) as OpusVal16;
-                let t: OpusVal32 = n0 << lm;
+                ) as Val;
+                let t: Wal = n0 << lm;
                 let sh = (celt_ilog2(t) >> 1) as i32;
                 let t2 = shl32(t, (7 - sh) << 1);
                 sqrt_1 = celt_rsqrt_norm(t2);
@@ -325,12 +325,12 @@ pub fn anti_collapse(
                     prev2 = prev2.max(prev2log_e[nb_ebands + i]);
                 }
                 let ediff = extend32(log_e[c as usize * nb_ebands + i]) - extend32(min16(prev1, prev2));
-                let ediff = ediff.max(0 as OpusVal32);
+                let ediff = ediff.max(0 as Wal);
 
                 #[cfg(feature = "fixed-point")]
-                let r: OpusVal16;
+                let r: Val;
                 #[cfg(not(feature = "fixed-point"))]
-                let r: OpusVal16;
+                let r: Val;
 
                 #[cfg(feature = "fixed-point")]
                 {
@@ -426,7 +426,7 @@ pub fn quant_band(
     lowband_out: Option<&mut [CeltNorm]>,
     level: c_int,
     seed: &mut u32,
-    gain: OpusVal16,
+    gain: Val,
     lowband_scratch: Option<&mut [CeltNorm]>,
     fill_in: c_int,
 ) -> u32 {
@@ -453,7 +453,7 @@ pub fn quant_band(
     let mut time_divide = 0;
     let mut recombine = 0;
     let mut inv = 0;
-    let mut mid: OpusVal16 = 0 as OpusVal16;
+    let mut mid: Val = 0 as Val;
     let mut cm: u32 = 0;
     let imid;
     let iside;
@@ -651,8 +651,8 @@ pub fn quant_band(
         let side;
         #[cfg(feature = "fixed-point")]
         {
-            mid = imid as OpusVal16;
-            side = iside as OpusVal16;
+            mid = imid as Val;
+            side = iside as Val;
         }
         #[cfg(not(feature = "fixed-point"))]
         {
@@ -788,7 +788,7 @@ pub fn quant_band(
                         next_lowband_out1.take(),
                         next_level,
                         seed,
-                        if stereo != 0 { Q15ONE } else { mult16_16_p15(gain, mid) as OpusVal16 },
+                        if stereo != 0 { Q15ONE } else { mult16_16_p15(gain, mid) as Val },
                         lowband_scratch.take(),
                         fill,
                     );
@@ -815,7 +815,7 @@ pub fn quant_band(
                         None,
                         next_level,
                         seed,
-                        mult16_16_p15(gain, side) as OpusVal16,
+                        mult16_16_p15(gain, side) as Val,
                         None,
                         fill >> b_blocks,
                     ) << ((b0 >> 1) & (stereo - 1));
@@ -839,7 +839,7 @@ pub fn quant_band(
                         None,
                         next_level,
                         seed,
-                        mult16_16_p15(gain, side) as OpusVal16,
+                        mult16_16_p15(gain, side) as Val,
                         None,
                         fill >> b_blocks,
                     ) << ((b0 >> 1) & (stereo - 1));
@@ -866,7 +866,7 @@ pub fn quant_band(
                         next_lowband_out1.take(),
                         next_level,
                         seed,
-                        if stereo != 0 { Q15ONE } else { mult16_16_p15(gain, mid) as OpusVal16 },
+                        if stereo != 0 { Q15ONE } else { mult16_16_p15(gain, mid) as Val },
                         lowband_scratch.take(),
                         fill,
                     );
@@ -975,10 +975,10 @@ pub fn quant_band(
 
             // Scale output for later folding
             if let Some(lb_out) = lowband_out {
-                let norm_val = celt_sqrt(shl32(extend32(n0 as OpusVal16), 22));
+                let norm_val = celt_sqrt(shl32(extend32(n0 as Val), 22));
                 let lb_band = lb_out.get_mut(..n0 as usize).or_panic(n0);
                 for (oj, &xj) in zip(lb_band, x_s.get(..n0 as usize).or_panic(n0)) {
-                    *oj = mult16_16_q15(norm_val as OpusVal16, xj) as CeltNorm;
+                    *oj = mult16_16_q15(norm_val as Val, xj) as CeltNorm;
                 }
             }
             cm &= (1u32 << b_blocks as u32) - 1;
@@ -1124,7 +1124,7 @@ pub fn quant_all_bands(
             let n_lo = norm.get_mut(lo..eb_i).or_panic_dbg((lo, eb_i));
             let n2_lo = norm2.get(lo..eb_i).or_panic_dbg((lo, eb_i));
             for (nj, &n2j) in zip(n_lo, n2_lo) {
-                *nj = half32(*nj as OpusVal32 + n2j as OpusVal32) as CeltNorm;
+                *nj = half32(*nj as Wal + n2j as Wal) as CeltNorm;
             }
         }
 

@@ -78,8 +78,8 @@ pub struct OpusCustomDecoder {
     pub loss_count: c_int,
     pub postfilter_period: c_int,
     pub postfilter_period_old: c_int,
-    pub postfilter_gain: OpusVal16,
-    pub postfilter_gain_old: OpusVal16,
+    pub postfilter_gain: Val,
+    pub postfilter_gain_old: Val,
     pub postfilter_tapset: c_int,
     pub postfilter_tapset_old: c_int,
 
@@ -88,11 +88,11 @@ pub struct OpusCustomDecoder {
     // Trailing arrays — previously accessed via pointer arithmetic
     // from _decode_mem. Now fixed-size, always sized for 2 channels.
     pub decode_mem: [CeltSig; DECODE_MEM_SIZE],
-    pub lpc: [OpusVal16; LPC_SIZE],
-    pub old_band_e: [OpusVal16; BAND_E_SIZE],
-    pub old_log_e: [OpusVal16; BAND_E_SIZE],
-    pub old_log_e2: [OpusVal16; BAND_E_SIZE],
-    pub background_log_e: [OpusVal16; BAND_E_SIZE],
+    pub lpc: [Val; LPC_SIZE],
+    pub old_band_e: [Val; BAND_E_SIZE],
+    pub old_log_e: [Val; BAND_E_SIZE],
+    pub old_log_e2: [Val; BAND_E_SIZE],
+    pub background_log_e: [Val; BAND_E_SIZE],
 }
 
 /// Type alias matching `typedef struct OpusCustomDecoder CELTDecoder`.
@@ -129,17 +129,17 @@ impl OpusCustomDecoder {
             loss_count: 0,
             postfilter_period: 0,
             postfilter_period_old: 0,
-            postfilter_gain: 0 as OpusVal16,
-            postfilter_gain_old: 0 as OpusVal16,
+            postfilter_gain: 0 as Val,
+            postfilter_gain_old: 0 as Val,
             postfilter_tapset: 0,
             postfilter_tapset_old: 0,
             preemph_mem_d: [0 as CeltSig; 2],
             decode_mem: [0 as CeltSig; DECODE_MEM_SIZE],
-            lpc: [0 as OpusVal16; LPC_SIZE],
-            old_band_e: [0 as OpusVal16; BAND_E_SIZE],
+            lpc: [0 as Val; LPC_SIZE],
+            old_band_e: [0 as Val; BAND_E_SIZE],
             old_log_e: [init_log_e; BAND_E_SIZE],
             old_log_e2: [init_log_e; BAND_E_SIZE],
-            background_log_e: [0 as OpusVal16; BAND_E_SIZE],
+            background_log_e: [0 as Val; BAND_E_SIZE],
         }
     }
 
@@ -191,15 +191,15 @@ pub fn celt_decoder_reset(st: &mut CELTDecoder) {
     *loss_count = 0;
     *postfilter_period = 0;
     *postfilter_period_old = 0;
-    *postfilter_gain = 0 as OpusVal16;
-    *postfilter_gain_old = 0 as OpusVal16;
+    *postfilter_gain = 0 as Val;
+    *postfilter_gain_old = 0 as Val;
     *postfilter_tapset = 0;
     *postfilter_tapset_old = 0;
     preemph_mem_d.fill(0 as CeltSig);
     decode_mem.fill(0 as CeltSig);
-    lpc.fill(0 as OpusVal16);
-    old_band_e.fill(0 as OpusVal16);
-    background_log_e.fill(0 as OpusVal16);
+    lpc.fill(0 as Val);
+    old_band_e.fill(0 as Val);
+    background_log_e.fill(0 as Val);
 
     // Initialise oldLogE and oldLogE2 to -28 dB
     let init_val = -qconst16(28.0, DB_SHIFT);
@@ -220,10 +220,10 @@ pub fn celt_decoder_reset(st: &mut CELTDecoder) {
 // buffers (exc/mem/e and chans[cu][OM + ..], freq[c*n + i]). Indices are
 // bounded by MAX_PERIOD / n / overlap and the band structure; kept indexed.
 #[allow(clippy::indexing_slicing)]
-pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, lm: c_int) {
+pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: c_int, lm: c_int) {
     let mode = st.mode;
     let overlap = mode.overlap;
-    let mut fade: OpusVal16 = Q15ONE;
+    let mut fade: Val = Q15ONE;
     let cc = st.channels;
     let mut offset: c_int;
     let pitch_index: c_int;
@@ -260,7 +260,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             log2amp(mode, st.start, st.end, &mut band_e, &st.background_log_e, cc);
         } else {
             // Energy decay
-            let decay: OpusVal16 = if st.loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
+            let decay: Val = if st.loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
             let mut c = 0;
             loop {
                 for i in st.start..st.end {
@@ -331,7 +331,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
     } else {
         // Pitch-based PLC
         if st.loss_count == 0 {
-            let mut pitch_buf = [0 as OpusVal16; (DECODE_BUFFER_SIZE >> 1) as usize];
+            let mut pitch_buf = [0 as Val; (DECODE_BUFFER_SIZE >> 1) as usize];
             let poffset: c_int = 720;
             {
                 let ch0 = &chans[0][..DECODE_BUFFER_SIZE as usize];
@@ -360,13 +360,13 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
         let mut c = 0;
         loop {
             let cu = c as usize;
-            let mut exc = [0 as OpusVal16; MAX_PERIOD as usize];
-            let mut ac = [0 as OpusVal32; (LPC_ORDER + 1) as usize];
-            let mut decay: OpusVal16;
-            let mut s1: OpusVal32 = 0 as OpusVal32;
-            let mut mem = [0 as OpusVal16; LPC_ORDER as usize];
+            let mut exc = [0 as Val; MAX_PERIOD as usize];
+            let mut ac = [0 as Wal; (LPC_ORDER + 1) as usize];
+            let mut decay: Val;
+            let mut s1: Wal = 0 as Wal;
+            let mut mem = [0 as Val; LPC_ORDER as usize];
 
-            let mut e = [0 as OpusVal32; (MAX_PERIOD + 2 * OVERLAP) as usize];
+            let mut e = [0 as Wal; (MAX_PERIOD + 2 * OVERLAP) as usize];
 
             offset = MAX_PERIOD - pitch_index;
             for i in 0..MAX_PERIOD as usize {
@@ -389,7 +389,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
                 for i in 1..=LPC_ORDER {
                     #[cfg(feature = "fixed-point")]
                     {
-                        ac[i as usize] -= mult16_32_q15((2 * i * i) as OpusVal16, ac[i as usize]);
+                        ac[i as usize] -= mult16_32_q15((2 * i * i) as Val, ac[i as usize]);
                     }
                     #[cfg(not(feature = "fixed-point"))]
                     {
@@ -409,8 +409,8 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             }
             // Check if the waveform is decaying (and if so how fast)
             {
-                let mut e1: OpusVal32 = 1 as OpusVal32;
-                let mut e2: OpusVal32 = 1 as OpusVal32;
+                let mut e1: Wal = 1 as Wal;
+                let mut e2: Wal = 1 as Wal;
                 let period: c_int;
                 if pitch_index <= MAX_PERIOD / 2 {
                     period = pitch_index;
@@ -427,17 +427,17 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
                 if e1 > e2 {
                     e1 = e2;
                 }
-                decay = celt_sqrt(frac_div32(shr32(e1, 1), e2)) as OpusVal16;
+                decay = celt_sqrt(frac_div32(shr32(e1, 1), e2)) as Val;
             }
 
             // Copy excitation, taking decay into account
             for i in 0..len + mode.overlap {
                 if offset + i >= MAX_PERIOD {
                     offset -= pitch_index;
-                    decay = mult16_16_q15(decay, decay) as OpusVal16;
+                    decay = mult16_16_q15(decay, decay) as Val;
                 }
-                e[i as usize] = shl32(extend32(mult16_16_q15(decay, exc[(offset + i) as usize]) as OpusVal16), SIG_SHIFT);
-                let tmp: OpusVal16 = round16(chans[cu][OM + (offset + i) as usize], SIG_SHIFT);
+                e[i as usize] = shl32(extend32(mult16_16_q15(decay, exc[(offset + i) as usize]) as Val), SIG_SHIFT);
+                let tmp: Val = round16(chans[cu][OM + (offset + i) as usize], SIG_SHIFT);
                 s1 += shr32(mult16_16(tmp, tmp), 8);
             }
             for i in 0..LPC_ORDER as usize {
@@ -453,9 +453,9 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             }
 
             {
-                let mut s2: OpusVal32 = 0 as OpusVal32;
+                let mut s2: Wal = 0 as Wal;
                 for &x in &e[..e_len] {
-                    let tmp: OpusVal16 = round16(x, SIG_SHIFT);
+                    let tmp: Val = round16(x, SIG_SHIFT);
                     s2 += shr32(mult16_16(tmp, tmp), 8);
                 }
                 // This checks for an "explosion" in the synthesis
@@ -465,10 +465,9 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
                 let explosion = !(s1 > 0.2 * s2);
 
                 if explosion {
-                    e[..e_len].fill(0 as OpusVal32);
+                    e[..e_len].fill(0 as Wal);
                 } else if s1 < s2 {
-                    let ratio: OpusVal16 =
-                        celt_sqrt(frac_div32(shr32(s1, 1) + 1 as OpusVal32, s2 + 1 as OpusVal32)) as OpusVal16;
+                    let ratio: Val = celt_sqrt(frac_div32(shr32(s1, 1) + 1 as Wal, s2 + 1 as Wal)) as Val;
                     for x in &mut e[..e_len] {
                         *x = mult16_32_q15(ratio, *x);
                     }
@@ -500,7 +499,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [OpusVal16], n: c_int, l
             // Apply TDAC to the concealed audio so that it blends with the
             // previous and next frames
             for i in 0..overlap / 2 {
-                let tmp: OpusVal32 = mult16_32_q15(mode.window[i as usize], e[(n + overlap - 1 - i) as usize])
+                let tmp: Wal = mult16_32_q15(mode.window[i as usize], e[(n + overlap - 1 - i) as usize])
                     + mult16_32_q15(mode.window[(overlap - i - 1) as usize], e[(n + i) as usize]);
                 chans[cu][OM + (MAX_PERIOD + i) as usize] = mult16_32_q15(mode.window[(overlap - i - 1) as usize], tmp);
                 chans[cu][OM + (MAX_PERIOD + overlap - i - 1) as usize] = mult16_32_q15(mode.window[i as usize], tmp);
@@ -564,7 +563,7 @@ pub fn celt_decode_with_ec<'a>(
     st: &mut CELTDecoder,
     data: Option<&'a [u8]>,
     len: c_int,
-    pcm: &mut [OpusVal16],
+    pcm: &mut [Val],
     frame_size: c_int,
     dec: Option<&mut EcCtx<'a>>,
 ) -> c_int {
@@ -659,7 +658,7 @@ pub fn celt_decode_with_ec<'a>(
         dec.nbits_total += tell - ec_tell(dec) as i32;
     }
 
-    let mut postfilter_gain: OpusVal16 = 0 as OpusVal16;
+    let mut postfilter_gain: Val = 0 as Val;
     let mut postfilter_pitch: c_int = 0;
     let mut postfilter_tapset: c_int = 0;
     if st.start == 0 && tell + 16 <= total_bits {
@@ -670,7 +669,7 @@ pub fn celt_decode_with_ec<'a>(
             if ec_tell(dec) as i32 + 2 <= total_bits {
                 postfilter_tapset = ec_dec_icdf(dec, &TAPSET_ICDF, 2);
             }
-            postfilter_gain = qconst16(0.09375, 15) * (qg + 1) as OpusVal16;
+            postfilter_gain = qconst16(0.09375, 15) * (qg + 1) as Val;
         }
         tell = ec_tell(dec) as i32;
     }
@@ -958,7 +957,7 @@ pub fn celt_decode_with_ec<'a>(
         }
         let (bg, be) = (st.background_log_e.get_mut(..two_nb).or_panic(two_nb), st.old_band_e.get(..two_nb).or_panic(two_nb));
         for (bg, &oe) in zip(bg, be) {
-            *bg = min16(*bg + m as OpusVal16 * qconst16(0.001, DB_SHIFT), oe);
+            *bg = min16(*bg + m as Val * qconst16(0.001, DB_SHIFT), oe);
         }
     } else {
         let (le, be) = (st.old_log_e.get_mut(..two_nb).or_panic(two_nb), st.old_band_e.get(..two_nb).or_panic(two_nb));
@@ -973,7 +972,7 @@ pub fn celt_decode_with_ec<'a>(
     for (be, le, le2) in zip3(st.old_band_e.chunks_mut(nb), st.old_log_e.chunks_mut(nb), st.old_log_e2.chunks_mut(nb)).take(2) {
         for (i, (b, l, l2)) in zip3(be, le, le2).enumerate() {
             if i < start || i >= end {
-                *b = 0 as OpusVal16;
+                *b = 0 as Val;
                 *l = -qconst16(28.0, DB_SHIFT);
                 *l2 = -qconst16(28.0, DB_SHIFT);
             }
@@ -1045,7 +1044,7 @@ pub fn resampling_factor(rate: i32) -> c_int {
 /// Fixed-point: right-shift by SIG_SHIFT, clamp to [-32768, 32767].
 /// Float: identity cast (scaling happens in deemphasis via SCALEOUT).
 #[cfg(feature = "fixed-point")]
-pub fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
+pub fn sig2word16(x: crate::arch::CeltSig) -> Val {
     let x = pshr32(x, SIG_SHIFT);
     let x = max32(x, -32768);
     let x = min32(x, 32767);
@@ -1053,7 +1052,7 @@ pub fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
 }
 
 #[cfg(not(feature = "fixed-point"))]
-pub fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
+pub fn sig2word16(x: crate::arch::CeltSig) -> Val {
     x
 }
 
@@ -1063,13 +1062,13 @@ pub fn sig2word16(x: crate::arch::CeltSig) -> OpusVal16 {
 /// Float: divide by CELT_SIG_SCALE (32768).
 #[inline(always)]
 #[cfg(feature = "fixed-point")]
-pub fn scaleout(a: OpusVal16) -> OpusVal16 {
+pub fn scaleout(a: Val) -> Val {
     a
 }
 
 #[inline(always)]
 #[cfg(not(feature = "fixed-point"))]
-pub fn scaleout(a: OpusVal16) -> OpusVal16 {
+pub fn scaleout(a: Val) -> Val {
     a * (1.0 / CELT_SIG_SCALE)
 }
 
@@ -1149,14 +1148,14 @@ pub fn compute_inv_mdcts(
     let overlap = mode.overlap;
     let nu = n as usize;
     let ov = overlap as usize;
-    let mut buf = [0 as OpusVal32; MAX_FRAME_SIZE + OVERLAP as usize];
+    let mut buf = [0 as Wal; MAX_FRAME_SIZE + OVERLAP as usize];
     let mut buf = &mut buf[..(n + overlap) as usize];
 
     let (n2, b_count) = if short_blocks != 0 { (mode.short_mdct_size, short_blocks) } else { (n, 1) };
 
     for (c, chan) in out_syn.iter_mut().enumerate().take(c_channels as usize) {
         // Prevents problems from the imdct doing the overlap-add
-        buf.iter_mut().take(ov).for_each(|v| *v = 0 as OpusVal32);
+        buf.iter_mut().take(ov).for_each(|v| *v = 0 as Wal);
 
         for b in 0..b_count {
             let x_ch = x.get(c * nu + b as usize..(c + 1) * nu).or_panic_dbg((c * nu + b as usize, (c + 1) * nu));
@@ -1196,11 +1195,11 @@ pub fn compute_inv_mdcts(
 /// by writing only every `downsample`-th sample.
 pub fn deemphasis(
     in_: &[&[CeltSig]],
-    pcm: &mut [OpusVal16],
+    pcm: &mut [Val],
     n: c_int,
     c_channels: c_int,
     downsample: c_int,
-    coef: &[OpusVal16],
+    coef: &[Val],
     mem: &mut [CeltSig],
 ) {
     let c0 = *coef.first().or_panic("deemphasis coef[0] out of range");
@@ -1249,55 +1248,55 @@ pub fn deemphasis(
 // `gains[tapset][k]` table. Kept indexed (a DSP kernel).
 #[allow(clippy::too_many_arguments, clippy::indexing_slicing)]
 pub fn comb_filter(
-    y: Option<&mut [OpusVal32]>,
-    x: &mut [OpusVal32],
+    y: Option<&mut [Wal]>,
+    x: &mut [Wal],
     x_off: usize,
     t0: c_int,
     t1: c_int,
     n: c_int,
-    g0: OpusVal16,
-    g1: OpusVal16,
+    g0: Val,
+    g1: Val,
     tapset0: c_int,
     tapset1: c_int,
-    window: &[OpusVal16],
+    window: &[Val],
     overlap: c_int,
 ) {
     #[cfg(not(feature = "fixed-point"))]
-    let gains: [[OpusVal16; 3]; 3] =
+    let gains: [[Val; 3]; 3] =
         [[0.3066406250, 0.2170410156, 0.1296386719], [0.4638671875, 0.2680664062, 0.0], [0.7998046875, 0.1000976562, 0.0]];
     #[cfg(feature = "fixed-point")]
-    let gains: [[OpusVal16; 3]; 3] = [
+    let gains: [[Val; 3]; 3] = [
         [qconst16(0.3066406250, 15), qconst16(0.2170410156, 15), qconst16(0.1296386719, 15)],
         [qconst16(0.4638671875, 15), qconst16(0.2680664062, 15), qconst16(0.0, 15)],
         [qconst16(0.7998046875, 15), qconst16(0.1000976562, 15), qconst16(0.0, 15)],
     ];
 
-    let g00 = mult16_16_q15(g0, gains[tapset0 as usize][0]) as OpusVal16;
-    let g01 = mult16_16_q15(g0, gains[tapset0 as usize][1]) as OpusVal16;
-    let g02 = mult16_16_q15(g0, gains[tapset0 as usize][2]) as OpusVal16;
-    let g10 = mult16_16_q15(g1, gains[tapset1 as usize][0]) as OpusVal16;
-    let g11 = mult16_16_q15(g1, gains[tapset1 as usize][1]) as OpusVal16;
-    let g12 = mult16_16_q15(g1, gains[tapset1 as usize][2]) as OpusVal16;
+    let g00 = mult16_16_q15(g0, gains[tapset0 as usize][0]) as Val;
+    let g01 = mult16_16_q15(g0, gains[tapset0 as usize][1]) as Val;
+    let g02 = mult16_16_q15(g0, gains[tapset0 as usize][2]) as Val;
+    let g10 = mult16_16_q15(g1, gains[tapset1 as usize][0]) as Val;
+    let g11 = mult16_16_q15(g1, gains[tapset1 as usize][1]) as Val;
+    let g12 = mult16_16_q15(g1, gains[tapset1 as usize][2]) as Val;
 
     let t0 = t0 as usize;
     let t1 = t1 as usize;
     let mut y = y;
 
     for i in 0..overlap as usize {
-        let f = mult16_16_q15(window[i], window[i]) as OpusVal16;
-        let one_minus_f = (Q15ONE - f) as OpusVal16;
+        let f = mult16_16_q15(window[i], window[i]) as Val;
+        let one_minus_f = (Q15ONE - f) as Val;
         let xi = x_off + i;
         let val = x[xi]
-            + mult16_32_q15(mult16_16_q15(one_minus_f, g00) as OpusVal16, x[xi - t0])
-            + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as OpusVal16, x[xi - t0 - 1])
-            + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as OpusVal16, x[xi - t0 + 1])
-            + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as OpusVal16, x[xi - t0 - 2])
-            + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as OpusVal16, x[xi - t0 + 2])
-            + mult16_32_q15(mult16_16_q15(f, g10) as OpusVal16, x[xi - t1])
-            + mult16_32_q15(mult16_16_q15(f, g11) as OpusVal16, x[xi - t1 - 1])
-            + mult16_32_q15(mult16_16_q15(f, g11) as OpusVal16, x[xi - t1 + 1])
-            + mult16_32_q15(mult16_16_q15(f, g12) as OpusVal16, x[xi - t1 - 2])
-            + mult16_32_q15(mult16_16_q15(f, g12) as OpusVal16, x[xi - t1 + 2]);
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g00) as Val, x[xi - t0])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as Val, x[xi - t0 - 1])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g01) as Val, x[xi - t0 + 1])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as Val, x[xi - t0 - 2])
+            + mult16_32_q15(mult16_16_q15(one_minus_f, g02) as Val, x[xi - t0 + 2])
+            + mult16_32_q15(mult16_16_q15(f, g10) as Val, x[xi - t1])
+            + mult16_32_q15(mult16_16_q15(f, g11) as Val, x[xi - t1 - 1])
+            + mult16_32_q15(mult16_16_q15(f, g11) as Val, x[xi - t1 + 1])
+            + mult16_32_q15(mult16_16_q15(f, g12) as Val, x[xi - t1 - 2])
+            + mult16_32_q15(mult16_16_q15(f, g12) as Val, x[xi - t1 + 2]);
         match y {
             Some(ref mut out) => out[i] = val,
             None => x[xi] = val,

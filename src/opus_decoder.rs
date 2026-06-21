@@ -226,7 +226,7 @@ impl Decoder {
     /// channel). `packet` is `None` for packet loss concealment. The output
     /// capacity in samples-per-channel is taken from `pcm.len()`. Returns the
     /// number of samples decoded per channel.
-    pub fn decode(&mut self, packet: Option<&[u8]>, pcm: &mut [OpusVal16], fec: bool) -> Result<usize, Error> {
+    pub fn decode(&mut self, packet: Option<&[u8]>, pcm: &mut [Val], fec: bool) -> Result<usize, Error> {
         let frame_size = (pcm.len() / self.channels as usize) as c_int;
         let len = packet.map_or(0, |p| p.len()) as c_int;
         let ret = opus_decode_native(self, packet, len, pcm, frame_size, fec as c_int, 0, None);
@@ -244,11 +244,11 @@ impl Decoder {
 /// build this applies the standard scale + round; in the fixed-point build the
 /// native sample is already `i16`.
 #[cfg(not(feature = "fixed-point"))]
-pub fn sample_to_i16(s: OpusVal16) -> i16 {
+pub fn sample_to_i16(s: Val) -> i16 {
     float2int16(s)
 }
 #[cfg(feature = "fixed-point")]
-pub fn sample_to_i16(s: OpusVal16) -> i16 {
+pub fn sample_to_i16(s: Val) -> i16 {
     s
 }
 
@@ -260,12 +260,12 @@ pub fn sample_to_i16(s: OpusVal16) -> i16 {
 /// inputs at `idx` before writing `out[idx]`, so reading the aliased value
 /// from `out` is identical to reading it through the original pointer.
 fn smooth_fade(
-    in1: Option<&[OpusVal16]>,
-    in2: Option<&[OpusVal16]>,
-    out: &mut [OpusVal16],
+    in1: Option<&[Val]>,
+    in2: Option<&[Val]>,
+    out: &mut [Val],
     overlap: c_int,
     channels: c_int,
-    window: &[OpusVal16],
+    window: &[Val],
     fs: i32,
 ) {
     let inc = 48000 / fs;
@@ -273,11 +273,11 @@ fn smooth_fade(
         for i in 0..overlap {
             let idx = (i * channels + c) as usize;
             let wv = *window.get((i * inc) as usize).or_panic(i * inc);
-            let w: OpusVal16 = mult16_16_q15(wv, wv) as OpusVal16;
+            let w: Val = mult16_16_q15(wv, wv) as Val;
             let cur = *out.get(idx).or_panic(idx);
             let v1 = in1.map_or(cur, |s| *s.get(idx).or_panic(idx));
             let v2 = in2.map_or(cur, |s| *s.get(idx).or_panic(idx));
-            *out.get_mut(idx).or_panic(idx) = shr32(mac16_16(mult16_16(w, v2), Q15ONE - w, v1), 15) as OpusVal16;
+            *out.get_mut(idx).or_panic(idx) = shr32(mac16_16(mult16_16(w, v2), Q15ONE - w, v1), 15) as Val;
         }
     }
 }
@@ -314,7 +314,7 @@ fn opus_decode_frame(
     st: &mut Decoder,
     data: Option<&[u8]>,
     len: c_int,
-    pcm: &mut [OpusVal16],
+    pcm: &mut [Val],
     frame_size: c_int,
     decode_fec: c_int,
 ) -> c_int {
@@ -360,7 +360,7 @@ fn opus_decode_frame(
         if st.prev_mode == 0 {
             // If we haven't got any packet yet, all we can do is return zeros
             for v in pcm.get_mut(..(audiosize * channels) as usize).or_panic(audiosize * channels) {
-                *v = 0 as OpusVal16;
+                *v = 0 as Val;
             }
             return audiosize;
         } else {
@@ -391,7 +391,7 @@ fn opus_decode_frame(
         return frame_size;
     }
 
-    let mut pcm_transition_buf = [0 as OpusVal16; MAX_F5 * MAX_CHANNELS];
+    let mut pcm_transition_buf = [0 as Val; MAX_F5 * MAX_CHANNELS];
     let nt = (f5 * channels) as usize;
     let mut pcm_transition_buf = pcm_transition_buf.get_mut(..nt).or_panic(nt);
 
@@ -415,7 +415,7 @@ fn opus_decode_frame(
     let mut pcm_silk_buf = [0i16; MAX_FRAME_DEC * MAX_CHANNELS];
     let ns = (f10.max(frame_size) * channels) as usize;
     let pcm_silk_buf = pcm_silk_buf.get_mut(..ns).or_panic(ns);
-    let mut redundant_audio_buf = [0 as OpusVal16; MAX_F5 * MAX_CHANNELS];
+    let mut redundant_audio_buf = [0 as Val; MAX_F5 * MAX_CHANNELS];
     let nr = (f5 * channels) as usize;
     let mut redundant_audio_buf = redundant_audio_buf.get_mut(..nr).or_panic(nr);
 
@@ -571,7 +571,7 @@ fn opus_decode_frame(
     } else {
         let silence: [u8; 2] = [0xFF, 0xFF];
         for v in pcm.get_mut(..(frame_size * channels) as usize).or_panic(frame_size * channels) {
-            *v = 0 as OpusVal16;
+            *v = 0 as Val;
         }
         // For hybrid -> SILK transitions, we let the CELT MDCT
         // do a fade-out by decoding a silence frame
@@ -673,7 +673,7 @@ pub fn opus_decode_native(
     st: &mut Decoder,
     data: Option<&[u8]>,
     len: c_int,
-    pcm: &mut [OpusVal16],
+    pcm: &mut [Val],
     frame_size: c_int,
     decode_fec: c_int,
     self_delimited: c_int,

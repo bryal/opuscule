@@ -38,19 +38,19 @@ static E_MEANS: [f32; 25] = [
 
 /// Prediction coefficients: 0.9, 0.8, 0.65, 0.5
 #[cfg(feature = "fixed-point")]
-static PRED_COEF: [OpusVal16; 4] = [29440, 26112, 21248, 16384];
+static PRED_COEF: [Val; 4] = [29440, 26112, 21248, 16384];
 #[cfg(not(feature = "fixed-point"))]
-static PRED_COEF: [OpusVal16; 4] = [29440.0 / 32768.0, 26112.0 / 32768.0, 21248.0 / 32768.0, 16384.0 / 32768.0];
+static PRED_COEF: [Val; 4] = [29440.0 / 32768.0, 26112.0 / 32768.0, 21248.0 / 32768.0, 16384.0 / 32768.0];
 
 #[cfg(feature = "fixed-point")]
-static BETA_COEF: [OpusVal16; 4] = [30147, 22282, 12124, 6554];
+static BETA_COEF: [Val; 4] = [30147, 22282, 12124, 6554];
 #[cfg(not(feature = "fixed-point"))]
-static BETA_COEF: [OpusVal16; 4] = [30147.0 / 32768.0, 22282.0 / 32768.0, 12124.0 / 32768.0, 6554.0 / 32768.0];
+static BETA_COEF: [Val; 4] = [30147.0 / 32768.0, 22282.0 / 32768.0, 12124.0 / 32768.0, 6554.0 / 32768.0];
 
 #[cfg(feature = "fixed-point")]
-const BETA_INTRA: OpusVal16 = 4915;
+const BETA_INTRA: Val = 4915;
 #[cfg(not(feature = "fixed-point"))]
-const BETA_INTRA: OpusVal16 = 4915.0 / 32768.0;
+const BETA_INTRA: Val = 4915.0 / 32768.0;
 
 /// Parameters of the Laplace-like probability models used for coarse energy.
 /// [frame_size][inter/intra][42 params]
@@ -127,7 +127,7 @@ pub fn unquant_coarse_energy(
     m: &CELTMode,
     start: c_int,
     end: c_int,
-    old_ebands: &mut [OpusVal16],
+    old_ebands: &mut [Val],
     intra: c_int,
     dec: &mut EcCtx,
     c_channels: c_int,
@@ -135,12 +135,12 @@ pub fn unquant_coarse_energy(
 ) {
     let prob_model = &E_PROB_MODEL[lm as usize][intra as usize];
     let nb_ebands = m.nb_ebands as usize;
-    let mut prev: [OpusVal32; 2] = [0 as OpusVal32; 2];
+    let mut prev: [Wal; 2] = [0 as Wal; 2];
 
-    let coef: OpusVal16;
-    let beta: OpusVal16;
+    let coef: Val;
+    let beta: Val;
     if intra != 0 {
-        coef = 0 as OpusVal16;
+        coef = 0 as Val;
         beta = BETA_INTRA;
     } else {
         beta = BETA_COEF[lm as usize];
@@ -166,16 +166,16 @@ pub fn unquant_coarse_energy(
             } else {
                 qi = -1;
             }
-            let q: OpusVal32 = shl32(extend32(qi as OpusVal16), DB_SHIFT);
+            let q: Wal = shl32(extend32(qi as Val), DB_SHIFT);
 
             let idx = i + c * nb_ebands;
             old_ebands[idx] = max16(-qconst16(9.0, DB_SHIFT), old_ebands[idx]);
             #[allow(unused_mut)]
-            let mut tmp: OpusVal32 = pshr32(mult16_16(coef, old_ebands[idx]), 8) + prev[c] + shl32(q, 7);
+            let mut tmp: Wal = pshr32(mult16_16(coef, old_ebands[idx]), 8) + prev[c] + shl32(q, 7);
             #[cfg(feature = "fixed-point")]
             let tmp = max32(-qconst32(28.0, DB_SHIFT + 7), tmp);
-            old_ebands[idx] = pshr32(tmp, 7) as OpusVal16;
-            prev[c] = prev[c] + shl32(q, 7) - mult16_16(beta, pshr32(q, 8) as OpusVal16);
+            old_ebands[idx] = pshr32(tmp, 7) as Val;
+            prev[c] = prev[c] + shl32(q, 7) - mult16_16(beta, pshr32(q, 8) as Val);
 
             c += 1;
             if c as c_int >= c_channels {
@@ -193,7 +193,7 @@ pub fn unquant_fine_energy(
     m: &CELTMode,
     start: c_int,
     end: c_int,
-    old_ebands: &mut [OpusVal16],
+    old_ebands: &mut [Val],
     fine_quant: &[c_int],
     dec: &mut EcCtx,
     c_channels: c_int,
@@ -209,7 +209,7 @@ pub fn unquant_fine_energy(
         // decoder once per channel, in order.
         for eb in old_ebands.iter_mut().skip(i).step_by(nb_ebands).take(c_channels as usize) {
             let q2 = ec_dec_bits(dec, fq as u32) as i32;
-            let offset: OpusVal16;
+            let offset: Val;
             #[cfg(feature = "fixed-point")]
             {
                 offset = sub16(
@@ -236,7 +236,7 @@ pub fn unquant_energy_finalise(
     m: &CELTMode,
     start: c_int,
     end: c_int,
-    old_ebands: &mut [OpusVal16],
+    old_ebands: &mut [Val],
     fine_quant: &[c_int],
     fine_priority: &[c_int],
     mut bits_left: c_int,
@@ -258,7 +258,7 @@ pub fn unquant_energy_finalise(
             }
             for eb in old_ebands.iter_mut().skip(i).step_by(nb_ebands).take(c_channels as usize) {
                 let q2 = ec_dec_bits(dec, 1) as i32;
-                let offset: OpusVal16;
+                let offset: Val;
                 #[cfg(feature = "fixed-point")]
                 {
                     offset = shr16(shl16(q2 as i16, DB_SHIFT) - qconst16(0.5, DB_SHIFT), fq + 1);
@@ -278,16 +278,12 @@ pub fn unquant_energy_finalise(
 ///
 /// Computes eBands[i] = 2^(oldEBands[i] + eMeans[i]) / 16 for active bands,
 /// zeroing bands outside [start, end).
-pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [OpusVal32], old_ebands: &[OpusVal16], c_channels: c_int) {
+pub fn log2amp(m: &CELTMode, start: c_int, end: c_int, e_bands: &mut [Wal], old_ebands: &[Val], c_channels: c_int) {
     let nb_ebands = m.nb_ebands as usize;
     let band_range = start as usize..end as usize;
     for (e_ch, old_ch) in zip(e_bands.chunks_mut(nb_ebands), old_ebands.chunks(nb_ebands)).take(c_channels as usize) {
         for (i, (eb, &oe, &em)) in zip3(e_ch, old_ch, E_MEANS.iter()).enumerate() {
-            *eb = if band_range.contains(&i) {
-                pshr32(celt_exp2(add16(oe, shl16(em as OpusVal16, 6))), 4)
-            } else {
-                0 as OpusVal32
-            };
+            *eb = if band_range.contains(&i) { pshr32(celt_exp2(add16(oe, shl16(em as Val, 6))), 4) } else { 0 as Wal };
         }
     }
 }

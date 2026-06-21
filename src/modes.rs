@@ -4,7 +4,7 @@
 // (48 kHz, 960 samples), exposed via `celt_mode()`. Custom modes are not
 // supported.
 
-use crate::arch::OpusVal16;
+use crate::arch::Val;
 use crate::kiss_fft::KissFftState;
 use crate::mdct::MdctLookup;
 use core::ffi::c_int;
@@ -34,7 +34,7 @@ pub struct OpusCustomMode {
     pub overlap: c_int,
     pub nb_ebands: c_int,
     pub eff_ebands: c_int,
-    pub preemph: [OpusVal16; 4],
+    pub preemph: [Val; 4],
     pub ebands: &'static [i16],
     pub max_lm: c_int,
     pub nb_short_mdcts: c_int,
@@ -42,7 +42,7 @@ pub struct OpusCustomMode {
     pub nb_alloc_vectors: c_int,
     pub alloc_vectors: &'static [u8],
     pub log_n: &'static [i16],
-    pub window: &'static [OpusVal16],
+    pub window: &'static [Val],
     pub mdct: MdctLookup,
     pub cache: PulseCache,
 }
@@ -157,11 +157,11 @@ static FFT_STATE_3: KissFftState = KissFftState {
 
 /// Float-mode preemphasis coefficients: {0.85000610, 0.0, 1.0, 1.0}
 #[cfg(not(feature = "fixed-point"))]
-const PREEMPH: [OpusVal16; 4] = [0.85000610, 0.0000000, 1.0000000, 1.0000000];
+const PREEMPH: [Val; 4] = [0.85000610, 0.0000000, 1.0000000, 1.0000000];
 
 /// Fixed-point preemphasis coefficients: {27853, 0, 4096, 8192}
 #[cfg(feature = "fixed-point")]
-const PREEMPH: [OpusVal16; 4] = [27853, 0, 4096, 8192];
+const PREEMPH: [Val; 4] = [27853, 0, 4096, 8192];
 
 static MODE_48000_960_120: CELTMode = CELTMode {
     fs: 48000,

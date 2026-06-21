@@ -19,25 +19,25 @@ use crate::util::zip;
 // Types
 // ---------------------------------------------------------------------------
 
-/// Complex number using kiss_fft_scalar (= OpusVal32) components.
+/// Complex number using kiss_fft_scalar (= Wal) components.
 /// Matches C's kiss_fft_cpx: { kiss_fft_scalar r, i; }
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct KissFftCpx {
-    pub r: OpusVal32,
-    pub i: OpusVal32,
+    pub r: Wal,
+    pub i: Wal,
 }
 
-/// Complex twiddle factor using kiss_twiddle_scalar (= OpusVal16) components.
+/// Complex twiddle factor using kiss_twiddle_scalar (= Val) components.
 /// Matches C's kiss_twiddle_cpx: { kiss_twiddle_scalar r, i; }
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct KissTwiddleCpx {
-    pub r: OpusVal16,
-    pub i: OpusVal16,
+    pub r: Val,
+    pub i: Val,
 }
 impl KissTwiddleCpx {
-    pub const fn from_array([r, i]: [OpusVal16; 2]) -> Self {
+    pub const fn from_array([r, i]: [Val; 2]) -> Self {
         Self { r, i }
     }
 }
@@ -51,7 +51,7 @@ pub const MAXFACTORS: usize = 8;
 pub struct KissFftState {
     pub nfft: i32,
     #[cfg(not(feature = "fixed-point"))]
-    pub scale: OpusVal32,
+    pub scale: Wal,
     pub shift: i32,
     pub factors: [i16; 2 * MAXFACTORS],
     pub bitrev: &'static [i16],
@@ -67,13 +67,13 @@ pub struct KissFftState {
 /// `a` is the fft_scalar (i32) and `b` is the twiddle_scalar (i16).
 #[cfg(not(feature = "fixed-point"))]
 #[inline(always)]
-pub fn s_mul(a: OpusVal32, b: OpusVal16) -> OpusVal32 {
+pub fn s_mul(a: Wal, b: Val) -> Wal {
     a * b
 }
 
 #[cfg(feature = "fixed-point")]
 #[inline(always)]
-pub fn s_mul(a: OpusVal32, b: OpusVal16) -> OpusVal32 {
+pub fn s_mul(a: Wal, b: Val) -> Wal {
     mult16_32_q15(b, a)
 }
 
@@ -112,7 +112,7 @@ pub fn c_addto(res: &mut KissFftCpx, a: KissFftCpx) {
 ///   Float:  c.r *= s;  c.i *= s
 ///   Fixed:  c.r = S_MUL(c.r, s);  c.i = S_MUL(c.i, s)
 #[inline(always)]
-pub fn c_mulbyscalar(c: &mut KissFftCpx, s: OpusVal16) {
+pub fn c_mulbyscalar(c: &mut KissFftCpx, s: Val) {
     c.r = s_mul(c.r, s);
     c.i = s_mul(c.i, s);
 }
@@ -120,13 +120,13 @@ pub fn c_mulbyscalar(c: &mut KissFftCpx, s: OpusVal16) {
 /// HALF_OF(x): in float mode = x * 0.5; in fixed-point mode = x >> 1.
 #[cfg(not(feature = "fixed-point"))]
 #[inline(always)]
-pub fn half_of(x: OpusVal32) -> OpusVal32 {
+pub fn half_of(x: Wal) -> Wal {
     x * 0.5
 }
 
 #[cfg(feature = "fixed-point")]
 #[inline(always)]
-pub fn half_of(x: OpusVal32) -> OpusVal32 {
+pub fn half_of(x: Wal) -> Wal {
     x >> 1
 }
 
@@ -160,7 +160,7 @@ pub fn ki_bfly4(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: u
             let tw1 = st.twiddles[j * fstride];
             let tw2 = st.twiddles[j * fstride * 2];
             let tw3 = st.twiddles[j * fstride * 3];
-            let mut scratch = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; 6];
+            let mut scratch = [KissFftCpx { r: 0 as Wal, i: 0 as Wal }; 6];
 
             scratch[0] = c_mulc(fout[base + j + m], tw1);
             scratch[1] = c_mulc(fout[base + j + m2], tw2);
@@ -194,7 +194,7 @@ pub fn ki_bfly3(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: u
         for j in 0..m {
             let tw1 = st.twiddles[j * fstride];
             let tw2 = st.twiddles[j * fstride * 2];
-            let mut scratch = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; 6];
+            let mut scratch = [KissFftCpx { r: 0 as Wal, i: 0 as Wal }; 6];
 
             scratch[1] = c_mulc(fout[base + j + m], tw1);
             scratch[2] = c_mulc(fout[base + j + m2], tw2);
@@ -228,7 +228,7 @@ pub fn ki_bfly5(fout: &mut [KissFftCpx], fstride: usize, st: &KissFftState, m: u
     for i in 0..n {
         let base = i * mm;
         for u in 0..m {
-            let mut scratch = [KissFftCpx { r: 0 as OpusVal32, i: 0 as OpusVal32 }; 13];
+            let mut scratch = [KissFftCpx { r: 0 as Wal, i: 0 as Wal }; 13];
 
             scratch[0] = fout[base + u];
             scratch[1] = c_mulc(fout[base + u + m], st.twiddles[u * fstride]);

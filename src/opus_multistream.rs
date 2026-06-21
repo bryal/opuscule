@@ -141,7 +141,7 @@ impl MsDecoder {
         &mut self,
         decoders: &mut [Decoder],
         packet: Option<&[u8]>,
-        pcm: &mut [OpusVal16],
+        pcm: &mut [Val],
         fec: bool,
     ) -> Result<usize, Error> {
         let nb_channels = self.layout.nb_channels;
@@ -164,7 +164,7 @@ impl MsDecoder {
 
         // Per-stream decode scratch (one stream's 1- or 2-channel output),
         // sliced to the original frame size (each stream decodes the same).
-        let mut buf = [0 as OpusVal16; 2 * MAX_FRAME];
+        let mut buf = [0 as Val; 2 * MAX_FRAME];
         let buf = buf.get_mut(..2 * frame_size_cap).or_panic(frame_size_cap);
 
         let mut off = 0usize; // bytes consumed from `packet`
@@ -251,7 +251,7 @@ impl MsDecoder {
             if *self.layout.mapping.get(c as usize).or_panic(c) == 255 {
                 for i in 0..frame_size {
                     let idx = (nb_channels * i + c) as usize;
-                    *pcm.get_mut(idx).or_panic(idx) = 0 as OpusVal16;
+                    *pcm.get_mut(idx).or_panic(idx) = 0 as Val;
                 }
             }
             c += 1;
@@ -298,8 +298,8 @@ mod tests {
         let mut decoders = [Decoder::new(SampleRate::Hz48000, Channels::from_count(ms.stream_channels(0) as usize).unwrap())];
         let mut plain = Decoder::new(SampleRate::Hz48000, Channels::Stereo);
 
-        let mut ms_pcm = [0 as OpusVal16; 960 * 2];
-        let mut plain_pcm = [0 as OpusVal16; 960 * 2];
+        let mut ms_pcm = [0 as Val; 960 * 2];
+        let mut plain_pcm = [0 as Val; 960 * 2];
 
         let ms_ret = ms.decode(&mut decoders, None, &mut ms_pcm, false).unwrap();
         let plain_ret = plain.decode(None, &mut plain_pcm, false).unwrap();

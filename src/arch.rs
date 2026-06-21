@@ -52,11 +52,21 @@ impl FloatMath for f64 {
 }
 
 // -- Type aliases --
-
+//
+// The decoder's scalar audio values come in two precision tiers. `Val` is the
+// narrow tier (bounded coefficients, gains, samples, operands) and `Wal` is the
+// wider tier ("Val" but Wide - products, sums, energies, anything that needs
+// more headroom). In the fixed-point build the tiers are distinct integer
+// widths (i16 / i32, Q-format); in the float build both collapse to f32, since
+// f32 spans the whole range and the split is purely a fixed-point concern.
+//
+// `CeltNorm` / `CeltSig` / `CeltEner` are the role-named members of those tiers
+// (a normalized MDCT coefficient, a time-domain signal, a band energy); `Val` /
+// `Wal` are the generic, role-less ones.
 #[cfg(not(feature = "fixed-point"))]
-pub type OpusVal16 = f32;
+pub type Val = f32;
 #[cfg(not(feature = "fixed-point"))]
-pub type OpusVal32 = f32;
+pub type Wal = f32;
 #[cfg(not(feature = "fixed-point"))]
 pub type CeltNorm = f32;
 #[cfg(not(feature = "fixed-point"))]
@@ -65,9 +75,9 @@ pub type CeltSig = f32;
 pub type CeltEner = f32;
 
 #[cfg(feature = "fixed-point")]
-pub type OpusVal16 = i16;
+pub type Val = i16;
 #[cfg(feature = "fixed-point")]
-pub type OpusVal32 = i32;
+pub type Wal = i32;
 #[cfg(feature = "fixed-point")]
 pub type CeltNorm = i16;
 #[cfg(feature = "fixed-point")]
