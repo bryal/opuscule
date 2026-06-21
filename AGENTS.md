@@ -58,6 +58,12 @@ bit-exact.
 - Always also `cargo check --features fixed-point` (the float/fixed dual build).
   When touching `no_std`/feature-gated or math code, also check
   `--no-default-features --features fixed-point` and `--features libm`.
+- Lint `no_std` configs with `--lib`, NOT `--all-targets`: the test harness
+  links `std`, so `--all-targets --no-default-features --features libm` builds
+  the lib *with* std available, which gives `f32` an inherent `.sqrt()` and
+  spuriously reports `arch::FloatMath` as unused. The lib build genuinely needs
+  `FloatMath`/`libm` (this toolchain's `core` has no `f32::sqrt`); don't be
+  fooled into removing it.
 - The crate is `#![forbid(unsafe_code)]` - there is no `unsafe` anywhere, and
   any you add is a hard compile error. Find a safe construction instead (e.g.
   `Default`/`array::from_fn` rather than `mem::zeroed`, explicit copies rather
