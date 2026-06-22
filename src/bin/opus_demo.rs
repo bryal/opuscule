@@ -282,7 +282,7 @@ fn main() {
         "average bitrate:             {:>7.3} kb/s",
         1e-3 * bits * sampling_rate as f64 / (frame_size as f64 * count as f64)
     );
-    eprintln!("maximum bitrate:             {:>7.3} bkp/s", 1e-3 * bits_max * sampling_rate as f64 / frame_size as f64);
+    eprintln!("maximum bitrate:             {:>7.3} kb/s", 1e-3 * bits_max * sampling_rate as f64 / frame_size as f64);
     eprintln!(
         "bitrate standard deviation:  {:>7.3} kb/s",
         1e-3 * (bits2 / count as f64 - bits * bits / (count as f64 * count as f64)).sqrt() * sampling_rate as f64
