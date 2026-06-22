@@ -1,7 +1,10 @@
 #!/bin/sh
-# Pre-commit checks: rustfmt + clippy for both feature sets.
+# Pre-commit checks: rustfmt + clippy + doctests for both feature sets.
 # clippy subsumes `cargo check`, and `-D warnings` fails the commit on any
-# clippy OR rustc warning, so they can't pile up unnoticed again.
+# clippy OR rustc warning, so they can't pile up unnoticed again. clippy
+# --all-targets does NOT compile doctests, so run `cargo test --doc` for both
+# builds too (the sample type differs - f32 vs i16 - so a doc example can be
+# valid in one build and not the other).
 # Enable via: git config core.hooksPath .githooks
 
 set -e
@@ -14,3 +17,9 @@ cargo clippy --all-targets --quiet -- -D warnings
 
 echo "  clippy (fixed-point)"
 cargo clippy --all-targets --features fixed-point --quiet -- -D warnings
+
+echo "  doctests (float)"
+cargo test --doc --quiet
+
+echo "  doctests (fixed-point)"
+cargo test --doc --quiet --features fixed-point
