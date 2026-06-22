@@ -12,22 +12,14 @@ use crate::entcode::EcCtx;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_init, ec_dec_uint, ec_tell};
 use crate::error::{Error, OPUS_BAD_ARG, OPUS_BUFFER_TOO_SMALL, OPUS_INTERNAL_ERROR, OPUS_INVALID_PACKET, OPUS_OK};
 use crate::packet::{
-    opus_packet_parse_impl, packet_get_bandwidth, packet_get_mode, packet_get_nb_channels, packet_get_samples_per_frame,
+    MODE_CELT_ONLY, MODE_HYBRID, MODE_SILK_ONLY, OPUS_BANDWIDTH_FULLBAND, OPUS_BANDWIDTH_MEDIUMBAND, OPUS_BANDWIDTH_NARROWBAND,
+    OPUS_BANDWIDTH_SUPERWIDEBAND, OPUS_BANDWIDTH_WIDEBAND, opus_packet_parse_impl, packet_get_bandwidth, packet_get_mode,
+    packet_get_nb_channels, packet_get_samples_per_frame,
 };
 use crate::silk::dec_api::{SilkDecControlStruct, SilkDecoder, silk_decode, silk_init_decoder};
 use crate::util::{OrPanic, zip};
 
 // -- Constants --
-
-const MODE_SILK_ONLY: i32 = 1000;
-const MODE_HYBRID: i32 = 1001;
-const MODE_CELT_ONLY: i32 = 1002;
-
-const OPUS_BANDWIDTH_NARROWBAND: i32 = 1101;
-const OPUS_BANDWIDTH_MEDIUMBAND: i32 = 1102;
-const OPUS_BANDWIDTH_WIDEBAND: i32 = 1103;
-const OPUS_BANDWIDTH_SUPERWIDEBAND: i32 = 1104;
-const OPUS_BANDWIDTH_FULLBAND: i32 = 1105;
 
 // Stack-scratch bounds for the no-alloc decode-frame buffers (largest values
 // occur at 48 kHz, 2 channels).

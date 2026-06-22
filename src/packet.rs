@@ -7,18 +7,18 @@
 use crate::error::OPUS_INVALID_PACKET;
 use crate::util::{OrPanic, zip};
 
-// -- Mode constants from opus_private.h --
-const MODE_SILK_ONLY: i32 = 1000;
-const MODE_HYBRID: i32 = 1001;
-const MODE_CELT_ONLY: i32 = 1002;
+// Mode and bandwidth identifiers (opus_private.h / opus_defines.h). Derived
+// from the TOC byte here and consumed by opus_decoder, so they live in one
+// place and are shared `pub(crate)`.
+pub(crate) const MODE_SILK_ONLY: i32 = 1000;
+pub(crate) const MODE_HYBRID: i32 = 1001;
+pub(crate) const MODE_CELT_ONLY: i32 = 1002;
 
-// -- Bandwidth constants from opus_defines.h --
-const OPUS_BANDWIDTH_NARROWBAND: i32 = 1101;
-const OPUS_BANDWIDTH_MEDIUMBAND: i32 = 1102;
-#[allow(dead_code)]
-const OPUS_BANDWIDTH_WIDEBAND: i32 = 1103;
-const OPUS_BANDWIDTH_SUPERWIDEBAND: i32 = 1104;
-const OPUS_BANDWIDTH_FULLBAND: i32 = 1105;
+pub(crate) const OPUS_BANDWIDTH_NARROWBAND: i32 = 1101;
+pub(crate) const OPUS_BANDWIDTH_MEDIUMBAND: i32 = 1102;
+pub(crate) const OPUS_BANDWIDTH_WIDEBAND: i32 = 1103;
+pub(crate) const OPUS_BANDWIDTH_SUPERWIDEBAND: i32 = 1104;
+pub(crate) const OPUS_BANDWIDTH_FULLBAND: i32 = 1105;
 
 /// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
 /// RFC 6716 Section 3.1, Table 2. (Safe core of [`opus_packet_get_mode`].)
