@@ -60,16 +60,15 @@ fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i3
 
         /* Update AR coefficient (reads old row, writes new row) */
         for n in 0..kk {
-            // RFC 8251 section 6: a saturating subtract, and a 64-bit range
-            // check on the rescaled coefficient - fuzzed bitstreams can drive
-            // this past 32 bits (undefined in C); treat such filters as
-            // unstable (return 0) rather than wrapping.
+            // RFC 8251 section 6: a saturating subtract, and bail (filter
+            // unstable, return 0) if the rescaled coefficient doesn't fit i32 -
+            // fuzzed bitstreams can drive it past 32 bits, which is undefined in
+            // C. try_from couples that range check with the narrowing.
             let tmp_qa = silk_sub_sat32(a_qa[old_idx][n], mul32_frac_q(a_qa[old_idx][kk - n - 1], rc_q31, 31));
-            let tmp64 = silk_rshift_round64(silk_smull(tmp_qa, rc_mult2), mult2q);
-            if tmp64 > i32::MAX as i64 || tmp64 < i32::MIN as i64 {
+            let Ok(coef) = i32::try_from(silk_rshift_round64(silk_smull(tmp_qa, rc_mult2), mult2q)) else {
                 return 0;
-            }
-            a_qa[new_idx][n] = tmp64 as i32;
+            };
+            a_qa[new_idx][n] = coef;
         }
         k -= 1;
     }
