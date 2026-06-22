@@ -428,6 +428,7 @@ pub fn quant_band(
     gain: Val,
     lowband_scratch: Option<&mut [CeltNorm]>,
     fill_in: i32,
+    disable_inv: bool,
 ) -> u32 {
     let resynth = encode == 0;
 
@@ -617,6 +618,12 @@ pub fn quant_band(
             } else {
                 inv = 0;
             }
+            // RFC 8251 section 10: when phase inversion is disabled (mono
+            // output), force the flag off so the out-of-phase intensity bands
+            // don't cancel on downmix.
+            if disable_inv {
+                inv = 0;
+            }
             itheta = 0;
         }
         let qalloc = ec_tell_frac(ec) as i32 - tell as i32;
@@ -693,6 +700,7 @@ pub fn quant_band(
                     gain,
                     lowband_scratch.take(),
                     orig_fill,
+                    disable_inv,
                 );
                 y2[0] = -(sign as CeltNorm) * x2[1];
                 y2[1] = (sign as CeltNorm) * x2[0];
@@ -782,6 +790,7 @@ pub fn quant_band(
                         if stereo != 0 { Q15ONE } else { mult16_16_p15(gain, mid) as Val },
                         lowband_scratch.take(),
                         fill,
+                        disable_inv,
                     );
                     rebalance = mbits - (rebalance - *remaining_bits);
                     if rebalance > 3 << BITRES as i32 && itheta != 0 {
@@ -809,6 +818,7 @@ pub fn quant_band(
                         mult16_16_p15(gain, side) as Val,
                         None,
                         fill >> b_blocks,
+                        disable_inv,
                     ) << ((b0 >> 1) & (stereo - 1));
                 } else {
                     cm = quant_band(
@@ -833,6 +843,7 @@ pub fn quant_band(
                         mult16_16_p15(gain, side) as Val,
                         None,
                         fill >> b_blocks,
+                        disable_inv,
                     ) << ((b0 >> 1) & (stereo - 1));
                     rebalance = sbits - (rebalance - *remaining_bits);
                     if rebalance > 3 << BITRES as i32 && itheta != 16384 {
@@ -860,6 +871,7 @@ pub fn quant_band(
                         if stereo != 0 { Q15ONE } else { mult16_16_p15(gain, mid) as Val },
                         lowband_scratch.take(),
                         fill,
+                        disable_inv,
                     );
                 }
             }
@@ -1017,6 +1029,7 @@ pub fn quant_all_bands(
     lm: i32,
     coded_bands: i32,
     seed: &mut u32,
+    disable_inv: bool,
 ) {
     let resynth = encode == 0;
     let ebands = m.ebands;
@@ -1181,6 +1194,7 @@ pub fn quant_all_bands(
                     Q15ONE,
                     Some(&mut scratch_buf[..]),
                     x_cm as i32,
+                    disable_inv,
                 )
             };
             let lb2 = if effective_lowband != -1 {
@@ -1228,6 +1242,7 @@ pub fn quant_all_bands(
                     Q15ONE,
                     Some(&mut scratch_buf[..]),
                     y_cm as i32,
+                    disable_inv,
                 )
             };
         } else {
@@ -1264,6 +1279,7 @@ pub fn quant_all_bands(
                     Q15ONE,
                     Some(&mut scratch_buf[..]),
                     (x_cm | y_cm) as i32,
+                    disable_inv,
                 )
             } else {
                 quant_band(
@@ -1288,6 +1304,7 @@ pub fn quant_all_bands(
                     Q15ONE,
                     Some(&mut scratch_buf[..]),
                     (x_cm | y_cm) as i32,
+                    disable_inv,
                 )
             };
             y_cm = x_cm;

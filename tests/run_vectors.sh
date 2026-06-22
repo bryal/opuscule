@@ -2,16 +2,16 @@
 # Test-vector runner against the RFC 8251 reference decode.
 #
 # Decodes every vector in opus_testvectors/ as mono and stereo, in both the
-# float and fixed-point builds, and compares each against the reference .dec.
-# It reports EVERY vector's quality (it does not stop at the first mismatch),
-# so progress toward passing the new reference is visible.
+# float and fixed-point builds, and compares each against the right reference.
+# It reports EVERY vector's quality (it does not stop at the first mismatch).
 #
-# Our decoder keeps phase inversion enabled, so it targets the standard .dec,
-# not the phase-inversion-disabled m.dec (that is the deferred RFC 8251
-# section-10 feature). Vectors that currently fail do so pending the section-9
-# hybrid-folding fix; tests/quality_baseline.txt records the expected failing
-# set per build/channel, and ANY change - a passer regressing OR a known
-# failure starting to pass - fails the run, so the baseline is updated by hand.
+# Reference per channel mode (RFC 8251 section 10): a mono decoder disables
+# phase inversion, so it targets the phase-inversion-disabled reference,
+# testvectorNNm.dec; a stereo decoder keeps phase inversion and targets the
+# standard testvectorNN.dec. tests/quality_baseline.txt records the expected
+# failing set per build/channel, and ANY change - a passer regressing OR a
+# known failure starting to pass - fails the run, so the baseline is updated
+# by hand.
 #
 # Usage: tests/run_vectors.sh [rate]   (rate defaults to 48000; run from repo root)
 
@@ -32,12 +32,12 @@ deviation=0
 # checking the resulting failing set against the baseline. Uses globals DEMO,
 # CMP (set by run_suite) and sets `deviation` on any mismatch.
 run_channel() {
-    cname=$1; cnum=$2; sflag=$3; expected=$(echo $4)
+    cname=$1; cnum=$2; sflag=$3; ref_suffix=$4; expected=$(echo $5)
     echo "  $cname:"
     fails=
     for f in $VECTORS; do
         "$DEMO" -d "$RATE" "$cnum" "$VECTOR_PATH/testvector$f.bit" tmp.out >/dev/null 2>&1 || true
-        out=$("$CMP" $sflag -r "$RATE" "$VECTOR_PATH/testvector$f.dec" tmp.out 2>&1) || true
+        out=$("$CMP" $sflag -r "$RATE" "$VECTOR_PATH/testvector$f$ref_suffix" tmp.out 2>&1) || true
         if printf '%s\n' "$out" | grep -q PASSES; then
             q=$(printf '%s\n' "$out" | grep -oE 'metric: [0-9.]+' | grep -oE '[0-9.]+')
             printf "    testvector%s ... %s%%\n" "$f" "$q"
@@ -58,8 +58,9 @@ run_channel() {
 run_suite() {
     mode=$1; DEMO=$2; CMP=$3
     echo "===== $mode ====="
-    run_channel mono   1 ""   "$4"
-    run_channel stereo 2 "-s" "$5"
+    # Mono disables phase inversion -> m.dec; stereo keeps it -> .dec.
+    run_channel mono   1 ""   "m.dec" "$4"
+    run_channel stereo 2 "-s" ".dec"  "$5"
     echo
 }
 

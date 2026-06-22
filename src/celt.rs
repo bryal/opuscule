@@ -62,6 +62,9 @@ pub struct OpusCustomDecoder {
     pub start: i32,
     pub end: i32,
     pub signalling: i32,
+    /// RFC 8251 section 10: when set (mono output), the per-band phase-inversion
+    /// flag is forced off so out-of-phase intensity bands survive a downmix.
+    pub disable_inv: bool,
 
     // Everything beyond this point gets cleared on a reset
     // (DECODER_RESET_START = rng)
@@ -116,6 +119,7 @@ impl OpusCustomDecoder {
             start: 0,
             end: mode.eff_ebands,
             signalling: 1,
+            disable_inv: channels == 1,
             rng: 0,
             error: 0,
             last_pitch_index: 0,
@@ -159,6 +163,7 @@ pub fn celt_decoder_reset(st: &mut CELTDecoder) {
         start: _,
         end: _,
         signalling: _,
+        disable_inv: _,
         rng,
         error,
         last_pitch_index,
@@ -781,6 +786,7 @@ pub fn celt_decode_with_ec<'a>(
             lm,
             coded_bands,
             &mut st.rng,
+            st.disable_inv,
         );
     }
 
