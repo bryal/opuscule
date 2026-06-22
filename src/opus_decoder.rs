@@ -354,27 +354,10 @@ fn opus_decode_frame(
         bandwidth = 0;
     }
 
-    // For CELT/hybrid PLC of more than 20 ms, do multiple calls
-    if data.is_none() && frame_size > f20 && mode != MODE_SILK_ONLY {
-        let mut nb_samples: i32 = 0;
-        loop {
-            let ret = opus_decode_frame(
-                st,
-                None,
-                0,
-                pcm.get_mut((nb_samples * channels) as usize..).or_panic(nb_samples * channels),
-                f20,
-                0,
-            );
-            if ret != f20 {
-                return OPUS_INTERNAL_ERROR;
-            }
-            nb_samples += f20;
-            if nb_samples >= frame_size {
-                break;
-            }
-        }
-        return frame_size;
+    // For CELT/hybrid PLC of more than 20 ms, opus_decode_native does multiple
+    // calls; here we just conceal a single (<=20 ms) frame (RFC 8251 7fcd66c4).
+    if data.is_none() && mode != MODE_SILK_ONLY {
+        frame_size = frame_size.min(f20);
     }
 
     let mut pcm_transition_buf = [0 as Val; MAX_F5 * MAX_CHANNELS];
@@ -674,22 +657,51 @@ pub fn opus_decode_native(
     if !(0..=1).contains(&decode_fec) {
         return OPUS_BAD_ARG;
     }
+    // For FEC/PLC, frame_size must be a multiple of 2.5 ms (RFC 8251 7fcd66c4).
+    if (decode_fec != 0 || len == 0 || data.is_none()) && frame_size % (st.fs / 400) != 0 {
+        return OPUS_BAD_ARG;
+    }
+
+    let channels = st.channels;
+
+    // No data: run the PLC for the whole requested duration, one frame (<=20 ms)
+    // at a time, returning exactly frame_size samples (RFC 8251 7fcd66c4).
     let data = match data {
         Some(d) if len != 0 => d,
         _ => {
-            return opus_decode_frame(st, None, 0, pcm, frame_size, 0);
+            let mut pcm_count = 0;
+            loop {
+                let ret = opus_decode_frame(
+                    st,
+                    None,
+                    0,
+                    pcm.get_mut((pcm_count * channels) as usize..).or_panic(pcm_count * channels),
+                    frame_size - pcm_count,
+                    0,
+                );
+                if ret < 0 {
+                    return ret;
+                }
+                pcm_count += ret;
+                if pcm_count >= frame_size {
+                    break;
+                }
+            }
+            return pcm_count;
         }
     };
     if len < 0 {
         return OPUS_BAD_ARG;
     }
 
-    let mut tot_offset = 0;
+    // The packet's own parameters. st.* is committed only once we decide to
+    // decode this packet (below) - the FEC path needs st.mode to still hold the
+    // *previous* packet's mode while deciding whether FEC is possible.
     let toc_byte = *data.first().or_panic("opus_decode_native: empty packet");
-    st.mode = packet_get_mode(toc_byte);
-    st.bandwidth = packet_get_bandwidth(toc_byte);
-    st.frame_size = packet_get_samples_per_frame(toc_byte, st.fs);
-    st.stream_channels = packet_get_nb_channels(toc_byte);
+    let packet_mode = packet_get_mode(toc_byte);
+    let packet_bandwidth = packet_get_bandwidth(toc_byte);
+    let packet_frame_size = packet_get_samples_per_frame(toc_byte, st.fs);
+    let packet_stream_channels = packet_get_nb_channels(toc_byte);
 
     let count = opus_packet_parse_impl(
         data.get(..len as usize).or_panic(len),
@@ -704,12 +716,48 @@ pub fn opus_decode_native(
     }
 
     let mut data_off = offset as usize;
-    tot_offset += offset;
+
+    if decode_fec != 0 {
+        // No FEC possible if there's no room for a preceding PLC region, or if
+        // either side is CELT-only (no in-band FEC): just run the PLC.
+        if frame_size <= packet_frame_size || packet_mode == MODE_CELT_ONLY || st.mode == MODE_CELT_ONLY {
+            return opus_decode_native(st, None, 0, pcm, frame_size, 0, 0, None);
+        }
+        // Conceal everything except the tail we may recover via FEC...
+        let ret = opus_decode_frame(st, None, 0, pcm, frame_size - packet_frame_size, 0);
+        if ret < 0 {
+            return ret;
+        }
+        // ...then decode the FEC (LBRR) frame from this packet into that tail.
+        st.mode = packet_mode;
+        st.bandwidth = packet_bandwidth;
+        st.frame_size = packet_frame_size;
+        st.stream_channels = packet_stream_channels;
+        let sz0 = *size.first().or_panic("opus_decode_native: empty size") as i32;
+        let fec_off = (channels * (frame_size - packet_frame_size)) as usize;
+        let ret = opus_decode_frame(
+            st,
+            Some(data.get(data_off..data_off + sz0 as usize).or_panic_dbg((data_off, sz0))),
+            sz0,
+            pcm.get_mut(fec_off..).or_panic(fec_off),
+            packet_frame_size,
+            1,
+        );
+        if ret < 0 {
+            return ret;
+        }
+        return frame_size;
+    }
+
+    let mut tot_offset = offset;
+    st.mode = packet_mode;
+    st.bandwidth = packet_bandwidth;
+    st.frame_size = packet_frame_size;
+    st.stream_channels = packet_stream_channels;
 
     if count * st.frame_size > frame_size {
         return OPUS_BUFFER_TOO_SMALL;
     }
-    let channels = st.channels;
     let mut nb_samples = 0;
     let mut pcm_off = 0usize;
     let mut i = 0;
