@@ -73,6 +73,20 @@ pub fn silk_sat16(a: i32) -> i32 {
     a.max(i16::MIN as i32).min(i16::MAX as i32)
 }
 
+/// `silk_ADD_SAT16` — `(int16)silk_SAT16(silk_ADD32((int32)a, b))`: add as i32
+/// (wrapping, per the C `+`), then saturate the sum to the i16 range.
+#[inline]
+pub fn silk_add_sat16(a: i32, b: i32) -> i32 {
+    silk_sat16(a.wrapping_add(b))
+}
+
+/// `silk_SUB_SAT32` — subtract, saturating the result to the i32 range
+/// (matches the two's-complement overflow handling of the C macro).
+#[inline]
+pub fn silk_sub_sat32(a: i32, b: i32) -> i32 {
+    a.saturating_sub(b)
+}
+
 /// `silk_SMLABB_ovflw` — `a + (int16)b * (int16)c`, with wrapping add.
 #[inline]
 pub fn silk_smlabb_ovflw(a32: i32, b32: i32, c32: i32) -> i32 {

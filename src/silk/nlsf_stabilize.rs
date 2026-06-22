@@ -5,7 +5,7 @@
 
 #![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
 
-use super::macros::{silk_limit_int, silk_rshift_round};
+use super::macros::{silk_add_sat16, silk_limit_int, silk_rshift_round};
 use super::sort::silk_insertion_sort_increasing_all_values_int16;
 
 const MAX_LOOPS: i32 = 20;
@@ -95,8 +95,11 @@ pub fn silk_nlsf_stabilize(nlsf_q15: &mut [i16], n_delta_min_q15: &[i16], l: i32
         /* Keep delta_min distance between the NLSFs */
         let mut i = 1;
         while i < l {
+            // RFC 8251 section 7: saturating add - extremely large high-LSF
+            // values could otherwise wrap here, leading to an out-of-bounds
+            // table read downstream.
             nlsf_q15[i as usize] = (nlsf_q15[i as usize] as i32)
-                .max(nlsf_q15[(i - 1) as usize] as i32 + n_delta_min_q15[i as usize] as i32)
+                .max(silk_add_sat16(nlsf_q15[(i - 1) as usize] as i32, n_delta_min_q15[i as usize] as i32))
                 as i16;
             i += 1;
         }

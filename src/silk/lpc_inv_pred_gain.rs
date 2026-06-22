@@ -5,7 +5,9 @@
 
 #![allow(clippy::indexing_slicing)] // dense SILK kernels; voice path is deprioritized vs CELT
 
-use super::macros::{silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift_round64, silk_smmul, silk_smull};
+use super::macros::{
+    silk_clz32, silk_inverse32_varq, silk_lshift, silk_rshift_round64, silk_smmul, silk_smull, silk_sub_sat32,
+};
 
 const SILK_MAX_ORDER_LPC: usize = 16;
 
@@ -58,8 +60,16 @@ fn lpc_inverse_pred_gain_qa(a_qa: &mut [[i32; SILK_MAX_ORDER_LPC]; 2], order: i3
 
         /* Update AR coefficient (reads old row, writes new row) */
         for n in 0..kk {
-            let tmp_qa = a_qa[old_idx][n] - mul32_frac_q(a_qa[old_idx][kk - n - 1], rc_q31, 31);
-            a_qa[new_idx][n] = mul32_frac_q(tmp_qa, rc_mult2, mult2q);
+            // RFC 8251 section 6: a saturating subtract, and a 64-bit range
+            // check on the rescaled coefficient - fuzzed bitstreams can drive
+            // this past 32 bits (undefined in C); treat such filters as
+            // unstable (return 0) rather than wrapping.
+            let tmp_qa = silk_sub_sat32(a_qa[old_idx][n], mul32_frac_q(a_qa[old_idx][kk - n - 1], rc_q31, 31));
+            let tmp64 = silk_rshift_round64(silk_smull(tmp_qa, rc_mult2), mult2q);
+            if tmp64 > i32::MAX as i64 || tmp64 < i32::MIN as i64 {
+                return 0;
+            }
+            a_qa[new_idx][n] = tmp64 as i32;
         }
         k -= 1;
     }
