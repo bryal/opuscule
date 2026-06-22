@@ -2,6 +2,23 @@
 name = "opuscule"
 version = "0.1.0"
 edition = "2024"
+authors = ["Jojo <jo@jo.zone>"]
+description = "A pure-Rust, memory-safe, no_std-capable Opus audio decoder."
+repository = "https://codeberg.org/jojo-laplace/opuscule"
+license = "MPL-2.0"
+readme = "README.md"
+keywords = ["opus", "audio", "decoder", "codec", "no_std"]
+categories = ["multimedia::audio", "no-std::no-alloc"]
+# Dev/test assets that shouldn't ship to crates.io: the ~60 MiB RFC reference
+# vectors and their runner, the RFC text, and repo-only scaffolding.
+exclude = [
+    "opus_testvectors/",
+    "doc/",
+    ".githooks/",
+    "AGENTS.md",
+    "tests/run_vectors.sh",
+    "tests/quality_baseline.txt",
+]
 
 [[bin]]
 name = "opus_compare"
@@ -15,7 +32,7 @@ default = ["std"]
 # (`--no-default-features`) for a no_std build; then either `fixed-point`
 # (integer kernels, no math dep) or `libm` (pure-Rust float math) is required.
 std = []
-# Fixed-point decoder: integer kernels only, no float math — no_std for free.
+# Fixed-point decoder: integer kernels only, no float math - no_std for free.
 fixed-point = []
 # Pure-Rust float math via the `libm` crate, for a no_std floating-point build.
 libm = ["dep:libm"]
