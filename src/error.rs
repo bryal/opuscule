@@ -5,6 +5,16 @@
 
 use core::fmt;
 
+/// Internal libopus-style status codes (from `opus_defines.h`). The decoder
+/// returns these `i32` values internally; the error ones are mapped to
+/// [`Error`] at the public boundary by [`Error::from_code`]. `OPUS_OK` is the
+/// success code.
+pub(crate) const OPUS_OK: i32 = 0;
+pub(crate) const OPUS_BAD_ARG: i32 = -1;
+pub(crate) const OPUS_BUFFER_TOO_SMALL: i32 = -2;
+pub(crate) const OPUS_INTERNAL_ERROR: i32 = -3;
+pub(crate) const OPUS_INVALID_PACKET: i32 = -4;
+
 /// An error returned while decoding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -26,10 +36,11 @@ impl Error {
     /// is reported as [`Error::InternalError`]).
     pub(crate) fn from_code(code: i32) -> Error {
         match code {
-            -1 => Error::BadArg,         // OPUS_BAD_ARG
-            -2 => Error::BufferTooSmall, // OPUS_BUFFER_TOO_SMALL
-            -4 => Error::InvalidPacket,  // OPUS_INVALID_PACKET
-            _ => Error::InternalError,   // OPUS_INTERNAL_ERROR and anything else
+            OPUS_BAD_ARG => Error::BadArg,
+            OPUS_BUFFER_TOO_SMALL => Error::BufferTooSmall,
+            OPUS_INVALID_PACKET => Error::InvalidPacket,
+            // OPUS_INTERNAL_ERROR and any unrecognised code
+            _ => Error::InternalError,
         }
     }
 

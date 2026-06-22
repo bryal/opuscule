@@ -4,6 +4,7 @@
 // channel count, frame count. Pure bitfield reads with no
 // float/fixed-point dependency.
 
+use crate::error::OPUS_INVALID_PACKET;
 use crate::util::{OrPanic, zip};
 
 // -- Mode constants from opus_private.h --
@@ -18,9 +19,6 @@ const OPUS_BANDWIDTH_MEDIUMBAND: i32 = 1102;
 const OPUS_BANDWIDTH_WIDEBAND: i32 = 1103;
 const OPUS_BANDWIDTH_SUPERWIDEBAND: i32 = 1104;
 const OPUS_BANDWIDTH_FULLBAND: i32 = 1105;
-
-// -- Error codes from opus_defines.h --
-const OPUS_INVALID_PACKET: i32 = -4;
 
 /// Extract the mode (SILK-only, Hybrid, or CELT-only) from the TOC byte.
 /// RFC 6716 Section 3.1, Table 2. (Safe core of [`opus_packet_get_mode`].)

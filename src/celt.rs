@@ -8,6 +8,7 @@ use crate::bands::{SPREAD_NORMAL, anti_collapse, celt_lcg_rand, denormalise_band
 use crate::celt_lpc::{_celt_autocorr, _celt_lpc, celt_fir, celt_iir};
 use crate::entcode::{BITRES, EcCtx, ec_tell_frac};
 use crate::entdec::{ec_dec_bit_logp, ec_dec_bits, ec_dec_icdf, ec_dec_init, ec_dec_uint, ec_tell};
+use crate::error::{OPUS_BAD_ARG, OPUS_INTERNAL_ERROR, OPUS_OK};
 use crate::mdct::clt_mdct_backward;
 use crate::modes::{CELTMode, celt_mode};
 use crate::pitch::{pitch_downsample, pitch_search};
@@ -27,12 +28,6 @@ pub const DECODE_BUFFER_SIZE: i32 = 2048;
 const MAX_PERIOD: i32 = 1024;
 const LPC_ORDER: i32 = 24;
 const DB_SHIFT: i32 = 10;
-
-// -- Opus error codes (from opus_defines.h) --
-
-const OPUS_OK: i32 = 0;
-const OPUS_BAD_ARG: i32 = -1;
-const OPUS_INTERNAL_ERROR: i32 = -3;
 
 const COMBFILTER_MINPERIOD: i32 = 15;
 

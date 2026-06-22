@@ -10,7 +10,7 @@ use crate::arch::*;
 use crate::celt::{CELTDecoder, CeltDecCtl, celt_decode_with_ec, celt_decoder_ctl, celt_decoder_init};
 use crate::entcode::EcCtx;
 use crate::entdec::{ec_dec_bit_logp, ec_dec_init, ec_dec_uint, ec_tell};
-use crate::error::Error;
+use crate::error::{Error, OPUS_BAD_ARG, OPUS_BUFFER_TOO_SMALL, OPUS_INTERNAL_ERROR, OPUS_INVALID_PACKET, OPUS_OK};
 use crate::packet::{
     opus_packet_parse_impl, packet_get_bandwidth, packet_get_mode, packet_get_nb_channels, packet_get_samples_per_frame,
 };
@@ -18,12 +18,6 @@ use crate::silk::dec_api::{SilkDecControlStruct, SilkDecoder, silk_decode, silk_
 use crate::util::{OrPanic, zip};
 
 // -- Constants --
-
-const OPUS_OK: i32 = 0;
-const OPUS_BAD_ARG: i32 = -1;
-const OPUS_BUFFER_TOO_SMALL: i32 = -2;
-const OPUS_INTERNAL_ERROR: i32 = -3;
-const OPUS_INVALID_PACKET: i32 = -4;
 
 const MODE_SILK_ONLY: i32 = 1000;
 const MODE_HYBRID: i32 = 1001;
