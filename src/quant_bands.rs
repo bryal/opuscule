@@ -4,12 +4,11 @@
 // (unquant) functions are translated — encoder functions were stripped
 // in the decoder-only build.
 //
-// Five functions:
+// Four functions:
 // - unquant_coarse_energy: decode coarse energy using Laplace-like model
 // - unquant_fine_energy: decode fine energy refinement bits
 // - unquant_energy_finalise: spend remaining bits on energy refinement
 // - log2Amp: convert log-domain energies to linear amplitudes
-// - amp2Log2: convert linear amplitudes to log-domain energies
 
 use crate::arch::*;
 use crate::entcode::EcCtx;
@@ -169,8 +168,7 @@ pub fn unquant_coarse_energy(
 
             let idx = i + c * nb_ebands;
             old_ebands[idx] = max16(-qconst16(9.0, DB_SHIFT), old_ebands[idx]);
-            #[allow(unused_mut)]
-            let mut tmp: Wal = pshr32(mult16_16(coef, old_ebands[idx]), 8) + prev[c] + shl32(q, 7);
+            let tmp: Wal = pshr32(mult16_16(coef, old_ebands[idx]), 8) + prev[c] + shl32(q, 7);
             #[cfg(feature = "fixed-point")]
             let tmp = max32(-qconst32(28.0, DB_SHIFT + 7), tmp);
             old_ebands[idx] = pshr32(tmp, 7) as Val;

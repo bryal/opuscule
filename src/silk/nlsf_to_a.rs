@@ -21,7 +21,6 @@ use super::table_lsf_cos::SILK_LSF_COS_TAB_FIX_Q12;
 const QA: i32 = 16;
 
 const SILK_MAX_ORDER_LPC: usize = 16;
-const LSF_COS_TAB_SZ_FIX: i32 = 128;
 const MAX_LPC_STABILIZE_ITERATIONS: i32 = 16;
 
 /// `1.0 / MAX_PREDICTION_POWER_GAIN` = `1e-4`, constant-evaluated in Q30
@@ -83,7 +82,6 @@ pub fn silk_nlsf2a(a_q12: &mut [i16], nlsf: &[i16], d: i32) {
 
         /* silk_assert(f_int >= 0); */
         /* silk_assert(f_int < LSF_COS_TAB_SZ_FIX); */
-        let _ = LSF_COS_TAB_SZ_FIX;
 
         /* Read start and end value from table */
         let cos_val = SILK_LSF_COS_TAB_FIX_Q12[f_int as usize] as i32; /* Q12 */

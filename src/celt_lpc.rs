@@ -15,7 +15,7 @@ use crate::util::{OrPanic, zip};
 const MAX_PERIOD: usize = 1024;
 
 /// LPC_ORDER from celt_lpc.h.
-pub const LPC_ORDER: usize = 24;
+const LPC_ORDER: usize = 24;
 
 /// Levinson-Durbin recursion: compute LPC coefficients from autocorrelation.
 ///

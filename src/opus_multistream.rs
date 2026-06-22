@@ -26,11 +26,11 @@ const MAX_FRAME: usize = 5760;
 
 // -- ChannelLayout --
 
-pub struct ChannelLayout {
-    pub nb_channels: i32,
-    pub nb_streams: i32,
-    pub nb_coupled_streams: i32,
-    pub mapping: [u8; 256],
+struct ChannelLayout {
+    nb_channels: i32,
+    nb_streams: i32,
+    nb_coupled_streams: i32,
+    mapping: [u8; 256],
 }
 
 // -- MsDecoder --
