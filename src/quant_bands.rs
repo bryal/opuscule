@@ -280,7 +280,18 @@ pub fn log2amp(m: &CELTMode, start: i32, end: i32, e_bands: &mut [Wal], old_eban
     let band_range = start as usize..end as usize;
     for (e_ch, old_ch) in zip(e_bands.chunks_mut(nb_ebands), old_ebands.chunks(nb_ebands)).take(c_channels as usize) {
         for (i, (eb, &oe, &em)) in zip3(e_ch, old_ch, E_MEANS.iter()).enumerate() {
-            *eb = if band_range.contains(&i) { pshr32(celt_exp2(add16(oe, shl16(em as Val, 6))), 4) } else { 0 as Wal };
+            *eb = if band_range.contains(&i) {
+                let lg = add16(oe, shl16(em as Val, 6));
+                // RFC 8251 section 8: cap the log-energy so celt_exp2 can't
+                // overflow to NaN/Inf on extreme bitstreams. `lg` is an i16 in
+                // the fixed-point build, always below qconst32(32.0, 16) =
+                // 2_097_152, so the cap only takes effect in the float build.
+                #[cfg(not(feature = "fixed-point"))]
+                let lg = lg.min(qconst32(32.0, 16));
+                pshr32(celt_exp2(lg), 4)
+            } else {
+                0 as Wal
+            };
         }
     }
 }
