@@ -16,6 +16,7 @@
 use crate::arch::*;
 use crate::error::Error;
 use crate::opus_decoder::{Channels, Decoder, opus_decode_native};
+use crate::packet::{opus_packet_parse_impl, packet_get_samples_per_frame};
 use crate::util::OrPanic;
 
 // -- Constants --
@@ -92,6 +93,47 @@ fn get_mono_channel(layout: &ChannelLayout, stream_id: i32, prev: i32) -> i32 {
     -1
 }
 
+/// Up-front validation of a multistream packet (libopus ed463234): parse every
+/// sub-stream and confirm each is well-formed and all carry the same number of
+/// samples, *before* decoding any of them - so a malformed later stream can't
+/// leave the earlier sub-decoders advanced into a desynchronised state. Opus
+/// frame durations scale exactly with the sample rate, so the per-stream sample
+/// counts are compared at 48 kHz.
+fn validate_packet(data: &[u8], nb_streams: i32) -> Result<(), Error> {
+    let mut off = 0usize;
+    let mut samples = 0;
+    let mut s = 0;
+    while s < nb_streams {
+        let remaining = match data.get(off..) {
+            Some(r) if !r.is_empty() => r,
+            _ => return Err(Error::InvalidPacket),
+        };
+        // All but the last stream are self-delimited within the packet.
+        let self_delimited = if s != nb_streams - 1 { 1 } else { 0 };
+        let mut toc = 0u8;
+        let mut size = [0i16; 48];
+        let mut payload_offset = 0i32;
+        let count =
+            opus_packet_parse_impl(remaining, self_delimited, Some(&mut toc), None, &mut size, Some(&mut payload_offset));
+        if count < 0 {
+            return Err(Error::from_code(count));
+        }
+        let tmp_samples = count * packet_get_samples_per_frame(toc, 48000);
+        if s != 0 && samples != tmp_samples {
+            return Err(Error::InvalidPacket);
+        }
+        samples = tmp_samples;
+        // Bytes this stream consumes: the header offset plus all frame payloads.
+        let mut stream_len = payload_offset;
+        for &sz in size.get(..count as usize).or_panic(count) {
+            stream_len += i32::from(sz);
+        }
+        off += stream_len as usize;
+        s += 1;
+    }
+    Ok(())
+}
+
 impl MsDecoder {
     /// Build a multistream decoder from a channel mapping. `mapping` gives, for
     /// each of `channels` output channels, the sub-stream channel index that
@@ -164,6 +206,11 @@ impl MsDecoder {
         let do_plc = total_len == 0;
         if !do_plc && total_len < 2 * nb_streams - 1 {
             return Err(Error::InvalidPacket);
+        }
+
+        // Validate every sub-stream before decoding any (anti-desync, ed463234).
+        if !do_plc {
+            validate_packet(packet.or_panic("non-PLC multistream decode requires a packet"), nb_streams)?;
         }
 
         // Per-stream decode scratch (one stream's 1- or 2-channel output),

@@ -2,7 +2,7 @@
 //! or exercises a decode-dispatch contract that the standard RFC test vectors
 //! don't cover. Add new tests as further functions here, not new files.
 
-use opuscule::{Channels, Decoder, Error, SampleRate, Val};
+use opuscule::{Channels, Decoder, Error, MsDecoder, SampleRate, Val};
 
 /// A real 20 ms CELT fullband stereo frame (TOC 0xfc), lifted from an
 /// ffmpeg-encoded `.opus` file. Used to prime a decoder with real state and as
@@ -76,4 +76,22 @@ fn fec_request_on_celt_packet_falls_back_to_plc() {
     let mut dec = Decoder::new(SampleRate::Hz48000, Channels::Stereo);
     let mut pcm = vec![0 as Val; 960 * 2];
     assert_eq!(dec.decode(Some(CELT_FB_STEREO_FRAME), &mut pcm, true), Ok(960));
+}
+
+/// libopus ed463234: a multistream packet is validated up front, so a malformed
+/// packet is rejected before any sub-decoder runs, leaving them undisturbed for
+/// the next (valid) call. A single coupled stream is just a stereo decoder, so
+/// the CELT stereo frame above serves as a valid one-stream multistream packet.
+#[test]
+fn multistream_validates_packet_before_decoding() {
+    let mut ms = MsDecoder::new(2, 1, 1, &[0, 1]).expect("valid layout");
+    let mut decoders = [Decoder::new(SampleRate::Hz48000, ms.stream_channels(0))];
+    let mut pcm = vec![0 as Val; 960 * 2];
+
+    // A malformed packet (TOC code 3 claiming far more frames than can fit) is
+    // rejected up front, not partially decoded.
+    assert!(ms.decode(&mut decoders, Some(&[0xff, 0xff]), &mut pcm, false).is_err());
+
+    // The sub-decoder is untouched, so a valid packet still decodes normally.
+    assert_eq!(ms.decode(&mut decoders, Some(CELT_FB_STEREO_FRAME), &mut pcm, false), Ok(960));
 }
