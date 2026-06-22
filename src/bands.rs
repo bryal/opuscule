@@ -1064,8 +1064,27 @@ pub fn quant_all_bands(
             0
         };
 
-        if resynth && eb(i) - n >= eb(start) && (update_lowband != 0 || lowband_offset == 0) {
+        if resynth && (eb(i) - n >= eb(start) || i == start + 1) && (update_lowband != 0 || lowband_offset == 0) {
             lowband_offset = i;
+        }
+
+        // RFC 8251 section 9: in hybrid mode the second CELT band can be wider
+        // than the single band coded before it, leaving it nothing to fold from
+        // and forcing LCG white noise (audible pre-echo on transients).
+        // Duplicate enough of the first band's folding data into norm so the
+        // second band can fold instead. Copies nothing in CELT-only mode (where
+        // n1 == n2). The duplicated region of norm is what our per-band fold_buf
+        // copy reads for band start+1, so this feeds straight into the fold.
+        if i == start + 1 {
+            let n1 = (eb(start + 1) - eb(start)) as usize;
+            let n2 = (eb(start + 2) - eb(start + 1)) as usize;
+            let offset = eb(start) as usize;
+            if n2 > n1 {
+                norm.copy_within(offset + 2 * n1 - n2..offset + n1, offset + n1);
+                if c == 2 {
+                    norm2.copy_within(offset + 2 * n1 - n2..offset + n1, offset + n1);
+                }
+            }
         }
 
         let tf_change = *tf_res.get(i_u).or_panic(i_u);
@@ -1087,7 +1106,9 @@ pub fn quant_all_bands(
             let mut fold_end = lowband_offset - 1;
             loop {
                 fold_end += 1;
-                if eb(fold_end) >= effective_lowband + n {
+                // RFC 8251 section 9: also stop at the current band, so the
+                // fold never repeats spectral content from band i itself.
+                if fold_end >= i || eb(fold_end) >= effective_lowband + n {
                     break;
                 }
             }

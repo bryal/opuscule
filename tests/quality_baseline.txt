@@ -1,10 +1,11 @@
 # Expected failing vectors per build/channel against the RFC 8251 references
 # (opus_testvectors/*.dec). A vector "fails" when opus_compare rejects it.
 #
-# These fail pending the RFC 8251 section-9 hybrid-folding fix. When a fix lands,
-# run_vectors.sh flags the change so this baseline is updated deliberately, never
-# silently. Empty string = that build/channel passes all 12.
-float_mono_fail="05 06 12"
-float_stereo_fail="05 06 12"
-fixed_mono_fail="05 06 12"
-fixed_stereo_fail="05 06 12"
+# All 12 vectors pass in every config since the RFC 8251 section-9 hybrid-folding
+# fix landed. run_vectors.sh flags any change to these sets so a regression
+# (a passer dropping out) or an intended improvement is updated deliberately,
+# never silently. Empty string = that build/channel passes all 12.
+float_mono_fail=""
+float_stereo_fail=""
+fixed_mono_fail=""
+fixed_stereo_fail=""
