@@ -2,8 +2,8 @@
 //
 // Vector quantisation of the residual signal. The decoder path uses
 // alg_unquant() to decode pulse vectors from the bitstream and produce
-// normalised MDCT coefficients for each band. renormalise_vector() and
-// stereo_itheta() are shared helpers called from bands.c.
+// normalised MDCT coefficients for each band. renormalise_vector() is a
+// shared helper called from bands.c.
 //
 // exp_rotation applies a spreading transform that distributes spectral
 // energy more evenly, improving perceptual quality. It uses Givens
@@ -208,7 +208,6 @@ pub fn renormalise_vector(x: &mut [CeltNorm], gain: Val) {
     }
 }
 
-/// Compute the stereo angle parameter itheta from two channel vectors.
 #[cfg(test)]
 mod tests {
     use super::*;

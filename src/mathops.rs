@@ -3,8 +3,8 @@
 // Various math utility functions used by the CELT layer.
 // Only the mode-independent functions are translated here; the
 // fixed-point-only polynomial approximations (celt_sqrt, celt_rsqrt_norm,
-// celt_cos_norm, celt_rcp, frac_div32) will be translated once the
-// fixed-point arithmetic macros are available in Rust.
+// celt_cos_norm, celt_rcp, frac_div32) live with the arithmetic helpers in
+// arch.rs.
 
 /// Multiplies two 16-bit fractional values. Bit-exactness is important.
 /// Translated from FRAC_MUL16 macro in c/celt/mathops.h.

@@ -91,13 +91,11 @@ fn parse_size(data: &[u8], len: i32, size: &mut i16) -> i32 {
 /// RFC 6716 Section 3.2.
 ///
 /// This handles all four code types (0-3) including CBR/VBR multi-frame packets,
-/// self-delimited framing, and padding. Called by both `opus_packet_parse`
-/// (self_delimited=0) and `opus_decode_native` (self_delimited from packet).
+/// self-delimited framing, and padding. Called by `opus_decode_native`
+/// (`self_delimited` taken from the packet) and the unit tests.
 ///
-/// Unlike the C, `frames` (when given) receives byte *offsets* into `data`
-/// rather than pointers; the extern "C" wrapper [`opus_packet_parse`]
-/// converts back to pointers for ABI compatibility. As in the C, the data
-/// cursor only advances through the frame payloads when `frames` is
+/// `frames` (when given) receives byte *offsets* into `data`, not pointers. The
+/// data cursor only advances through the frame payloads when `frames` is
 /// requested, which `payload_offset` reflects.
 pub fn opus_packet_parse_impl(
     data: &[u8],

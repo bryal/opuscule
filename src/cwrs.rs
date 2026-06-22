@@ -286,10 +286,6 @@ fn cwrsi(k: i32, i: u32, y: &mut [i32], u: &mut [u32]) {
 ///
 /// Called by alg_unquant() in vq.c during spectral decoding
 /// (RFC 6716 Section 4.3.4.1).
-///
-/// # Safety
-/// `y` must point to at least `n` writable i32 elements.
-/// `dec` must be a valid decoder context.
 pub fn decode_pulses(y: &mut [i32], k: i32, dec: &mut ec_dec) {
     debug_assert!(k > 0);
     let n = y.len();

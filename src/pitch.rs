@@ -23,8 +23,6 @@ const SIG_SHIFT: i32 = 12;
 /// Q15 multiplies: xcorr is right-shifted by xshift = ilog2(maxcorr)-14,
 /// and Syy is accumulated with a yshift right-shift on each MAC.
 ///
-/// C implementation: pitch.c lines 53-106.
-///
 /// Stateful top-2 tracker with a sliding energy window (`syy` updated as
 /// a recurrence by adding `y[i+len]^2` and removing `y[i]^2`); kept as
 /// explicit indexed DSP. Indices bounded: i < max_pitch, and the window
@@ -124,10 +122,8 @@ fn celt_maxabs16(x: &[Val]) -> Val {
 /// search at 2x decimation, with pseudo-interpolation to choose the
 /// final pitch period.
 ///
-/// Called from the CELT PLC path (celt.c:562) after pitch_downsample
-/// has produced the half-rate LP-filtered signal.
-///
-/// C implementation: pitch.c lines 159-265.
+/// Called from the CELT PLC path after pitch_downsample has produced the
+/// half-rate LP-filtered signal.
 pub fn pitch_search(
     x_lp: &[Val], // LP-filtered signal (len/2 samples from pitch_downsample)
     y: &[Val],    // decode memory buffer (lag = len + max_pitch samples)
@@ -262,8 +258,6 @@ pub fn pitch_search(
 /// The LP filter is a 4th-order all-pole filter (Levinson-Durbin from a
 /// short autocorrelation) with exponential coefficient decay (0.9^k),
 /// followed by a 1st-order highpass-ish pre-emphasis filter (0.8 at Q12).
-///
-/// C implementation: pitch.c lines 108-157.
 ///
 /// Strided 3-tap decimation (`x0[2i-1] + 2*x0[2i] + x0[2i+1]`) into the
 /// half-length `x_lp`, then autocorrelation / LPC / FIR over `x_lp[..half]`.

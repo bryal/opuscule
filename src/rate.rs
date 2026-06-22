@@ -73,9 +73,7 @@ pub fn pulses2bits(m: &CELTMode, band: i32, lm: i32, pulses: i32) -> i32 {
     if pulses == 0 { 0 } else { cache[pulses as usize] as i32 + 1 }
 }
 
-/// Read an i16 from a pointer at offset, as i32.
-///
-/// # Safety
+/// Read `ebands[i]` as an `i32`.
 #[inline]
 fn eb(ebands: &[i16], i: i32) -> i32 {
     ebands[i as usize] as i32

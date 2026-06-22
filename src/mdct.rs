@@ -29,8 +29,6 @@ pub struct MdctLookup {
 /// `out_off`, the offset the C caller would have passed as its pointer;
 /// the back-adjustment is folded into each store's index.
 ///
-/// C implementation: mdct.c clt_mdct_backward(), lines 217-237.
-///
 /// This is a strided FFT/MDCT butterfly with bidirectional cursors
 /// (pre/post-rotate, de-shuffle, and the TDAC overlap-add that scatters
 /// into `out` counting both up and down from the back-adjusted origin).
