@@ -306,6 +306,7 @@ fn opus_decode_frame(
 
     let audiosize: i32;
     let mode: i32;
+    let bandwidth: i32;
     let mut transition: i32 = 0;
     let mut redundancy: i32 = 0;
     let mut redundancy_bytes: i32 = 0;
@@ -334,6 +335,7 @@ fn opus_decode_frame(
     if let Some(d) = data {
         audiosize = st.frame_size;
         mode = st.mode;
+        bandwidth = st.bandwidth;
         ec_dec_init(&mut dec, d.get(..len as usize).or_panic(len), len as u32);
     } else {
         audiosize = frame_size;
@@ -346,6 +348,10 @@ fn opus_decode_frame(
         } else {
             mode = st.prev_mode;
         }
+        // PLC: bandwidth 0 means "leave the CELT end band as the previous
+        // packet set it" (RFC 8251 fix 92ffce62) - so a transition PLC keeps
+        // the previous CELT packet's bandwidth instead of the new one's.
+        bandwidth = 0;
     }
 
     // For CELT/hybrid PLC of more than 20 ms, do multiple calls
@@ -415,9 +421,9 @@ fn opus_decode_frame(
         if data.is_some() {
             st.dec_control.n_channels_internal = st.stream_channels;
             if mode == MODE_SILK_ONLY {
-                if st.bandwidth == OPUS_BANDWIDTH_NARROWBAND {
+                if bandwidth == OPUS_BANDWIDTH_NARROWBAND {
                     st.dec_control.internal_sample_rate = 8000;
-                } else if st.bandwidth == OPUS_BANDWIDTH_MEDIUMBAND {
+                } else if bandwidth == OPUS_BANDWIDTH_MEDIUMBAND {
                     st.dec_control.internal_sample_rate = 12000;
                 } else {
                     // Wideband (the only remaining bandwidth in SILK-only mode).
@@ -498,26 +504,30 @@ fn opus_decode_frame(
         start_band = 17;
     }
 
-    {
-        let endband: i32 = match st.bandwidth {
+    if redundancy != 0 {
+        transition = 0;
+    }
+
+    // Run the CELT->SILK/hybrid transition PLC before setting the new end band,
+    // so it conceals using the previous CELT packet's bandwidth: its recursive
+    // call has bandwidth 0 and leaves the CELT end band as the previous packet
+    // set it (RFC 8251 fix 92ffce62).
+    if transition != 0 && mode != MODE_CELT_ONLY {
+        opus_decode_frame(st, None, 0, pcm_transition_buf, f5.min(audiosize), 0);
+    }
+
+    if bandwidth != 0 {
+        let endband: i32 = match bandwidth {
             OPUS_BANDWIDTH_NARROWBAND => 13,
             OPUS_BANDWIDTH_MEDIUMBAND | OPUS_BANDWIDTH_WIDEBAND => 17,
             OPUS_BANDWIDTH_SUPERWIDEBAND => 19,
             OPUS_BANDWIDTH_FULLBAND => 21,
             _ => 21,
         };
-        let stream_channels = st.stream_channels;
         celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetEndBand(endband));
-        celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetChannels(stream_channels));
     }
-
-    if redundancy != 0 {
-        transition = 0;
-    }
-
-    if transition != 0 && mode != MODE_CELT_ONLY {
-        opus_decode_frame(st, None, 0, pcm_transition_buf, f5.min(audiosize), 0);
-    }
+    let stream_channels = st.stream_channels;
+    celt_decoder_ctl(&mut st.celt_dec, CeltDecCtl::SetChannels(stream_channels));
 
     // 5 ms redundant frame for CELT->SILK
     if redundancy != 0 && celt_to_silk != 0 {
