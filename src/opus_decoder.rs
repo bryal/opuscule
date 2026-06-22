@@ -749,15 +749,19 @@ pub fn opus_decode_native(
         return frame_size;
     }
 
+    if count * packet_frame_size > frame_size {
+        return OPUS_BUFFER_TOO_SMALL;
+    }
+
+    // Commit the packet's parameters as the last step before decoding, so an
+    // invalid or too-large packet never leaves the decoder state half-updated
+    // (anti-desync, libopus a5bd4409).
     let mut tot_offset = offset;
     st.mode = packet_mode;
     st.bandwidth = packet_bandwidth;
     st.frame_size = packet_frame_size;
     st.stream_channels = packet_stream_channels;
 
-    if count * st.frame_size > frame_size {
-        return OPUS_BUFFER_TOO_SMALL;
-    }
     let mut nb_samples = 0;
     let mut pcm_off = 0usize;
     let mut i = 0;

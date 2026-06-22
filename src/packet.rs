@@ -4,7 +4,7 @@
 // channel count, frame count. Pure bitfield reads with no
 // float/fixed-point dependency.
 
-use crate::error::OPUS_INVALID_PACKET;
+use crate::error::{OPUS_BAD_ARG, OPUS_INVALID_PACKET};
 use crate::util::{OrPanic, zip};
 
 // Mode and bandwidth identifiers (opus_private.h / opus_defines.h). Derived
@@ -105,6 +105,11 @@ pub fn opus_packet_parse_impl(
     size: &mut [i16],
     payload_offset: Option<&mut i32>,
 ) -> i32 {
+    // A packet needs at least the TOC byte (libopus 5e50f1f9); guard before
+    // reading it so empty/malformed input returns an error, not a panic.
+    if data.is_empty() {
+        return OPUS_BAD_ARG;
+    }
     // `len` is the remaining-bytes counter, initialised from the packet length.
     let mut len = data.len() as i32;
 
