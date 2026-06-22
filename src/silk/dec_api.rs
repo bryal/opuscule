@@ -67,12 +67,17 @@ pub struct SilkDecoder {
     pub prev_decode_only_middle: i32,
 }
 
-/// `silk_InitDecoder` — reset the per-channel states.
+/// `silk_InitDecoder` — reset the per-channel states, plus (RFC 8251 section 3)
+/// the shared stereo state and `prev_decode_only_middle`. Resetting those here
+/// means a CELT->SILK mode switch starts from clean stereo memory instead of
+/// carrying stale state that produces a brief single-sample impulse.
 pub fn silk_init_decoder(ps_dec: &mut SilkDecoder) -> i32 {
     let mut ret = SILK_NO_ERROR;
     for channel in ps_dec.channel_state.iter_mut().take(DECODER_NUM_CHANNELS) {
         ret = super::init_decoder::silk_init_decoder(channel);
     }
+    ps_dec.s_stereo = StereoDecState::default();
+    ps_dec.prev_decode_only_middle = 0;
     ret
 }
 

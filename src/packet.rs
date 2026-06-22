@@ -165,7 +165,12 @@ pub fn opus_packet_parse_impl(
             len -= 1;
             // Padding flag is bit 6
             if ch & 0x40 != 0 {
-                let mut padding: i32 = 0;
+                // RFC 8251 section 4: decrement the signed `len` directly per
+                // padding byte instead of summing into a separate counter - the
+                // counter could overflow i32 on a crafted packet signalling
+                // more than 2^31-1 padding bytes, which caused an out-of-bounds
+                // read. Here `len` just goes negative and the loop's `len <= 0`
+                // guard rejects the packet.
                 let mut p: i32;
                 loop {
                     if len <= 0 {
@@ -174,12 +179,11 @@ pub fn opus_packet_parse_impl(
                     p = i32::from(*data.get(off).or_panic_dbg((off, data.len())));
                     off += 1;
                     len -= 1;
-                    padding += if p == 255 { 254 } else { p };
+                    len -= if p == 255 { 254 } else { p };
                     if p != 255 {
                         break;
                     }
                 }
-                len -= padding;
             }
             if len < 0 {
                 return OPUS_INVALID_PACKET;

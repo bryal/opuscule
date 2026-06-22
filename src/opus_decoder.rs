@@ -186,15 +186,12 @@ impl Decoder {
         self.prev_redundancy = 0;
         self.range_final = 0;
 
-        // SilkDecoder super-header: the C relied on the caller's zeroed
-        // allocation for these (silk_init_decoder only resets the per-channel
-        // states, and the runtime CELT→SILK re-init path must not touch them).
-        self.silk_dec.s_stereo.pred_prev_q13 = [0; 2];
-        self.silk_dec.s_stereo.s_mid = [0; 2];
-        self.silk_dec.s_stereo.s_side = [0; 2];
+        // SilkDecoder super-header channel counts: the C relied on the caller's
+        // zeroed allocation. These are preserved across a mode switch, unlike
+        // s_stereo / prev_decode_only_middle, which silk_init_decoder now resets
+        // itself (RFC 8251 section 3).
         self.silk_dec.n_channels_api = 0;
         self.silk_dec.n_channels_internal = 0;
-        self.silk_dec.prev_decode_only_middle = 0;
 
         if silk_init_decoder(&mut self.silk_dec) != 0 {
             return OPUS_INTERNAL_ERROR;
