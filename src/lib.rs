@@ -9,14 +9,15 @@
 //! # Example
 //!
 //! ```no_run
-//! use opuscule::{Channels, Decoder, SampleRate};
+//! use opuscule::{Channels, Decoder, SampleRate, Val};
 //!
 //! # fn next_packet() -> Option<&'static [u8]> { None }
 //! // Opus always decodes at 48 kHz; pick the channel layout of your stream.
 //! let mut decoder = Decoder::new(SampleRate::Hz48000, Channels::Stereo);
 //!
-//! // Output holds up to 120 ms per channel at 48 kHz.
-//! let mut pcm = vec![0.0f32; 5760 * 2];
+//! // Output holds up to 120 ms per channel at 48 kHz. `Val` is the decoder's
+//! // sample type: f32 by default, or i16 in the fixed-point build.
+//! let mut pcm = vec![0 as Val; 5760 * 2];
 //!
 //! // Feed one Opus packet at a time from your container (Ogg, WebM, RTP, ...).
 //! while let Some(packet) = next_packet() {
