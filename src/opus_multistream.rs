@@ -15,7 +15,7 @@
 
 use crate::arch::*;
 use crate::error::Error;
-use crate::opus_decoder::{Decoder, opus_decode_native};
+use crate::opus_decoder::{Channels, Decoder, opus_decode_native};
 use crate::util::OrPanic;
 
 // -- Constants --
@@ -98,18 +98,24 @@ impl MsDecoder {
     /// feeds it (255 = silence). The caller must then create `streams`
     /// sub-decoders (see [`MsDecoder::stream_channels`]) to pass to
     /// [`decode`](MsDecoder::decode).
-    pub fn new(channels: i32, streams: i32, coupled_streams: i32, mapping: &[u8]) -> Result<MsDecoder, Error> {
-        if streams < 1 || coupled_streams > streams || coupled_streams < 0 || channels < 1 {
+    pub fn new(channels: usize, streams: usize, coupled_streams: usize, mapping: &[u8]) -> Result<MsDecoder, Error> {
+        // Counts are unsigned, so the C's `< 0` checks fall away. Opus caps
+        // channels and streams at 255, which also keeps the `as i32` casts and
+        // the `streams + coupled_streams` sum in `validate_layout` in range.
+        if !(1..=255).contains(&channels)
+            || !(1..=255).contains(&streams)
+            || coupled_streams > streams
+            || mapping.len() < channels
+        {
             return Err(Error::BadArg);
         }
-        let n = channels as usize;
         let mut layout = ChannelLayout {
-            nb_channels: channels,
-            nb_streams: streams,
-            nb_coupled_streams: coupled_streams,
+            nb_channels: channels as i32,
+            nb_streams: streams as i32,
+            nb_coupled_streams: coupled_streams as i32,
             mapping: [0u8; 256],
         };
-        layout.mapping.get_mut(..n).or_panic(n).copy_from_slice(mapping.get(..n).or_panic(n));
+        layout.mapping.get_mut(..channels).or_panic(channels).copy_from_slice(mapping.get(..channels).or_panic(channels));
         if !validate_layout(&layout) {
             return Err(Error::BadArg);
         }
@@ -121,11 +127,11 @@ impl MsDecoder {
         self.layout.nb_streams as usize
     }
 
-    /// Channel count for sub-decoder stream `s`: 2 for a coupled stream, else 1.
-    /// Use this to construct each sub-decoder, e.g.
-    /// `Decoder::new(fs, ms.stream_channels(s))`.
-    pub fn stream_channels(&self, s: usize) -> i32 {
-        if (s as i32) < self.layout.nb_coupled_streams { 2 } else { 1 }
+    /// Channel layout of sub-decoder stream `s`: [`Channels::Stereo`] for a
+    /// coupled stream, [`Channels::Mono`] otherwise. Feeds the sub-decoder
+    /// directly, e.g. `Decoder::new(rate, ms.stream_channels(s))`.
+    pub fn stream_channels(&self, s: usize) -> Channels {
+        if (s as i32) < self.layout.nb_coupled_streams { Channels::Stereo } else { Channels::Mono }
     }
 
     /// Decode one multistream packet (`None` = packet loss) into `pcm`
@@ -283,8 +289,8 @@ mod tests {
         // 3 channels: 1 coupled stream (2 ch) + 1 mono stream.
         let ms = MsDecoder::new(3, 2, 1, &[0, 1, 2]).unwrap();
         assert_eq!(ms.nb_streams(), 2);
-        assert_eq!(ms.stream_channels(0), 2); // coupled
-        assert_eq!(ms.stream_channels(1), 1); // mono
+        assert_eq!(ms.stream_channels(0), Channels::Stereo); // coupled
+        assert_eq!(ms.stream_channels(1), Channels::Mono); // mono
     }
 
     #[test]
@@ -293,7 +299,7 @@ mod tests {
         // a PLC frame must come out byte-identical to a plain stereo decoder's
         // PLC frame (no encoder needed to produce a packet).
         let mut ms = MsDecoder::new(2, 1, 1, &[0, 1]).unwrap();
-        let mut decoders = [Decoder::new(SampleRate::Hz48000, Channels::from_count(ms.stream_channels(0) as usize).unwrap())];
+        let mut decoders = [Decoder::new(SampleRate::Hz48000, ms.stream_channels(0))];
         let mut plain = Decoder::new(SampleRate::Hz48000, Channels::Stereo);
 
         let mut ms_pcm = [0 as Val; 960 * 2];
