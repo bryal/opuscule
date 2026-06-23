@@ -1,33 +1,15 @@
 //! Opuscule: a pure-Rust, memory-safe, `no_std`-capable Opus audio decoder.
 //!
-//! It decodes [Opus](https://opus-codec.org/) (RFC 6716) - SILK, CELT, and
-//! hybrid, mono or stereo - translated function by function from the libopus
-//! reference and verified bit-exact against the RFC test vectors. The crate is
-//! `#![forbid(unsafe_code)]` and allocates nothing on the decode path. It is a
-//! decoder only; there is no encoder.
+//! > **Disclaimer: nearly vibe-coded.** Most of this code was produced by an AI
+//! > agent translating the C reference. I, the human author, don't understand
+//! > much of the signal-processing internals. Correctness rests on bit-exact
+//! > verification against the reference vectors, not on line-by-line human review.
 //!
-//! # Example
-//!
-//! ```no_run
-//! use opuscule::{Channels, Decoder, SampleRate, Val};
-//!
-//! # fn next_packet() -> Option<&'static [u8]> { None }
-//! // Opus always decodes at 48 kHz; pick the channel layout of your stream.
-//! let mut decoder = Decoder::new(SampleRate::Hz48000, Channels::Stereo);
-//!
-//! // Output holds up to 120 ms per channel at 48 kHz. `Val` is the decoder's
-//! // sample type: f32 by default, or i16 in the fixed-point build.
-//! let mut pcm = vec![0 as Val; 5760 * 2];
-//!
-//! // Feed one Opus packet at a time from your container (Ogg, WebM, RTP, ...).
-//! while let Some(packet) = next_packet() {
-//!     let samples = decoder.decode(Some(packet), &mut pcm, false)?;
-//!     // `pcm[..samples * 2]` now holds interleaved stereo samples.
-//! }
-//! # Ok::<(), opuscule::Error>(())
-//! ```
-//!
-//! See `examples/play.rs` for a complete Ogg Opus file player.
+//! It decodes [Opus](https://opus-codec.org/) - SILK, CELT, and hybrid modes,
+//! mono, stereo, and surround - as a function-by-function translation of the
+//! libopus reference decoder (RFC 6716 with the RFC 8251 updates), verified
+//! bit-exact against the reference test vectors. The crate is
+//! `#![forbid(unsafe_code)]` and allocates nothing on the decode path.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(const_trait_impl, const_array)]
