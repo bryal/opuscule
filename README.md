@@ -2,10 +2,16 @@
 
 A pure-Rust, memory-safe, `no_std`-capable **Opus audio decoder**.
 
-Opuscule decodes [Opus](https://opus-codec.org/) (RFC 6716) - the SILK, CELT,
-and hybrid modes, mono or stereo, at the standard sample rates. It was
-translated function by function from the libopus reference decoder and verified
-bit-exact against the RFC test vectors at every step.
+> **Disclaimer: nearly vibe-coded.** Most of this code was produced by an AI agent
+> translating the C reference. I, the human author, don't understand much of the
+> signal-processing internals. Correctness rests on bit-exact verification
+> against the reference vectors, not on line-by-line human review.
+
+Opuscule decodes [Opus](https://opus-codec.org/) - the SILK, CELT, and hybrid
+modes, mono, stereo, and surround. It is a function-by-function translation of
+the libopus reference decoder (RFC 6716 with the RFC 8251 updates), verified
+bit-exact against the reference test vectors at every step. See [Scope](#scope)
+for exactly what is and isn't implemented.
 
 ## Highlights
 
@@ -13,17 +19,32 @@ bit-exact against the RFC test vectors at every step.
 - **No allocation.** The decode path allocates nothing on the heap; you supply
   the output buffer.
 - **`no_std`.** Runs without the standard library (see the feature matrix below).
-- **Bit-exact.** Matches the libopus reference on the RFC 6716 vectors in both
-  the floating-point and fixed-point builds.
+- **Bit-exact.** Matches the reference on the RFC 8251 test vectors in both the
+  floating-point and fixed-point builds.
 
 ## Status
 
 v0.1: a complete, working decoder - it plays real-world Ogg Opus files start to
 finish. **Requires a nightly toolchain** (the crate uses the unstable
-`const_trait_impl` and `const_array` features); a stable build is a goal for a
-later release.
+`const_trait_impl` and `const_array` features); stable Rust is not yet supported.
 
-It is a **decoder only** - there is no Opus encoder here.
+## Scope
+
+Implements the **Opus decoder** of RFC 6716 with the RFC 8251 corrections applied:
+
+- SILK, CELT, and hybrid modes; all bandwidths (narrowband through fullband).
+- Mono, stereo, and multistream/surround (via `MsDecoder`).
+- Packet loss concealment (PLC) and in-band forward error correction (FEC).
+- All RFC 8251 fixes, including hybrid folding (§9) and the mono-downmix
+  phase-inversion option (§10).
+
+Not included:
+
+- **No encoder** - decoding only.
+- **No container parsing** - you feed it raw Opus packets and demux Ogg / WebM /
+  RTP yourself (the `play` example uses the `ogg` crate for this).
+- **No non-RFC libopus extensions** - the 24-bit / 96 kHz work ("QEXT") and the
+  neural tools (DRED, Deep PLC, OSCE) are out of scope.
 
 ## Usage
 
