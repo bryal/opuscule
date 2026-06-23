@@ -8,7 +8,7 @@
 #![allow(clippy::excessive_precision)]
 
 use crate::arch::Val;
-use crate::kiss_fft::KissTwiddleCpx;
+use crate::kiss_fft::{KissTwiddleCpx, twiddles_from_arrays};
 
 pub static WINDOW120: [Val; 120] = [
     6.7286966e-05, 0.00060551348, 0.0016815970, 0.0032947962, 0.0054439943, 0.0081276923, 0.011344001, 0.015090633,
@@ -63,7 +63,7 @@ pub static CACHE_CAPS50: [u8; 168] = [
     204, 204, 204, 204, 204, 201, 201, 201, 201, 198, 198, 198, 187, 187, 175, 140, 66, 40,
 ];
 
-pub static FFT_TWIDDLES48000_960: [KissTwiddleCpx; 480] = [
+pub static FFT_TWIDDLES48000_960: [KissTwiddleCpx; 480] = twiddles_from_arrays([
     [1.0000000, -0.0000000],
     [0.99991433, -0.013089596],
     [0.99965732, -0.026176948],
@@ -544,8 +544,7 @@ pub static FFT_TWIDDLES48000_960: [KissTwiddleCpx; 480] = [
     [0.99922904, 0.039259816],
     [0.99965732, 0.026176948],
     [0.99991433, 0.013089596],
-]
-.map(KissTwiddleCpx::from_array);
+]);
 
 pub static FFT_BITREV480: [i16; 480] = [
     0, 120, 240, 360, 30, 150, 270, 390, 60, 180, 300, 420, 90, 210, 330, 450, 15, 135, 255, 375, 45, 165, 285, 405, 75, 195,

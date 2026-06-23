@@ -12,7 +12,6 @@
 //! `#![forbid(unsafe_code)]` and allocates nothing on the decode path.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![feature(const_trait_impl, const_array)]
 // The decoder is implemented entirely in safe Rust. `forbid` (not `deny`)
 // makes reintroducing `unsafe` a hard error that cannot be locally
 // overridden; relax to `deny` if a vetted unsafe block ever earns its place.

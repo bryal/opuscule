@@ -42,6 +42,21 @@ impl KissTwiddleCpx {
     }
 }
 
+/// Build a twiddle table from `[r, i]` literal pairs at compile time.
+///
+/// This is just `arrays.map(KissTwiddleCpx::from_array)`, but `array::map`
+/// isn't const-stable, so the static twiddle tables fill the array with an
+/// explicit loop instead - which keeps the crate buildable on stable Rust.
+pub const fn twiddles_from_arrays<const N: usize>(arrays: [[Val; 2]; N]) -> [KissTwiddleCpx; N] {
+    let mut out = [KissTwiddleCpx::from_array([0 as Val, 0 as Val]); N];
+    let mut i = 0;
+    while i < N {
+        out[i] = KissTwiddleCpx::from_array(arrays[i]);
+        i += 1;
+    }
+    out
+}
+
 pub const MAXFACTORS: usize = 8;
 
 /// FFT state struct. Matches C's kiss_fft_state in kiss_fft.h.

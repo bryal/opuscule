@@ -1,5 +1,5 @@
 use crate::arch::Val;
-use crate::kiss_fft::KissTwiddleCpx;
+use crate::kiss_fft::{KissTwiddleCpx, twiddles_from_arrays};
 
 pub static WINDOW120: [Val; 120] = [
     2, 20, 55, 108, 178, 266, 372, 494, 635, 792, 966, 1157, 1365, 1590, 1831, 2089, 2362, 2651, 2956, 3276, 3611, 3961, 4325,
@@ -48,7 +48,7 @@ pub static CACHE_CAPS50: [u8; 168] = [
     204, 204, 204, 204, 204, 201, 201, 201, 201, 198, 198, 198, 187, 187, 175, 140, 66, 40,
 ];
 
-pub static FFT_TWIDDLES48000_960: [KissTwiddleCpx; 480] = [
+pub static FFT_TWIDDLES48000_960: [KissTwiddleCpx; 480] = twiddles_from_arrays([
     [32767, 0],
     [32766, -429],
     [32757, -858],
@@ -529,8 +529,7 @@ pub static FFT_TWIDDLES48000_960: [KissTwiddleCpx; 480] = [
     [32742, 1287],
     [32757, 860],
     [32766, 430],
-]
-.map(KissTwiddleCpx::from_array);
+]);
 
 pub static FFT_BITREV480: [i16; 480] = [
     0, 120, 240, 360, 30, 150, 270, 390, 60, 180, 300, 420, 90, 210, 330, 450, 15, 135, 255, 375, 45, 165, 285, 405, 75, 195,

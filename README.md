@@ -24,9 +24,8 @@ for exactly what is and isn't implemented.
 
 ## Status
 
-v0.1: a complete, working decoder - it plays real-world Ogg Opus files start to
-finish. **Requires a nightly toolchain** (the crate uses the unstable
-`const_trait_impl` and `const_array` features); stable Rust is not yet supported.
+A complete, working decoder - it plays real-world Ogg Opus files start to
+finish, and builds on stable Rust.
 
 ## Scope
 
