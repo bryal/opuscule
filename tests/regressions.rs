@@ -95,3 +95,20 @@ fn multistream_validates_packet_before_decoding() {
     // The sub-decoder is untouched, so a valid packet still decodes normally.
     assert_eq!(ms.decode(&mut decoders, Some(CELT_FB_STEREO_FRAME), &mut pcm, false), Ok(960));
 }
+
+/// The CELT PLC has two branches: pitch-based for the first few lost frames,
+/// then noise/CNG once `loss_count` reaches 5. Drive enough consecutive losses
+/// to exercise the noise branch - the standard vectors never lose a packet, and
+/// the shorter PLC test above only reaches the pitch branch.
+#[test]
+fn celt_plc_reaches_noise_branch() {
+    let mut dec = Decoder::new(SampleRate::Hz48000, Channels::Stereo);
+    let mut pcm = vec![0 as Val; 960 * 2];
+    // Prime with a real CELT frame so the PLC has prior state.
+    assert_eq!(dec.decode(Some(CELT_FB_STEREO_FRAME), &mut pcm, false), Ok(960));
+    // Conceal eight 20 ms frames; by the sixth, loss_count >= 5 flips the PLC
+    // from pitch-based to noise/CNG. Each call must fill the buffer and not panic.
+    for _ in 0..8 {
+        assert_eq!(dec.decode(None, &mut pcm, false), Ok(960));
+    }
+}

@@ -261,8 +261,9 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
             let decay: Val = if st.loss_count == 0 { qconst16(1.5, DB_SHIFT) } else { qconst16(0.5, DB_SHIFT) };
             let mut c = 0;
             loop {
-                for i in st.start..st.end {
-                    st.old_band_e[(c * mode.nb_ebands + i) as usize] -= decay;
+                let base = (c * mode.nb_ebands) as usize;
+                for e in &mut st.old_band_e[base + st.start as usize..base + st.end as usize] {
+                    *e -= decay;
                 }
                 c += 1;
                 if c >= cc {
@@ -273,9 +274,8 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
         }
         seed = st.rng;
         for c in 0..cc {
-            for i in 0..(mode.ebands[st.start as usize] as i32) << lm {
-                x[(c * n + i) as usize] = 0 as CeltNorm;
-            }
+            let cbase = (c * n) as usize;
+            x[cbase..cbase + (((mode.ebands[st.start as usize] as i32) << lm) as usize)].fill(0 as CeltNorm);
             for i in st.start..mode.eff_ebands {
                 let boffs = (n * c + ((mode.ebands[i as usize] as i32) << lm)) as usize;
                 let blen = ((mode.ebands[i as usize + 1] - mode.ebands[i as usize]) as i32) << lm;
@@ -285,9 +285,7 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
                 }
                 renormalise_vector(&mut x[boffs..boffs + blen as usize], Q15ONE);
             }
-            for i in ((mode.ebands[st.end as usize] as i32) << lm)..n {
-                x[(c * n + i) as usize] = 0 as CeltNorm;
-            }
+            x[cbase + (((mode.ebands[st.end as usize] as i32) << lm) as usize)..cbase + n as usize].fill(0 as CeltNorm);
         }
         st.rng = seed;
 
@@ -295,9 +293,8 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
 
         let mut c = 0;
         loop {
-            for i in 0..((mode.ebands[st.start as usize] as i32) << lm) {
-                freq[(c * n + i) as usize] = 0 as CeltSig;
-            }
+            let cbase = (c * n) as usize;
+            freq[cbase..cbase + (((mode.ebands[st.start as usize] as i32) << lm) as usize)].fill(0 as CeltSig);
             c += 1;
             if c >= cc {
                 break;
@@ -309,9 +306,8 @@ pub fn celt_decode_lost(st: &mut CELTDecoder, pcm: &mut [Val], n: i32, lm: i32) 
             if st.downsample != 1 {
                 bound = bound.min(n / st.downsample);
             }
-            for i in bound..n {
-                freq[(c * n + i) as usize] = 0 as CeltSig;
-            }
+            let cbase = (c * n) as usize;
+            freq[cbase + bound as usize..cbase + n as usize].fill(0 as CeltSig);
             c += 1;
             if c >= cc {
                 break;
