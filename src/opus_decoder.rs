@@ -345,9 +345,8 @@ fn opus_decode_frame(
                 *v = 0 as Val;
             }
             return audiosize;
-        } else {
-            mode = st.prev_mode;
         }
+        mode = st.prev_mode;
         // PLC: bandwidth 0 means "leave the CELT end band as the previous
         // packet set it" (RFC 8251 fix 92ffce62) - so a transition PLC keeps
         // the previous CELT packet's bandwidth instead of the new one's.
@@ -377,9 +376,8 @@ fn opus_decode_frame(
 
     if audiosize > frame_size {
         return OPUS_BAD_ARG;
-    } else {
-        frame_size = audiosize;
     }
+    frame_size = audiosize;
 
     let mut pcm_silk_buf = [0i16; MAX_FRAME_DEC * MAX_CHANNELS];
     let ns = (f10.max(frame_size) * channels) as usize;
@@ -458,7 +456,7 @@ fn opus_decode_frame(
     if decode_fec == 0
         && mode != MODE_CELT_ONLY
         && data.is_some()
-        && ec_tell(&dec) + 17 + 20 * (if st.mode == MODE_HYBRID { 1 } else { 0 }) <= 8 * len
+        && ec_tell(&dec) + 17 + (if st.mode == MODE_HYBRID { 20 } else { 0 }) <= 8 * len
     {
         // Check if we have a redundant 0-8 kHz band
         if mode == MODE_HYBRID {
