@@ -1243,6 +1243,21 @@ pub fn comb_filter(
     window: &[Val],
     overlap: i32,
 ) {
+    // No gain on either tap means every tap contributes nothing, so each output sample is just its
+    // own input and there is nothing to compute. RFC 6716's C runs the loops regardless; libopus
+    // later added this shortcut (`if (g0==0 && g1==0)`). It is worth having because an encoder leaves
+    // the postfilter off for a great deal of music: profiling a player decoding an opusenc'd library
+    // found this the single largest leaf in the whole decoder, most of it multiplying by zero.
+    //
+    // In place (`y: None`) that makes it a plain return. Given a separate output the samples still
+    // have to arrive there, which is the copy libopus does with `OPUS_MOVE`.
+    if g0 == 0 as Val && g1 == 0 as Val {
+        if let Some(out) = y {
+            out[..n as usize].copy_from_slice(&x[x_off..x_off + n as usize]);
+        }
+        return;
+    }
+
     #[cfg(not(feature = "fixed-point"))]
     #[allow(clippy::excessive_precision)] // canonical tapset gains, kept verbatim
     let gains: [[Val; 3]; 3] =
