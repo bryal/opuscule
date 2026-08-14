@@ -20,6 +20,10 @@ exclude = [
     "tests/quality_baseline.txt",
 ]
 
+[[bench]]
+name = "decode"
+harness = false
+
 [[bin]]
 name = "opus_compare"
 
@@ -69,6 +73,8 @@ libm = { version = "0.2", optional = true }
 # `arch::FloatMath` as unused. Real *library* no_std builds don't pull
 # dev-dependencies, so they stay genuinely no_std.
 opuscule = { path = ".", features = ["std"] }
+# For `benches/decode.rs`, which times decoding the reference vectors.
+criterion = "0.8"
 # For the `play` example only (OGG demux + audio output). Dev-dependencies
 # never reach library consumers. rodio defaults pull in format decoders we
 # don't need (we feed it raw PCM), so take just the playback path.
