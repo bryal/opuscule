@@ -1,5 +1,13 @@
 # Changelog
 
+v0.2.1 (2026-08-15)
+------------------------------------------------------------
+
+Performance optimization.
+CELT function `comb_filter` now exits early if there's no gain on either tap.
+RFC 6716's C runs the loops regardless, but `libopus` added this shortcut later.
+It is worth having because an encoder leaves the postfilter off for a great deal of music:
+profiling a player decoding `opusenc`'d songs found this to be the single largest leaf in the whole decoder.
 
 v0.2.0 (2026-07-20)
 ------------------------------------------------------------
